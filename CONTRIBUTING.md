@@ -1,11 +1,11 @@
-# 🤝 Contributing to CareNest
+ Contributing to CareNest
 
-Chào mừng bạn đến với dự án **CareNest** 💙
+Chào mừng bạn đến với dự án **CareNest** 
 Tài liệu này hướng dẫn cách clone project, setup môi trường và quy trình làm việc với Git.
 
 ---
 
-# 🚀 1. Clone project
+#  1. Clone project
 
 ```bash
 git clone https://github.com/NgocXuyen-ai/carenest-webdev2026.git
@@ -14,9 +14,9 @@ cd carenest-webdev2026
 
 ---
 
-# 🛠️ 2. Setup môi trường
+# 2. Setup môi trường
 
-## 📌 Yêu cầu
+## Yêu cầu
 
 * Java 21
 * Node.js (>= 18)
@@ -25,7 +25,7 @@ cd carenest-webdev2026
 
 ---
 
-# 🗄️ 2.1 Setup PostgreSQL
+#  2.1 Setup PostgreSQL
 
 ## Tạo database:
 
@@ -64,7 +64,7 @@ cd backend
 mvnw.cmd spring-boot:run
 ```
 
-👉 Backend chạy tại:
+ Backend chạy tại:
 
 ```text
 http://localhost:8080
@@ -72,7 +72,7 @@ http://localhost:8080
 
 ---
 
-# 🤖 2.3 Chạy AI Service
+#  2.3 Chạy AI Service
 
 ```bash
 cd ai-service
@@ -82,7 +82,7 @@ pip install -r requirements.txt
 uvicorn main:app --reload
 ```
 
-👉 AI chạy tại:
+ AI chạy tại:
 
 ```text
 http://localhost:8000
@@ -90,7 +90,7 @@ http://localhost:8000
 
 ---
 
-# 📱 2.4 Chạy Frontend (React Native - Expo)
+#  2.4 Chạy Frontend (React Native - Expo)
 
 ```bash
 cd frontend/app
@@ -98,7 +98,7 @@ npm install
 npm start
 ```
 
-👉 Dùng app Expo Go để scan QR
+ Dùng app Expo Go để scan QR
 
 ---
 
@@ -107,7 +107,7 @@ npm start
 * Điện thoại và máy tính phải cùng WiFi
 * KHÔNG dùng `localhost` trên mobile
 
-👉 Ví dụ:
+ Ví dụ:
 
 ```js
 const API_URL = "http://192.168.x.x:8080";
@@ -115,7 +115,7 @@ const API_URL = "http://192.168.x.x:8080";
 
 ---
 
-# 🌿 3. Quy trình Git
+#  3. Quy trình Git
 
 ## 🔹 1. Luôn pull code mới nhất
 
@@ -141,7 +141,7 @@ git checkout -b feature/health-profile
 
 ---
 
-## 🔹 3. Commit code
+##  3. Commit code
 
 ```bash
 git add .
@@ -150,7 +150,7 @@ git commit -m "feat: add login api"
 
 ---
 
-## 🔹 4. Push branch
+## 4. Push branch
 
 ```bash
 git push origin feature/ten-chuc-nang
@@ -158,14 +158,14 @@ git push origin feature/ten-chuc-nang
 
 ---
 
-## 🔹 5. Tạo Pull Request
+##  5. Tạo Pull Request
 
 * Vào GitHub
 * Tạo Pull Request vào `main`
 
 ---
 
-# 📌 Quy ước đặt tên
+#  Quy ước đặt tên
 
 | Loại     | Ví dụ            |
 | -------- | ---------------- |
@@ -176,7 +176,7 @@ git push origin feature/ten-chuc-nang
 
 ---
 
-# 🧪 4. Trước khi push
+# 4. Trước khi push
 
 * Backend chạy được (port 8080)
 * Kết nối PostgreSQL thành công
@@ -188,15 +188,15 @@ git push origin feature/ten-chuc-nang
 
 ---
 
-# 🚫 Không được làm
+# x Không được làm
 
-* ❌ Push trực tiếp vào `main`
-* ❌ Commit code chưa test
-* ❌ Hardcode password database
+*  Push trực tiếp vào `main`
+*  Commit code chưa test
+*  Hardcode password database
 
 ---
 
-# 🎯 Tổng kết
+#  Tổng kết
 
 1. Clone project
 2. Setup PostgreSQL
