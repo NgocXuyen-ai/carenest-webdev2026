@@ -8,7 +8,7 @@ import org.springframework.stereotype.Service;
 
 import com.carenest.backend.dto.RegisterRequest;
 import com.carenest.backend.model.User;
-import com.carenest.backend.repository.UserRepository;
+import com.carenest.backend.Repository.UserRepository;
 
 @Service
 public class UserService {
