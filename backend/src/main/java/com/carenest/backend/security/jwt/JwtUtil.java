@@ -47,4 +47,19 @@ public class JwtUtil {
 
         return expiration.before(new Date());
     }
+
+    //
+    public boolean isTokenValid(String token, String email) {
+        String extractedEmail = extractEmail(token);
+        return extractedEmail.equals(email) && !isTokenExpired(token);
+    }
+
+    // dùng chung
+    private Claims extractAllClaims(String token) {
+        return Jwts.parserBuilder()
+                .setSigningKey(getKey())
+                .build()
+                .parseClaimsJws(token)
+                .getBody();
+    }
 }

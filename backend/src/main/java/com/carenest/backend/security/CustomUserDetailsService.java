@@ -21,11 +21,7 @@ public class CustomUserDetailsService implements UserDetailsService {
     @Override
     public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
         com.carenest.backend.model.User myUser = userService.findUserByEmail(username);
-
-        if (myUser == null) {
-            throw new UsernameNotFoundException("User not found");
-        }
-
+        
         return new org.springframework.security.core.userdetails.User(
                 myUser.getEmail(),
                 myUser.getPasswordHash(),
