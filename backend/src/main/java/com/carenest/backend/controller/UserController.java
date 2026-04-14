@@ -2,13 +2,17 @@ package com.carenest.backend.controller;
 
 import org.springframework.web.bind.annotation.RestController;
 
+import com.carenest.backend.dto.ChangePasswordRequest;
+import com.carenest.backend.dto.ForgotPasswordRequest;
 import com.carenest.backend.dto.LoginRequest;
 import com.carenest.backend.dto.RegisterRequest;
+import com.carenest.backend.dto.ResetPasswordRequest;
 import com.carenest.backend.helper.ApiResponse;
 import com.carenest.backend.model.User;
 import com.carenest.backend.security.jwt.JwtUtil;
 import com.carenest.backend.service.UserService;
 
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 
 import java.util.HashMap;
@@ -20,10 +24,11 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.PutMapping;
+
 
 
 @RestController
@@ -45,17 +50,15 @@ public class UserController {
     }
 
     @PostMapping("/register")
-    public ResponseEntity<ApiResponse<User>> register(@Valid @RequestBody RegisterRequest request) {
-
+    public ResponseEntity<ApiResponse<User>> register(
+            @Valid @RequestBody RegisterRequest request) {
         User user = userService.register(request);
-
         return ApiResponse.created(user);
     }
     
     @PostMapping("/login")
-    public ResponseEntity<ApiResponse<Map<String, Object>>> login(@RequestBody LoginRequest request) {
+    public ResponseEntity<ApiResponse<Map<String, Object>>> login(@Valid @RequestBody LoginRequest request) {
         try {
-            // 1. Authenticate
             authenticationManager.authenticate(
                     new UsernamePasswordAuthenticationToken(
                             request.getEmail(),
@@ -63,41 +66,48 @@ public class UserController {
                     )
             );
 
-            // 2. Lấy user từ DB
             User user = userService.findUserByEmail(request.getEmail());
-
-            // 3. Tạo token
             String token = jwtUtil.generateToken(user.getEmail());
 
-            // 4. Build data trả về
             Map<String, Object> data = new HashMap<>();
             data.put("userId", user.getUserId());
             data.put("email", user.getEmail());
             data.put("token", token);
 
-            // 5. Return success theo ApiResponse
             return ApiResponse.success(data, "Đăng nhập thành công");
 
         } catch (BadCredentialsException e) {
             return ApiResponse.error(
                     HttpStatus.UNAUTHORIZED,
-                    "Sai email hoặc mật khẩu",
-                    "AUTH_001"
-            );
-        } catch (UsernameNotFoundException e) {
-            return ApiResponse.error(
-                    HttpStatus.NOT_FOUND,
-                    "User không tồn tại",
-                    "AUTH_002"
+                    "Sai email hoặc mật khẩu"
             );
         } catch (Exception e) {
             return ApiResponse.error(
                     HttpStatus.INTERNAL_SERVER_ERROR,
-                    "Lỗi server",
-                    "SYS_500"
+                    "Lỗi server"
             );
         }
     }
     
-    
+    @PostMapping("/forgot-password")
+    public ResponseEntity<ApiResponse<String>> forgotPassword(
+            @Valid @RequestBody ForgotPasswordRequest request) {
+        userService.sendForgotPasswordOtp(request);
+        return ApiResponse.success("Đã gửi mã OTP về email");
+    }
+
+    @PostMapping("/reset-password")
+    public ResponseEntity<ApiResponse<ResetPasswordRequest>> resetPassword(
+            @Valid @RequestBody ResetPasswordRequest request) {
+        this.userService.resetPassword(request);
+        return ApiResponse.success(request);
+    }
+
+    @PutMapping("/change-password")
+    public ResponseEntity<ApiResponse<String>> changePassword(
+            HttpServletRequest request,
+            @Valid @RequestBody ChangePasswordRequest changePasswordRequest) {
+        userService.changePassword(request, changePasswordRequest);
+        return ApiResponse.success("Đổi mật khẩu thành công");
+    }
 }
