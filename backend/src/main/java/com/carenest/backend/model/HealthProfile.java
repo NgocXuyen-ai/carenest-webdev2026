@@ -1,12 +1,8 @@
 package com.carenest.backend.model;
 
 import jakarta.persistence.*;
-import jakarta.validation.constraints.DecimalMin;
-import jakarta.validation.constraints.Digits;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Past;
-import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -16,6 +12,9 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
+
+import com.carenest.backend.model.enums.BloodType;
+import com.carenest.backend.model.enums.Gender;
 
 @Entity
 @Table(name = "health_profile")
@@ -34,22 +33,20 @@ public class HealthProfile {
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
-    @NotBlank(message = "Họ tên không được để trống")
-    @Size(max = 255, message = "Họ tên tối đa 255 ký tự")
+    @NotBlank(message = "Tên không được để trống")
     @Column(name = "full_name", length = 255)
     private String fullName;
 
-    @Past(message = "Ngày sinh phải là ngày trong quá khứ")
     @Column(name = "birthday")
     private LocalDate birthday;
 
-    @Size(max = 50, message = "Giới tính tối đa 50 ký tự")
-    @Column(name = "gender", length = 50)
-    private String gender;
-
-    @Size(max = 10, message = "Nhóm máu tối đa 10 ký tự")
-    @Column(name = "blood_type", length = 10)
-    private String bloodType;
+    @Enumerated(EnumType.STRING)
+    @Column(name = "gender")
+    private Gender gender;
+    
+    @Enumerated(EnumType.STRING)
+    @Column(name = "blood_type")
+    private BloodType bloodType;
 
     @Column(name = "medical_history", columnDefinition = "TEXT")
     private String medicalHistory;
@@ -57,17 +54,16 @@ public class HealthProfile {
     @Column(name = "allergy", columnDefinition = "TEXT")
     private String allergy;
 
-    @DecimalMin(value = "0.0", inclusive = false, message = "Chiều cao phải lớn hơn 0")
-    @Digits(integer = 5, fraction = 2, message = "Chiều cao không hợp lệ")
     @Column(name = "height")
     private BigDecimal height;
 
-    @DecimalMin(value = "0.0", inclusive = false, message = "Cân nặng phải lớn hơn 0")
-    @Digits(integer = 5, fraction = 2, message = "Cân nặng không hợp lệ")
     @Column(name = "weight")
     private BigDecimal weight;
 
-    @OneToOne(mappedBy = "profile")
+    @Column(name = "emergency_contact_phone")
+    private String emergencyContactPhone;
+
+    @OneToOne(mappedBy = "profile", cascade = CascadeType.ALL, orphanRemoval = true)
     private FamilyRelationship familyRelationship;
 
     @OneToMany(mappedBy = "profile")

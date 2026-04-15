@@ -1,7 +1,6 @@
 package com.carenest.backend.model;
 
 import jakarta.persistence.*;
-import jakarta.validation.constraints.FutureOrPresent;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
@@ -11,6 +10,8 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.time.LocalDateTime;
+
+import com.carenest.backend.model.enums.AppointmentStatus;
 
 @Entity
 @Table(name = "appointment")
@@ -40,7 +41,6 @@ public class Appointment {
     private String doctorName;
 
     @NotNull(message = "Ngày hẹn không được để trống")
-    @FutureOrPresent(message = "Ngày hẹn phải là hiện tại hoặc tương lai")
     @Column(name = "appointment_date")
     private LocalDateTime appointmentDate;
 
@@ -51,8 +51,8 @@ public class Appointment {
     @Column(name = "note", columnDefinition = "TEXT")
     private String note;
 
-    @NotBlank(message = "Status không được để trống")
-    @Size(max = 50, message = "Status tối đa 50 ký tự")
-    @Column(name = "status", length = 50)
-    private String status;
+    @NotNull(message = "Status không được để trống")
+    @Enumerated(EnumType.STRING)
+    @Column(name = "status")
+    private AppointmentStatus status;
 }

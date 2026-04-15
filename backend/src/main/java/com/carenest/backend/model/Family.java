@@ -14,7 +14,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 @Entity
-@Table(name = "families")
+@Table(name = "family")
 @Setter
 @Getter
 @NoArgsConstructor
@@ -32,7 +32,7 @@ public class Family {
 
     @NotNull(message = "Owner không được để trống")
     @OneToOne
-    @JoinColumn(name = "owner", nullable = false, unique = true)
+    @JoinColumn(name = "owner", nullable = false)
     private User owner;
 
     @Column(name = "created_at")

@@ -3,6 +3,8 @@ package com.carenest.backend.model;
 import java.util.ArrayList;
 import java.util.List;
 
+import com.carenest.backend.model.enums.OcrSessionStatus;
+
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
@@ -45,9 +47,9 @@ public class OcrSession {
     @Column(name = "prompt_request", columnDefinition = "TEXT")
     private String promptRequest;
 
-    @Size(max = 255, message = "Status tối đa 255 ký tự")
-    @Column(name = "status", length = 255)
-    private String status;
+    @Enumerated(EnumType.STRING)
+    @Column(name = "status")
+    private OcrSessionStatus status;
 
     @OneToMany(mappedBy = "ocrSession")
     private List<AiChatDetail> chatDetails = new ArrayList<>();

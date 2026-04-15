@@ -13,6 +13,8 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
+import com.carenest.backend.model.enums.ConversationStatus;
+
 @Entity
 @Table(name = "ai_conversation")
 @Setter
@@ -35,10 +37,10 @@ public class AiConversation {
     @Column(name = "title", length = 255)
     private String title;
 
-    @NotBlank(message = "Status không được để trống")
-    @Size(max = 50, message = "Status tối đa 50 ký tự")
-    @Column(name = "status", length = 50)
-    private String status;
+    @NotNull(message = "Status không được để trống")
+    @Enumerated(EnumType.STRING)
+    @Column(name = "status")
+    private ConversationStatus status;
 
     @Column(name = "created_at")
     private LocalDateTime createdAt;

@@ -90,17 +90,17 @@ public class AuthController {
     }
     
     @PostMapping("/forgot-password")
-    public ResponseEntity<ApiResponse<String>> forgotPassword(
+    public ResponseEntity<ApiResponse<ForgotPasswordRequest>> forgotPassword(
             @Valid @RequestBody ForgotPasswordRequest request) {
                 authService.sendForgotPasswordOtp(request);
-        return ApiResponse.success("Đã gửi mã OTP về email");
+        return ApiResponse.success(request, "Đã gửi mã OTP về email");
     }
 
     @PostMapping("/reset-password")
     public ResponseEntity<ApiResponse<ResetPasswordRequest>> resetPassword(
             @Valid @RequestBody ResetPasswordRequest request) {
         this.authService.resetPassword(request);
-        return ApiResponse.success(request);
+        return ApiResponse.success(request, "Đổi mật khẩu thành công");
     }
 
     @PostMapping("/logout")
