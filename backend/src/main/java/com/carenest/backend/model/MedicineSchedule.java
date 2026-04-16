@@ -4,7 +4,6 @@ import jakarta.persistence.*;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.PastOrPresent;
 import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -56,7 +55,6 @@ public class MedicineSchedule {
     @Column(name = "is_taken")
     private Boolean isTaken = false;
 
-    @PastOrPresent(message = "Ngày bắt đầu không hợp lệ")
     @Column(name = "start_date")
     private LocalDate startDate;
 

@@ -1,15 +1,16 @@
 package com.carenest.backend.model;
 
 import jakarta.persistence.*;
-import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.time.LocalDateTime;
+
+import com.carenest.backend.model.enums.ChatMessageType;
+import com.carenest.backend.model.enums.ChatSender;
 
 @Entity
 @Table(name = "ai_chat_detail")
@@ -36,15 +37,15 @@ public class AiChatDetail {
     @JoinColumn(name = "ocr_id")
     private OcrSession ocrSession;
 
-    @NotBlank(message = "Sender không được để trống")
-    @Size(max = 255, message = "Sender tối đa 255 ký tự")
-    @Column(name = "sender", length = 255)
-    private String sender;
+    @NotNull(message = "Sender không được để trống")
+    @Enumerated(EnumType.STRING)
+    @Column(name = "sender")
+    private ChatSender sender;
 
-    @NotBlank(message = "MessageType không được để trống")
-    @Size(max = 255, message = "MessageType tối đa 255 ký tự")
-    @Column(name = "message_type", length = 255)
-    private String messageType;
+    @NotNull(message = "MessageType không được để trống")
+    @Enumerated(EnumType.STRING)
+    @Column(name = "message_type")
+    private ChatMessageType messageType;
 
     @Column(name = "content", columnDefinition = "TEXT")
     private String content;

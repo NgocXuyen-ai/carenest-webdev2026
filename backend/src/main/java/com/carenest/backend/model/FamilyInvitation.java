@@ -1,15 +1,15 @@
 package com.carenest.backend.model;
 
 import jakarta.persistence.*;
-import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.time.LocalDateTime;
+
+import com.carenest.backend.model.enums.InvitationStatus;
 
 @Entity
 @Table(name = "family_invitation")
@@ -33,11 +33,16 @@ public class FamilyInvitation {
     @JoinColumn(name = "family_id", nullable = false)
     private Family family;
 
-    @NotBlank(message = "Status không được để trống")
-    @Size(max = 50, message = "Status tối đa 50 ký tự")
-    @Column(name = "status", length = 50)
-    private String status;
+    @NotNull
+    @Enumerated(EnumType.STRING)
+    @Column(name = "status")
+    private InvitationStatus status;
 
     @Column(name = "created_at")
     private LocalDateTime createdAt;
+
+    @NotNull(message = "Sender không được để trống")
+    @ManyToOne
+    @JoinColumn(name = "sender_id", nullable = false)
+    private User sender;
 }

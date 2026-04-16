@@ -1,15 +1,15 @@
 package com.carenest.backend.model;
 
 import jakarta.persistence.*;
-import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.time.LocalDate;
+
+import com.carenest.backend.model.enums.FamilyRole;
 
 @Entity
 @Table(name = "family_relationship")
@@ -33,10 +33,10 @@ public class FamilyRelationship {
     @JoinColumn(name = "family_id", nullable = false)
     private Family family;
 
-    @NotBlank(message = "Role không được để trống")
-    @Size(max = 100, message = "Role tối đa 100 ký tự")
-    @Column(name = "role", length = 100)
-    private String role;
+    @NotNull(message = "Role không được để trống")
+    @Enumerated(EnumType.STRING)
+    @Column(name = "role")
+    private FamilyRole role;
 
     @Column(name = "join_at")
     private LocalDate joinAt;

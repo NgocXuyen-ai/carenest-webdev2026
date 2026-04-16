@@ -3,8 +3,7 @@ package com.carenest.backend.model;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Min;
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.Size;
+import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -14,6 +13,10 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+
+import com.carenest.backend.model.enums.AiFeatureType;
+import com.carenest.backend.model.enums.AiProvider;
+import com.carenest.backend.model.enums.AiRequestStatus;
 
 @Entity
 @Table(name = "ai_request_log")
@@ -27,10 +30,10 @@ public class AiRequestLog {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Integer requestId;
 
-    @NotBlank(message = "FeatureType không được để trống")
-    @Size(max = 255, message = "FeatureType tối đa 255 ký tự")
+    @NotNull(message = "FeatureType không được để trống")
+    @Enumerated(EnumType.STRING)
     @Column(name = "feature_type", length = 255)
-    private String featureType;
+    private AiFeatureType featureType;
 
     @Column(name = "input_prompt", columnDefinition = "TEXT")
     private String inputPrompt;
@@ -38,9 +41,9 @@ public class AiRequestLog {
     @Column(name = "output_raw", columnDefinition = "TEXT")
     private String outputRaw;
 
-    @Size(max = 255, message = "Status tối đa 255 ký tự")
+    @Enumerated(EnumType.STRING)
     @Column(name = "status", length = 255)
-    private String status;
+    private AiRequestStatus status;
 
     @Column(name = "error_message", columnDefinition = "TEXT")
     private String errorMessage;
@@ -53,9 +56,9 @@ public class AiRequestLog {
     @Column(name = "execution_time")
     private BigDecimal executionTime;
 
-    @Size(max = 255, message = "Provider tối đa 255 ký tự")
+    @Enumerated(EnumType.STRING)
     @Column(name = "provider", length = 255)
-    private String provider;
+    private AiProvider provider;
 
     @Column(name = "created_at")
     private LocalDateTime createdAt;

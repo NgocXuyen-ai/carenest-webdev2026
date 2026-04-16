@@ -11,6 +11,8 @@ import lombok.Setter;
 
 import java.time.LocalDateTime;
 
+import com.carenest.backend.model.enums.NotificationType;
+
 @Entity
 @Table(name = "notifications")
 @Setter
@@ -31,10 +33,10 @@ public class Notification {
     @Column(name = "reference_id")
     private Integer referenceId;
 
-    @NotBlank(message = "Type không được để trống")
-    @Size(max = 100, message = "Type tối đa 100 ký tự")
-    @Column(name = "type", length = 100)
-    private String type;
+    @NotNull(message = "Type không được để trống")
+    @Enumerated(EnumType.STRING)
+    @Column(name = "type")
+    private NotificationType type;
 
     @NotBlank(message = "Title không được để trống")
     @Size(max = 255, message = "Title tối đa 255 ký tự")

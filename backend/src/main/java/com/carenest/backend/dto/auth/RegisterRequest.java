@@ -19,10 +19,14 @@ public class RegisterRequest {
     )
     private String email;
 
-    @NotBlank(message = "Password không được để trống")
-    @Size(min = 6, message = "Password phải >= 6 ký tự")
+    @NotBlank(message = "Mật khẩu không được để trống")
+    @Size(min = 6, message = "Mật khẩu phải >= 6 ký tự")
     private String password;
 
     private String confirmPassword; 
+
+    @NotBlank(message = "Số điện thoại không được để trống")
+    @Size(min = 10, message = "Số điện thoại ở Việt Nam gồm 10 số")
+    private String phoneNumber;
 
 }

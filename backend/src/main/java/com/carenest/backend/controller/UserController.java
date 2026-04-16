@@ -13,7 +13,7 @@ import jakarta.servlet.http.HttpServletRequest;
 
 @RestController
 public class UserController {
-private final UserService userService;
+    private final UserService userService;
 
     public UserController(UserService userService) {
         this.userService = userService;

@@ -13,7 +13,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 @Entity
-@Table(name = "users")
+@Table(name = "user")
 @Setter
 @Getter
 @NoArgsConstructor
@@ -31,6 +31,9 @@ public class User {
 
     @Column(name = "password_hash", length = 255)
     private String passwordHash;
+
+    @Column(name = "phone_number", length = 20)
+    private String phoneNumber;
 
     @Column(name = "created_at")
     private LocalDateTime createdAt;
