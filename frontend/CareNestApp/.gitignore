@@ -1,0 +1,27 @@
+# OS
+.DS_Store
+Thumbs.db
+
+# Android build artifacts
+android/.gradle/
+android/app/.cxx/
+android/app/build/
+android/build/
+
+# iOS (cho tương lai)
+ios/Pods/
+ios/build/
+
+# Metro bundler
+.metro-health-check*
+
+# Dependencies (đã có ở root nhưng thêm cho chắc)
+node_modules/
+
+# Env
+.env
+.env.*
+!.env.example
+
+# TypeScript
+*.tsbuildinfo
