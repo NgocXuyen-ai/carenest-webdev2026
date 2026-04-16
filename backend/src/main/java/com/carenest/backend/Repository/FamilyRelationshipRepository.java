@@ -8,9 +8,9 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import com.carenest.backend.model.FamilyRelationship;
 
 public interface FamilyRelationshipRepository extends JpaRepository<FamilyRelationship, Integer> {
-    Optional<FamilyRelationship> findByProfile_ProfileId(Integer profileId);
+    Optional<FamilyRelationship> findByProfile_Profile(Integer profileId);
 
     List<FamilyRelationship> findAllByFamily_FamilyId(Integer familyId);
-    boolean existsByProfile_ProfileIdAndFamily_FamilyId(Integer profileId, Integer familyId);
-    Optional<FamilyRelationship> findByProfile_ProfileIdAndFamily_FamilyId(Integer profileId, Integer familyId);
+    boolean existsByProfile_ProfileAndFamily_FamilyId(Integer profileId, Integer familyId);
+    Optional<FamilyRelationship> findByProfile_ProfileAndFamily_FamilyId(Integer profileId, Integer familyId);
 }

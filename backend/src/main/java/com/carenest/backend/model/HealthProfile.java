@@ -26,7 +26,7 @@ public class HealthProfile {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Integer profileId;
+    private Integer profile;
 
     @NotNull(message = "User không được để trống")
     @ManyToOne
@@ -59,6 +59,9 @@ public class HealthProfile {
 
     @Column(name = "weight")
     private BigDecimal weight;
+
+    @Column(name = "avatar_url", length = 500)
+    private String avatarUrl;
 
     @Column(name = "emergency_contact_phone")
     private String emergencyContactPhone;
