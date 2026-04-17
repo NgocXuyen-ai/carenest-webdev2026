@@ -9,5 +9,6 @@ import com.carenest.backend.model.User;
 
 public interface HealthProfileRepository extends JpaRepository<HealthProfile, Integer> {
     Optional<HealthProfile> findByUser_UserId(Integer userId);
+    Optional<HealthProfile> findById(Integer id);
     Optional<User> findByUser_Email(String email);
 }

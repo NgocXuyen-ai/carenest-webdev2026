@@ -6,6 +6,7 @@ import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import com.carenest.backend.model.FamilyInvitation;
+import com.carenest.backend.model.User;
 import com.carenest.backend.model.enums.InvitationStatus;
 
 public interface FamilyInvitationRepository extends JpaRepository<FamilyInvitation, Integer> {
@@ -22,7 +23,7 @@ public interface FamilyInvitationRepository extends JpaRepository<FamilyInvitati
 	);
 	Optional<FamilyInvitation> findByInviteId_AndReceiver(
 		Integer inviteId,
-		Integer receiver
+		User receiver
 	);	
 	boolean existsByReceiverAndFamily_FamilyIdAndStatus(
 		Integer receiver,
@@ -31,11 +32,12 @@ public interface FamilyInvitationRepository extends JpaRepository<FamilyInvitati
 	);	
 
 	List<FamilyInvitation> findAllByReceiverAndStatusOrderByCreatedAtDesc(
-        Integer receiver,
+        User receiver,
         InvitationStatus status
 	);
 
-	List<FamilyInvitation> findAllBySenderOrderByCreatedAtDesc(Integer sender);
+	List<FamilyInvitation> findAllBySenderOrderByCreatedAtDesc(User sender);
+
 	Optional<FamilyInvitation> findByInviteIdAndReceiver_UserId(
         Integer inviteId,
         Integer receiverId

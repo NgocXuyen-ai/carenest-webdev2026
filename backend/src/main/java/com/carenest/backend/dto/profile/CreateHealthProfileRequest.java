@@ -1,4 +1,4 @@
-package com.carenest.backend.dto.family;
+package com.carenest.backend.dto.profile;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
