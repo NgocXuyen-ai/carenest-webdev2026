@@ -14,7 +14,10 @@ const Tab = createBottomTabNavigator<MainTabParamList>();
 export default function MainTabNavigator() {
   return (
     <Tab.Navigator
-      screenOptions={{ headerShown: false }}
+      screenOptions={{ 
+        headerShown: false,
+        animation: 'shift', // Smooth transition between tabs
+      }}
       tabBar={props => <BottomTabBar {...props} />}
     >
       <Tab.Screen name="HomeTab" component={HomeStack} />

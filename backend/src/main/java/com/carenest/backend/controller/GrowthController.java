@@ -1,6 +1,6 @@
 package com.carenest.backend.controller;
 
-import com.carenest.backend.dto.growth.ApiResponse;
+import com.carenest.backend.dto.ApiResponse;
 import com.carenest.backend.dto.growth.CreateGrowthLogRequest;
 import com.carenest.backend.dto.growth.GrowthSummaryResponse;
 import com.carenest.backend.service.GrowthService;
