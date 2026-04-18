@@ -4,11 +4,12 @@ import java.util.List;
 import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Repository;
 
 import com.carenest.backend.model.FamilyInvitation;
 import com.carenest.backend.model.User;
 import com.carenest.backend.model.enums.InvitationStatus;
-
+@Repository
 public interface FamilyInvitationRepository extends JpaRepository<FamilyInvitation, Integer> {
 
     boolean existsByReceiver_UserIdAndFamily_FamilyIdAndStatus(

@@ -3,10 +3,12 @@ package com.carenest.backend.repository;
 import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Repository;
 
 import com.carenest.backend.model.OtpToken;
 import com.carenest.backend.model.enums.OtpType;
 
+@Repository
 public interface OtpTokenRepository extends JpaRepository<OtpToken, Long> {
 
     Optional<OtpToken> findByEmailAndType(String email, OtpType type); 
