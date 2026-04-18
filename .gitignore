@@ -147,3 +147,13 @@ vite.config.ts.timestamp-*
 Thumbs.db
 
 node_modules/
+# Android build files
+frontend/CareNestApp/android/.gradle/
+frontend/CareNestApp/android/build/
+frontend/CareNestApp/android/local.properties
+frontend/CareNestApp/android/app/build/
+*.lock
+*.sha
+
+# Metro bundler (React Native)
+.metro/
