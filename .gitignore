@@ -137,3 +137,23 @@ dist
 # Vite logs files
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
+
+# IDE
+.idea/
+*.iml
+
+# OS
+.DS_Store
+Thumbs.db
+
+node_modules/
+# Android build files
+frontend/CareNestApp/android/.gradle/
+frontend/CareNestApp/android/build/
+frontend/CareNestApp/android/local.properties
+frontend/CareNestApp/android/app/build/
+*.lock
+*.sha
+
+# Metro bundler (React Native)
+.metro/

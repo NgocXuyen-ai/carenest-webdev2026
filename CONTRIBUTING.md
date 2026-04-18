@@ -120,8 +120,8 @@ const API_URL = "http://192.168.x.x:8080";
 ## 🔹 1. Luôn pull code mới nhất
 
 ```bash
-git checkout main
-git pull origin main
+git checkout develop
+git pull origin develop
 ```
 
 ---

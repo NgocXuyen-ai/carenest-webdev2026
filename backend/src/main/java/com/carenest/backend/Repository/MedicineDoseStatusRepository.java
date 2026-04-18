@@ -9,7 +9,6 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
 
 import com.carenest.backend.model.MedicineDoseStatus;
-
 @Repository
 public interface MedicineDoseStatusRepository extends JpaRepository<MedicineDoseStatus, Integer> {
 

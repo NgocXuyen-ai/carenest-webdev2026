@@ -7,6 +7,7 @@ import org.springframework.stereotype.Repository;
 
 import com.carenest.backend.model.OtpToken;
 import com.carenest.backend.model.enums.OtpType;
+
 @Repository
 public interface OtpTokenRepository extends JpaRepository<OtpToken, Long> {
 

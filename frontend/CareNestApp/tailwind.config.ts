@@ -1,0 +1,78 @@
+import type { Config } from 'tailwindcss';
+
+export default {
+  content: ['./src/**/*.{js,jsx,ts,tsx}', './App.tsx'],
+  presets: [require('nativewind/preset')],
+  theme: {
+    extend: {
+      colors: {
+        primary: '#00629d',
+        'primary-container': '#42a5f5',
+        'on-primary': '#ffffff',
+        'on-primary-container': '#00395e',
+        'primary-fixed': '#cfe5ff',
+        'primary-fixed-dim': '#99cbff',
+        'on-primary-fixed': '#001d34',
+        'on-primary-fixed-variant': '#004a78',
+
+        secondary: '#526069',
+        'secondary-container': '#d3e2ed',
+        'on-secondary': '#ffffff',
+        'on-secondary-container': '#56656e',
+        'secondary-fixed': '#d6e5ef',
+        'secondary-fixed-dim': '#bac9d3',
+        'on-secondary-fixed': '#0f1d25',
+        'on-secondary-fixed-variant': '#3b4951',
+
+        tertiary: '#005faf',
+        'tertiary-container': '#57a1ff',
+        'on-tertiary': '#ffffff',
+        'on-tertiary-container': '#003769',
+        'tertiary-fixed': '#d4e3ff',
+        'tertiary-fixed-dim': '#a5c8ff',
+        'on-tertiary-fixed': '#001c3a',
+        'on-tertiary-fixed-variant': '#004786',
+
+        error: '#ba1a1a',
+        'error-container': '#ffdad6',
+        'on-error': '#ffffff',
+        'on-error-container': '#93000a',
+
+        background: '#f7fafe',
+        'on-background': '#181c1f',
+        surface: '#f7fafe',
+        'on-surface': '#181c1f',
+        'on-surface-variant': '#404751',
+        'surface-variant': '#e0e3e7',
+        'surface-container': '#ebeef2',
+        'surface-container-low': '#f1f4f8',
+        'surface-container-high': '#e5e8ec',
+        'surface-container-highest': '#e0e3e7',
+        'surface-container-lowest': '#ffffff',
+        'surface-dim': '#d7dade',
+        'surface-bright': '#f7fafe',
+        'surface-tint': '#00629d',
+
+        outline: '#707882',
+        'outline-variant': '#bfc7d3',
+        'inverse-surface': '#2d3134',
+        'inverse-on-surface': '#eef1f5',
+        'inverse-primary': '#99cbff',
+      },
+      borderRadius: {
+        DEFAULT: '4px',
+        lg: '8px',
+        xl: '12px',
+        '2xl': '16px',
+        '3xl': '24px',
+        full: '9999px',
+      },
+      fontFamily: {
+        headline: ['Manrope'],
+        body: ['Inter'],
+        label: ['Inter'],
+      },
+    },
+  },
+  plugins: [],
+} satisfies Config;
