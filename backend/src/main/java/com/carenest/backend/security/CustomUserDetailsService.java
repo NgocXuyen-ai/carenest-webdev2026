@@ -1,31 +1,27 @@
 package com.carenest.backend.security;
 
-import java.util.Collections;
-
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
 
-import com.carenest.backend.service.AuthService;
+import com.carenest.backend.model.User;
+import com.carenest.backend.repository.UserRepository;
 
 @Service
 public class CustomUserDetailsService implements UserDetailsService {
 
-    private final AuthService authService;
+    private final UserRepository userRepository;
 
-    public CustomUserDetailsService(AuthService authService) {
-        this.authService = authService;
+    public CustomUserDetailsService(UserRepository userRepository) {
+        this.userRepository = userRepository;
     }
 
     @Override
     public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
-        com.carenest.backend.model.User myUser = authService.findUserByEmail(username);
-        
-        return new org.springframework.security.core.userdetails.User(
-                myUser.getEmail(),
-                myUser.getPasswordHash(),
-                Collections.emptyList()
-        );
+        User user = userRepository.findByEmail(username)
+            .orElseThrow(() -> new UsernameNotFoundException("User not found"));
+
+        return new CustomUserDetails(user);
     }
 }

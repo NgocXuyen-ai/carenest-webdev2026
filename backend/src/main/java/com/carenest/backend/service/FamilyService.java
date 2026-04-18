@@ -5,56 +5,59 @@ import java.time.LocalDateTime;
 import java.time.Period;
 import java.util.List;
 
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
 
 import com.carenest.backend.dto.family.CreateFamilyRequest;
-import com.carenest.backend.dto.family.CreateHealthProfileRequest;
 import com.carenest.backend.dto.family.FamilyInvitationResponse;
-import com.carenest.backend.dto.family.FamilyMemberItemResponse;
 import com.carenest.backend.dto.family.InviteMemberRequest;
 import com.carenest.backend.dto.family.MyFamilyResponse;
 import com.carenest.backend.dto.family.ReceivedInvitationResponse;
 import com.carenest.backend.dto.family.SentInvitationResponse;
+import com.carenest.backend.dto.profile.CreateHealthProfileRequest;
+import com.carenest.backend.dto.profile.FamilyMemberSummaryResponse;
+import com.carenest.backend.dto.profile.ProfileDetailsResponse;
 import com.carenest.backend.model.Family;
 import com.carenest.backend.model.FamilyInvitation;
+import com.carenest.backend.model.FamilyMedicineCabinet;
 import com.carenest.backend.model.FamilyRelationship;
 import com.carenest.backend.model.HealthProfile;
 import com.carenest.backend.model.User;
 import com.carenest.backend.model.enums.FamilyRole;
 import com.carenest.backend.model.enums.InvitationStatus;
-import com.carenest.backend.Repository.FamilyInvitationRepository;
-import com.carenest.backend.Repository.FamilyRelationshipRepository;
-import com.carenest.backend.Repository.FamilyRepository;
-import com.carenest.backend.Repository.HealthProfileRepository;
-import com.carenest.backend.Repository.UserRepository;
-
-import jakarta.servlet.http.HttpServletRequest;
+import com.carenest.backend.repository.CabinetRepository;
+import com.carenest.backend.repository.FamilyInvitationRepository;
+import com.carenest.backend.repository.FamilyRelationshipRepository;
+import com.carenest.backend.repository.FamilyRepository;
+import com.carenest.backend.repository.HealthProfileRepository;
+import com.carenest.backend.repository.UserRepository;
 
 @Service
 public class FamilyService {
     private final FamilyRepository familyRepository;
     private final HealthProfileRepository healthProfileRepository;
     private final FamilyRelationshipRepository familyRelationshipRepository;
-    private final CurrentUserService currentUserService;
     private final UserRepository userRepository;
     private final FamilyInvitationRepository familyInvitationRepository;
+    private final CabinetRepository cabinetRepository;
 
     public FamilyService(FamilyRepository familyRepository,
                          HealthProfileRepository healthProfileRepository,
                          FamilyRelationshipRepository familyRelationshipRepository,
-                         CurrentUserService currentUserService,
                          UserRepository userRepository,
-                         FamilyInvitationRepository familyInvitationRepository) {
+                         FamilyInvitationRepository familyInvitationRepository,
+                         CabinetRepository cabinetRepository) {
         this.familyRepository = familyRepository;
         this.healthProfileRepository = healthProfileRepository;
         this.familyRelationshipRepository = familyRelationshipRepository;
-        this.currentUserService = currentUserService;
         this.userRepository = userRepository;
         this.familyInvitationRepository = familyInvitationRepository;
+        this.cabinetRepository = cabinetRepository;
     }
 
-    public void createFamily(HttpServletRequest request, CreateFamilyRequest req) {
-        User currentUser = currentUserService.getCurrentUser(request);
+    public void createFamily(Integer currentUserId, CreateFamilyRequest req) {
+        User currentUser = userRepository.findById(currentUserId)
+                .orElseThrow(() -> new UsernameNotFoundException("Không tìm thấy user"));
 
         HealthProfile profile = healthProfileRepository
                 .findByUser_UserId(currentUser.getUserId())
@@ -74,10 +77,17 @@ public class FamilyService {
         relationship.setJoinAt(LocalDate.now());
 
         familyRelationshipRepository.save(relationship);
+
+        FamilyMedicineCabinet cabinet = new FamilyMedicineCabinet();
+        cabinet.setFamily(family);
+        cabinet.setName("Tủ thuốc gia đình");
+
+        cabinetRepository.save(cabinet);
     }
 
-    public void createProfile(HttpServletRequest request, CreateHealthProfileRequest req) {
-        User user = currentUserService.getCurrentUser(request);
+    public void createProfile(Integer currentUserId, CreateHealthProfileRequest req) {
+        User user = userRepository.findById(currentUserId)
+                .orElseThrow(() -> new UsernameNotFoundException("Không tìm thấy user"));
 
         healthProfileRepository.findByUser_UserId(user.getUserId())
                 .ifPresent(existingProfile -> {
@@ -99,15 +109,16 @@ public class FamilyService {
         healthProfileRepository.save(profile);
     }
 
-    public MyFamilyResponse getMyFamily(HttpServletRequest request) {
-        User currentUser = currentUserService.getCurrentUser(request);
+    public MyFamilyResponse getMyFamily(Integer currentUserId) {
+        User currentUser = userRepository.findById(currentUserId)
+                .orElseThrow(() -> new UsernameNotFoundException("Không tìm thấy user"));
 
         HealthProfile myProfile = healthProfileRepository
                 .findByUser_UserId(currentUser.getUserId())
                 .orElseThrow(() -> new RuntimeException("Bạn chưa có hồ sơ sức khỏe"));
 
         FamilyRelationship myRelationship = familyRelationshipRepository
-                .findByProfile_ProfileId(myProfile.getProfileId())
+                .findByProfile_Profile(myProfile.getProfile())
                 .orElseThrow(() -> new RuntimeException("Bạn chưa thuộc family nào"));
 
         Family family = myRelationship.getFamily();
@@ -115,32 +126,27 @@ public class FamilyService {
         List<FamilyRelationship> relationships =
                 familyRelationshipRepository.findAllByFamily_FamilyId(family.getFamilyId());
 
-        List<FamilyMemberItemResponse> members = relationships.stream()
+        List<FamilyMemberSummaryResponse> members = relationships.stream()
                 .map(rel -> {
                     HealthProfile profile = rel.getProfile();
     
-                    return new FamilyMemberItemResponse(
-                            profile.getProfileId(),
-                            profile.getFullName(),
-                            profile.getBirthday(),
-                            calculateAge(profile.getBirthday()),
-                            rel.getRole(),
-                            profile.getBloodType(),
-                            profile.getHeight(),
-                            profile.getWeight(),
-                            profile.getMedicalHistory(),
-                            profile.getAllergy(),
-                            mapHealthStatus(profile)
-                    );
+                    return FamilyMemberSummaryResponse. builder()
+                        .profileId(profile.getProfile())
+                        .fullName(profile.getFullName())
+                        .role(rel.getRole())
+                        .avatarUrl(profile.getAvatarUrl())
+                        .age(calculateAge(profile.getBirthday()))
+                        .healthStatus(mapHealthStatus(profile))
+                        .build();
                 })
                 .toList();
 
-        return new MyFamilyResponse(
-                family.getFamilyId(),
-                family.getName(),
-                members.size(),
-                members
-        );
+                return MyFamilyResponse.builder()
+                        .familyId(family.getFamilyId())
+                        .familyName(family.getName())
+                        .memberCount(members.size())
+                        .members(members)
+                        .build();
     }
 
     private Integer calculateAge(LocalDate birthday) {
@@ -148,6 +154,45 @@ public class FamilyService {
             return null;
         }
         return Period.between(birthday, LocalDate.now()).getYears();
+    }
+
+    public ProfileDetailsResponse getFamilyMemberProfile(Integer currentUserId, Integer targetProfileId) {
+        User currentUser = userRepository.findById(currentUserId)
+                .orElseThrow(() -> new UsernameNotFoundException("Không tìm thấy user"));
+    
+        HealthProfile myProfile = healthProfileRepository
+                .findByUser_UserId(currentUser.getUserId())
+                .orElseThrow(() -> new RuntimeException("Bạn chưa có hồ sơ sức khỏe"));
+    
+        FamilyRelationship myRelationship = familyRelationshipRepository
+                .findByProfile_Profile(myProfile.getProfile())
+                .orElseThrow(() -> new RuntimeException("Bạn chưa thuộc family nào"));
+    
+        HealthProfile targetProfile = healthProfileRepository.findById(targetProfileId)
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy hồ sơ sức khỏe"));
+    
+        FamilyRelationship targetRelationship = familyRelationshipRepository
+                .findByProfile_Profile(targetProfile.getProfile())
+                .orElseThrow(() -> new RuntimeException("Người này chưa thuộc family nào"));
+    
+        if (!myRelationship.getFamily().getFamilyId()
+                .equals(targetRelationship.getFamily().getFamilyId())) {
+            throw new RuntimeException("Bạn không có quyền xem hồ sơ này");
+        }
+    
+        return ProfileDetailsResponse.builder()
+                .profileId(targetProfile.getProfile())
+                .fullName(targetProfile.getFullName())
+                .birthday(targetProfile.getBirthday())
+                .age(calculateAge(targetProfile.getBirthday()))
+                .gender(targetProfile.getGender())
+                .bloodType(targetProfile.getBloodType())
+                .height(targetProfile.getHeight())
+                .weight(targetProfile.getWeight())
+                .medicalHistory(targetProfile.getMedicalHistory())
+                .allergy(targetProfile.getAllergy())
+                .healthStatus(mapHealthStatus(targetProfile))
+                .build();
     }
 
     private String mapHealthStatus(HealthProfile profile) {
@@ -158,9 +203,10 @@ public class FamilyService {
     }
 
     //Mời thành viên
-    public FamilyInvitationResponse inviteMember(HttpServletRequest request, InviteMemberRequest dto) {
+    public FamilyInvitationResponse inviteMember(Integer currentUserId, InviteMemberRequest dto) {
 
-        User currentUser = currentUserService.getCurrentUser(request);
+        User currentUser = userRepository.findById(currentUserId)
+                .orElseThrow(() -> new UsernameNotFoundException("Không tìm thấy user"));
 
         if (dto.getReceiverEmail() == null || dto.getReceiverEmail().trim().isEmpty()) {
             throw new RuntimeException("Email không được để trống");
@@ -174,7 +220,7 @@ public class FamilyService {
 
         // 2. Lấy relationship
         FamilyRelationship senderRelationship = familyRelationshipRepository
-                .findByProfile_ProfileId(senderProfile.getProfileId())
+                .findByProfile_Profile(senderProfile.getProfile())
                 .orElseThrow(() -> new RuntimeException("Bạn chưa thuộc family nào"));
 
         // 3. Check OWNER
@@ -199,8 +245,8 @@ public class FamilyService {
 
         // 6. Check đã là member chưa
         boolean alreadyMember = familyRelationshipRepository
-                .existsByProfile_ProfileIdAndFamily_FamilyId(
-                        receiverProfile.getProfileId(),
+                .existsByProfile_ProfileAndFamily_FamilyId(
+                        receiverProfile.getProfile(),
                         family.getFamilyId()
                 );
 
@@ -243,8 +289,9 @@ public class FamilyService {
                 .build();
     }
 
-    public List<FamilyInvitationResponse> getMyInvitations(HttpServletRequest request) {
-        User currentUser = currentUserService.getCurrentUser(request);
+    public List<FamilyInvitationResponse> getMyInvitations(Integer currentUserId) {
+        User currentUser = userRepository.findById(currentUserId)
+                .orElseThrow(() -> new UsernameNotFoundException("Không tìm thấy user"));
         List<FamilyInvitation> invitations =
                 familyInvitationRepository.findAllByReceiver_UserIdAndStatus(
                         currentUser.getUserId(),
@@ -272,12 +319,13 @@ public class FamilyService {
         }).toList();
     }
 
-    public List<ReceivedInvitationResponse> getReceivedInvitations(HttpServletRequest request) {
-        User currentUser = currentUserService.getCurrentUser(request);
+    public List<ReceivedInvitationResponse> getReceivedInvitations(Integer currentUserId) {
+        User currentUser = userRepository.findById(currentUserId)
+                .orElseThrow(() -> new UsernameNotFoundException("Không tìm thấy user"));
 
         List<FamilyInvitation> invitations = familyInvitationRepository
                 .findAllByReceiverAndStatusOrderByCreatedAtDesc(
-                        currentUser.getUserId(),
+                        currentUser,
                         InvitationStatus.PENDING
                 );
 
@@ -298,14 +346,15 @@ public class FamilyService {
         }).toList();
     }
 
-    public List<SentInvitationResponse> getSentInvitations(HttpServletRequest request) {
-        User currentUser = currentUserService.getCurrentUser(request);
+    public List<SentInvitationResponse> getSentInvitations(Integer currentUserId) {
+        User currentUser = userRepository.findById(currentUserId)
+                .orElseThrow(() -> new UsernameNotFoundException("Không tìm thấy user"));
 
         HealthProfile senderProfile = healthProfileRepository.findByUser_UserId(currentUser.getUserId())
                 .orElseThrow(() -> new RuntimeException("Bạn chưa có health profile"));
 
         FamilyRelationship relationship = familyRelationshipRepository
-                .findByProfile_ProfileId(senderProfile.getProfileId())
+                .findByProfile_Profile(senderProfile.getProfile())
                 .orElseThrow(() -> new RuntimeException("Bạn chưa thuộc family nào"));
 
         if (relationship.getRole() != FamilyRole.OWNER) {
@@ -313,7 +362,7 @@ public class FamilyService {
         }
 
         List<FamilyInvitation> invitations = familyInvitationRepository
-                .findAllBySenderOrderByCreatedAtDesc(currentUser.getUserId());
+                .findAllBySenderOrderByCreatedAtDesc(currentUser);
 
         return invitations.stream().map(invite -> {
             User receiver = invite.getReceiver();
@@ -332,11 +381,12 @@ public class FamilyService {
         }).toList();
     }
 
-    public void acceptInvitation(HttpServletRequest request, Integer inviteId) {
-        User currentUser = currentUserService.getCurrentUser(request);
+    public void acceptInvitation(Integer currentUserId, Integer inviteId) {
+        User currentUser = userRepository.findById(currentUserId)
+                .orElseThrow(() -> new UsernameNotFoundException("Không tìm thấy user"));
     
         FamilyInvitation invitation = familyInvitationRepository
-                .findByInviteId_AndReceiver(inviteId, currentUser.getUserId())
+                .findByInviteId_AndReceiver(inviteId, currentUser)
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy lời mời"));
     
         if (invitation.getStatus() != InvitationStatus.PENDING) {
@@ -347,8 +397,8 @@ public class FamilyService {
                 .orElseThrow(() -> new RuntimeException("Bạn chưa có health profile"));
     
         boolean alreadyMember = familyRelationshipRepository
-                .existsByProfile_ProfileIdAndFamily_FamilyId(
-                        profile.getProfileId(),
+                .existsByProfile_ProfileAndFamily_FamilyId(
+                        profile.getProfile(),
                         invitation.getFamily().getFamilyId()
                 );
     
@@ -368,8 +418,9 @@ public class FamilyService {
         familyInvitationRepository.save(invitation);
     }
 
-    public void rejectInvitation(HttpServletRequest request, Integer inviteId) {
-        User currentUser = currentUserService.getCurrentUser(request);
+    public void rejectInvitation(Integer currentUserId, Integer inviteId) {
+        User currentUser = userRepository.findById(currentUserId)
+                .orElseThrow(() -> new UsernameNotFoundException("Không tìm thấy user"));
     
         FamilyInvitation invitation = familyInvitationRepository
                 .findByInviteIdAndReceiver_UserId(inviteId, currentUser.getUserId())
@@ -383,8 +434,9 @@ public class FamilyService {
         familyInvitationRepository.save(invitation);
     }
 
-    public void removeMember(HttpServletRequest request, Integer profileId) {
-        User currentUser = currentUserService.getCurrentUser(request);
+    public void removeMember(Integer currentUserId, Integer profileId) {
+        User currentUser = userRepository.findById(currentUserId)
+                .orElseThrow(() -> new UsernameNotFoundException("Không tìm thấy user"));
     
         // 1. Lấy profile của người đang đăng nhập
         HealthProfile currentProfile = healthProfileRepository.findByUser_UserId(currentUser.getUserId())
@@ -392,7 +444,7 @@ public class FamilyService {
     
         // 2. Lấy relationship của người đang đăng nhập
         FamilyRelationship currentRelationship = familyRelationshipRepository
-                .findByProfile_ProfileId(currentProfile.getProfileId())
+                .findByProfile_Profile(currentProfile.getProfile())
                 .orElseThrow(() -> new RuntimeException("Bạn chưa thuộc family nào"));
     
         // 3. Chỉ owner mới được xóa
@@ -403,13 +455,13 @@ public class FamilyService {
         Integer familyId = currentRelationship.getFamily().getFamilyId();
     
         // 4. Không cho owner tự xóa chính mình
-        if (currentProfile.getProfileId().equals(profileId)) {
+        if (currentProfile.getProfile().equals(profileId)) {
             throw new RuntimeException("OWNER không thể tự xóa chính mình");
         }
     
         // 5. Tìm relationship của member cần xóa trong cùng family
         FamilyRelationship targetRelationship = familyRelationshipRepository
-                .findByProfile_ProfileIdAndFamily_FamilyId(profileId, familyId)
+                .findByProfile_ProfileAndFamily_FamilyId(profileId, familyId)
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy thành viên trong family"));
     
         // 6. Không cho xóa OWNER

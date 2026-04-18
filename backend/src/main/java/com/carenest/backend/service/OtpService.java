@@ -6,7 +6,7 @@ import org.springframework.stereotype.Service;
 
 import com.carenest.backend.model.OtpToken;
 import com.carenest.backend.model.enums.OtpType;
-import com.carenest.backend.Repository.OtpTokenRepository;
+import com.carenest.backend.repository.OtpTokenRepository;
 
 import jakarta.transaction.Transactional;
 

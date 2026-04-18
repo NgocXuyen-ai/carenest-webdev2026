@@ -3,7 +3,7 @@ package com.carenest.backend.service;
 import org.springframework.stereotype.Service;
 
 import com.carenest.backend.model.User;
-import com.carenest.backend.Repository.UserRepository;
+import com.carenest.backend.repository.UserRepository;
 import com.carenest.backend.security.jwt.JwtUtil;
 
 import jakarta.servlet.http.HttpServletRequest;

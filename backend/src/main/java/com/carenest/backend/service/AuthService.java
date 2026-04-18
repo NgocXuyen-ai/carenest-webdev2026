@@ -14,8 +14,8 @@ import com.carenest.backend.dto.auth.VerifyEmailRequest;
 import com.carenest.backend.model.OtpToken;
 import com.carenest.backend.model.User;
 import com.carenest.backend.model.enums.OtpType;
-import com.carenest.backend.Repository.OtpTokenRepository;
-import com.carenest.backend.Repository.UserRepository;
+import com.carenest.backend.repository.OtpTokenRepository;
+import com.carenest.backend.repository.UserRepository;
 
 @Service
 public class AuthService {
