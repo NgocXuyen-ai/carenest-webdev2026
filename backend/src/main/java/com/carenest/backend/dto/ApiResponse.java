@@ -1,4 +1,4 @@
-package com.carenest.backend.dto.growth;
+package com.carenest.backend.dto;
 
 import org.springframework.http.HttpStatus;
 
