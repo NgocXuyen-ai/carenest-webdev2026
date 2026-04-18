@@ -2,6 +2,7 @@ package com.carenest.backend.controller;
 
 import org.springframework.web.bind.annotation.RestController;
 
+import com.carenest.backend.dto.family.CreateFamilyMemberProfileRequest;
 import com.carenest.backend.dto.family.CreateFamilyRequest;
 import com.carenest.backend.dto.family.FamilyInvitationResponse;
 import com.carenest.backend.dto.family.InviteMemberRequest;
@@ -10,6 +11,7 @@ import com.carenest.backend.dto.family.ReceivedInvitationResponse;
 import com.carenest.backend.dto.family.SentInvitationResponse;
 import com.carenest.backend.dto.profile.CreateHealthProfileRequest;
 import com.carenest.backend.dto.profile.ProfileDetailsResponse;
+import com.carenest.backend.dto.profile.UpdateHealthProfileRequest;
 import com.carenest.backend.helper.ApiResponse;
 import com.carenest.backend.security.CustomUserDetails;
 import com.carenest.backend.service.FamilyService;
@@ -22,6 +24,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -44,10 +47,32 @@ public class FamilyController {
     }
 
     @PostMapping("/create-healthprofile")
-    public ResponseEntity<ApiResponse<CreateHealthProfileRequest>> createProfile(@AuthenticationPrincipal UserDetails userDetails,
+    public ResponseEntity<ApiResponse<CreateHealthProfileRequest>> createProfile(
+        @AuthenticationPrincipal UserDetails userDetails,
         @RequestBody CreateHealthProfileRequest req) {
         this.familyService.createProfile(((CustomUserDetails)userDetails).getId(), req);
         return ApiResponse.success(req, "Tạo profile thành công");
+    }
+
+    @PutMapping("/update-healthprofile/{profileId}")
+    public ResponseEntity<ApiResponse<UpdateHealthProfileRequest>> updateProfile(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @PathVariable Integer profileId,
+            @RequestBody UpdateHealthProfileRequest req) {
+
+        this.familyService.updateProfile(((CustomUserDetails) userDetails).getId(), profileId, req);
+        return ApiResponse.success(req, "Cập nhật profile thành công");
+    }
+
+    @PostMapping("/{familyId}/profiles")
+    public ResponseEntity<ApiResponse<Void>> createDependentProfile(
+            @PathVariable Integer familyId,
+            @AuthenticationPrincipal UserDetails userDetails,
+            @RequestBody CreateFamilyMemberProfileRequest req
+    ) {
+        Integer currentUserId = ((CustomUserDetails) userDetails).getId();
+        familyService.createDependentProfile(currentUserId, familyId, req);
+        return ApiResponse.success(null, "Tạo profile thành viên family thành công");
     }
     
     @GetMapping("/family")
@@ -68,7 +93,7 @@ public class FamilyController {
         ProfileDetailsResponse response =
                 familyService.getFamilyMemberProfile(userDetails.getId(), profileId);
 
-        return ApiResponse.success(response, "Lấy chi tiết thành viên thành công");
+        return ApiResponse.success(response, "Lấy chi tiết profile thành công");
     }
     
     @PostMapping("/family/invitations")

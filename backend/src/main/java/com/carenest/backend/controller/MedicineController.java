@@ -53,10 +53,9 @@ public class MedicineController {
 
     @PostMapping("/schedules")
     public ResponseEntity<ApiResponse<Void>> createMedicineSchedule(
-            @Valid @RequestBody CreateMedicineScheduleRequest request,
-            @AuthenticationPrincipal CustomUserDetails userDetails
+            @Valid @RequestBody CreateMedicineScheduleRequest request
     ) {
-        medicineService.createMedicineSchedule(request, userDetails.getId());
+        medicineService.createMedicineSchedule(request);
         return ApiResponse.success(null, "Tạo lịch uống thuốc thành công");
     }
 

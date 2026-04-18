@@ -8,6 +8,7 @@ import java.util.List;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
 
+import com.carenest.backend.dto.family.CreateFamilyMemberProfileRequest;
 import com.carenest.backend.dto.family.CreateFamilyRequest;
 import com.carenest.backend.dto.family.FamilyInvitationResponse;
 import com.carenest.backend.dto.family.InviteMemberRequest;
@@ -17,6 +18,7 @@ import com.carenest.backend.dto.family.SentInvitationResponse;
 import com.carenest.backend.dto.profile.CreateHealthProfileRequest;
 import com.carenest.backend.dto.profile.FamilyMemberSummaryResponse;
 import com.carenest.backend.dto.profile.ProfileDetailsResponse;
+import com.carenest.backend.dto.profile.UpdateHealthProfileRequest;
 import com.carenest.backend.model.Family;
 import com.carenest.backend.model.FamilyInvitation;
 import com.carenest.backend.model.FamilyMedicineCabinet;
@@ -107,6 +109,62 @@ public class FamilyService {
         profile.setEmergencyContactPhone(req.getEmergencyContactPhone());
 
         healthProfileRepository.save(profile);
+    }
+
+    public void updateProfile(Integer userId, Integer profileId, UpdateHealthProfileRequest req) {
+        HealthProfile profile = healthProfileRepository.findById(profileId)
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy profile"));
+
+        if (!profile.getUser().getUserId().equals(userId)) {
+                throw new RuntimeException("Bạn không có quyền cập nhật profile này");
+        }
+
+        profile.setFullName(req.getFullName());
+        profile.setBirthday(req.getBirthday());
+        profile.setGender(req.getGender());
+        profile.setBloodType(req.getBloodType());
+        profile.setMedicalHistory(req.getMedicalHistory());
+        profile.setAllergy(req.getAllergy());
+        profile.setHeight(req.getHeight());
+        profile.setWeight(req.getWeight());
+        profile.setEmergencyContactPhone(req.getEmergencyContactPhone());
+
+        healthProfileRepository.save(profile);
+        }
+
+    public void createDependentProfile(Integer currentUserId, Integer familyId, CreateFamilyMemberProfileRequest req
+    ) {
+        User currentUser = userRepository.findById(currentUserId)
+                .orElseThrow(() -> new UsernameNotFoundException("Không tìm thấy user"));
+
+        Family family = familyRepository.findById(familyId)
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy family"));
+
+        if (!family.getOwner().getUserId().equals(currentUserId)) {
+            throw new RuntimeException("Bạn không phải owner của family này");
+        }
+
+        HealthProfile profile = new HealthProfile();
+        profile.setUser(currentUser); // profile phụ thuộc, không có account riêng
+        profile.setFullName(req.getFullName());
+        profile.setBirthday(req.getBirthday());
+        profile.setGender(req.getGender());
+        profile.setBloodType(req.getBloodType());
+        profile.setMedicalHistory(req.getMedicalHistory());
+        profile.setAllergy(req.getAllergy());
+        profile.setHeight(req.getHeight());
+        profile.setWeight(req.getWeight());
+        profile.setEmergencyContactPhone(req.getEmergencyContactPhone());
+
+        healthProfileRepository.save(profile);
+
+        FamilyRelationship relationship = new FamilyRelationship();
+        relationship.setProfile(profile);
+        relationship.setFamily(family);
+        relationship.setRole(req.getRole());
+        relationship.setJoinAt(LocalDate.now());
+
+        familyRelationshipRepository.save(relationship);
     }
 
     public MyFamilyResponse getMyFamily(Integer currentUserId) {

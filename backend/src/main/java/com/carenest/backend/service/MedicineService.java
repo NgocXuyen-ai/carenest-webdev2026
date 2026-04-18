@@ -1,5 +1,6 @@
 package com.carenest.backend.service;
 
+
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -66,7 +67,7 @@ public class MedicineService {
         List<ProfileOptionResponse> profiles = healthProfileRepository
                 .findAll()
                 .stream()
-                .filter(p -> p.getUser() != null && currentUserId.equals(p.getUser().getUserId()))
+                .filter(p -> p.getUser().getUserId() != null && currentUserId.equals(p.getUser().getUserId()))
                 .map(p -> new ProfileOptionResponse(
                         p.getProfile(),
                         p.getFullName()
@@ -95,12 +96,12 @@ public class MedicineService {
                 .build();
     }
 
-    public void createMedicineSchedule(CreateMedicineScheduleRequest request, Integer currentUserId) {
+    public void createMedicineSchedule(CreateMedicineScheduleRequest request) {
         HealthProfile profile = healthProfileRepository.findById(request.getProfile())
                 .orElseThrow(() -> new EntityNotFoundException("Không tìm thấy profile"));
 
         DetailsMedicine medicine = detailsMedicineRepository.findById(request.getMedicineId())
-                .orElseThrow(() -> new EntityNotFoundException("Không tìm thấy thuốc"));
+                .orElseThrow(() -> new EntityNotFoundException("Vui lòng thêm thuốc vào tủ"));
 
         MedicineSchedule schedule = new MedicineSchedule();
         schedule.setProfile(profile);
@@ -126,7 +127,6 @@ public class MedicineService {
                 doseStatus.setIsTaken(false);
                 doseStatus.setTakenAt(null);
                 doseStatus.setNote(null);
-
                 schedule.addDoseStatus(doseStatus);
             }
         }

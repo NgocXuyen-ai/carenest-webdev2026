@@ -34,4 +34,5 @@ public interface MedicineDoseStatusRepository extends JpaRepository<MedicineDose
     """)
     List<MedicineDoseStatus> findDailyDoseStatuses(Integer profileId, LocalDate doseDate);
     void deleteBySchedule_ScheduleId(Integer scheduleId);
+    List<MedicineDoseStatus> findByDoseDateAndIsTakenFalse(LocalDate doseDate);
 }
