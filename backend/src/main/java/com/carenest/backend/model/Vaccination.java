@@ -9,6 +9,8 @@ import lombok.*;
 
 import java.time.LocalDate;
 
+import com.carenest.backend.model.enums.VaccinationStatus;
+
 @Entity
 @Table(name = "vaccination")
 @Setter
@@ -49,5 +51,6 @@ public class Vaccination {
     @NotNull(message = "Status không được để trống")
     // Bỏ @Enumerated, để String bình thường
     @Column(name = "status", length = 50)
-    private String status; 
+    @Enumerated(EnumType.STRING)
+    private VaccinationStatus status; 
 }
