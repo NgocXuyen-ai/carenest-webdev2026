@@ -7,6 +7,6 @@ import lombok.Setter;
 @Getter
 @Setter
 public class JoinFamilyByCodeRequest {
-    @NotBlank(message = "Ma tham gia khong duoc de trong")
+    @NotBlank(message = "Mã tham gia không được để trống")
     private String joinCode;
 }

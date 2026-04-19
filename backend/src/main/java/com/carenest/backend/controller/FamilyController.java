@@ -47,7 +47,7 @@ public class FamilyController {
             @RequestBody CreateFamilyRequest req
     ) {
         familyService.createFamily(((CustomUserDetails) userDetails).getId(), req);
-        return ApiResponse.success(req, "Tao Family thanh cong");
+        return ApiResponse.success(req, "Tạo gia đình thành công");
     }
 
     @PostMapping("/create-healthprofile")
@@ -56,7 +56,7 @@ public class FamilyController {
             @RequestBody CreateHealthProfileRequest req
     ) {
         familyService.createProfile(((CustomUserDetails) userDetails).getId(), req);
-        return ApiResponse.success(req, "Tao profile thanh cong");
+        return ApiResponse.success(req, "Tạo hồ sơ thành công");
     }
 
     @PutMapping("/update-healthprofile/{profileId}")
@@ -66,7 +66,7 @@ public class FamilyController {
             @RequestBody UpdateHealthProfileRequest req
     ) {
         familyService.updateProfile(((CustomUserDetails) userDetails).getId(), profileId, req);
-        return ApiResponse.success(req, "Cap nhat profile thanh cong");
+        return ApiResponse.success(req, "Cập nhật hồ sơ thành công");
     }
 
     @PostMapping("/{familyId}/profiles")
@@ -76,13 +76,13 @@ public class FamilyController {
             @RequestBody CreateFamilyMemberProfileRequest req
     ) {
         familyService.createDependentProfile(((CustomUserDetails) userDetails).getId(), familyId, req);
-        return ApiResponse.success(null, "Tao profile thanh vien family thanh cong");
+        return ApiResponse.success(null, "Tạo hồ sơ thành viên gia đình thành công");
     }
 
     @GetMapping("/family")
     public ResponseEntity<ApiResponse<MyFamilyResponse>> getMyFamily(@AuthenticationPrincipal UserDetails userDetails) {
         MyFamilyResponse data = familyService.getMyFamily(((CustomUserDetails) userDetails).getId());
-        return ApiResponse.success(data, "Lay thong tin family thanh cong");
+        return ApiResponse.success(data, "Lấy thông tin gia đình thành công");
     }
 
     @GetMapping("/profiles/{profileId}")
@@ -91,11 +91,11 @@ public class FamilyController {
             @AuthenticationPrincipal CustomUserDetails userDetails
     ) {
         if (userDetails == null) {
-            throw new RuntimeException("Ban chua dang nhap");
+            throw new RuntimeException("Bạn chưa đăng nhập");
         }
 
         ProfileDetailsResponse response = familyService.getFamilyMemberProfile(userDetails.getId(), profileId);
-        return ApiResponse.success(response, "Lay chi tiet profile thanh cong");
+        return ApiResponse.success(response, "Lấy chi tiết hồ sơ thành công");
     }
 
     @PostMapping("/family/invitations")
@@ -104,7 +104,7 @@ public class FamilyController {
             @AuthenticationPrincipal UserDetails userDetails
     ) {
         FamilyInvitationResponse response = familyService.inviteMember(((CustomUserDetails) userDetails).getId(), requestDto);
-        return ApiResponse.success(response, "Gui loi moi thanh cong");
+        return ApiResponse.success(response, "Gửi lời mời thành công");
     }
 
     @GetMapping("/invitations/received")
@@ -112,7 +112,7 @@ public class FamilyController {
             @AuthenticationPrincipal UserDetails userDetails
     ) {
         List<ReceivedInvitationResponse> response = familyService.getReceivedInvitations(((CustomUserDetails) userDetails).getId());
-        return ApiResponse.success(response, "Lay danh sach loi moi da nhan thanh cong");
+        return ApiResponse.success(response, "Lấy danh sách lời mời đã nhận thành công");
     }
 
     @GetMapping("/invitations/sent")
@@ -120,7 +120,7 @@ public class FamilyController {
             @AuthenticationPrincipal UserDetails userDetails
     ) {
         List<SentInvitationResponse> response = familyService.getSentInvitations(((CustomUserDetails) userDetails).getId());
-        return ApiResponse.success(response, "Lay danh sach loi moi da gui thanh cong");
+        return ApiResponse.success(response, "Lấy danh sách lời mời đã gửi thành công");
     }
 
     @PostMapping("/{inviteId}/accept")
@@ -129,7 +129,7 @@ public class FamilyController {
             @AuthenticationPrincipal UserDetails userDetails
     ) {
         familyService.acceptInvitation(((CustomUserDetails) userDetails).getId(), inviteId);
-        return ApiResponse.success("OK", "Chap nhan loi moi thanh cong");
+        return ApiResponse.success("OK", "Chấp nhận lời mời thành công");
     }
 
     @PostMapping("/{inviteId}/reject")
@@ -138,7 +138,7 @@ public class FamilyController {
             @AuthenticationPrincipal UserDetails userDetails
     ) {
         familyService.rejectInvitation(((CustomUserDetails) userDetails).getId(), inviteId);
-        return ApiResponse.success("OK", "Tu choi loi moi thanh cong");
+        return ApiResponse.success("OK", "Từ chối lời mời thành công");
     }
 
     @DeleteMapping("/members/{profileId}")
@@ -147,7 +147,7 @@ public class FamilyController {
             @AuthenticationPrincipal UserDetails userDetails
     ) {
         familyService.removeMember(((CustomUserDetails) userDetails).getId(), profileId);
-        return ApiResponse.success("OK", "Xoa thanh vien khoi family thanh cong");
+        return ApiResponse.success("OK", "Xóa thành viên khỏi gia đình thành công");
     }
 
     @GetMapping("/join-code")
@@ -155,7 +155,7 @@ public class FamilyController {
             @AuthenticationPrincipal UserDetails userDetails
     ) {
         FamilyJoinCodeResponse response = familyService.getJoinCode(((CustomUserDetails) userDetails).getId());
-        return ApiResponse.success(response, "Lay ma tham gia thanh cong");
+        return ApiResponse.success(response, "Lấy mã tham gia thành công");
     }
 
     @PostMapping("/join-code/rotate")
@@ -163,7 +163,7 @@ public class FamilyController {
             @AuthenticationPrincipal UserDetails userDetails
     ) {
         FamilyJoinCodeResponse response = familyService.rotateJoinCode(((CustomUserDetails) userDetails).getId());
-        return ApiResponse.success(response, "Tao ma tham gia moi thanh cong");
+        return ApiResponse.success(response, "Tạo mã tham gia mới thành công");
     }
 
     @PostMapping("/join-by-code")
@@ -172,7 +172,7 @@ public class FamilyController {
             @AuthenticationPrincipal UserDetails userDetails
     ) {
         MyFamilyResponse response = familyService.joinByCode(((CustomUserDetails) userDetails).getId(), request);
-        return ApiResponse.success(response, "Tham gia family thanh cong");
+        return ApiResponse.success(response, "Tham gia gia đình thành công");
     }
 
     @PostMapping(value = "/join-by-qr", consumes = {"multipart/form-data"})
@@ -181,6 +181,7 @@ public class FamilyController {
             @AuthenticationPrincipal UserDetails userDetails
     ) {
         MyFamilyResponse response = familyService.joinByQr(((CustomUserDetails) userDetails).getId(), image);
-        return ApiResponse.success(response, "Quet QR va tham gia family thanh cong");
+        return ApiResponse.success(response, "Quét QR và tham gia gia đình thành công");
     }
 }
+

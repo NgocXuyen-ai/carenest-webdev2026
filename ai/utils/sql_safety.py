@@ -27,23 +27,24 @@ def validate_sql(sql: str) -> tuple[bool, str]:
 
     without_trailing = stripped.rstrip(";")
     if ";" in without_trailing:
-        return False, "Khong cho phep nhieu cau lenh SQL trong mot request"
+        return False, "Không cho phep nhieu cau lenh SQL trong mot request"
 
     if not re.match(r"^\s*SELECT\b", stripped, re.IGNORECASE):
         return False, "Chi cho phep cau lenh SELECT"
 
     match = _DANGEROUS_KEYWORDS.search(stripped)
     if match:
-        return False, f"Tu khoa khong duoc phep: {match.group().upper()}"
+        return False, f"Từ khóa không được phép: {match.group().upper()}"
 
     match = _SENSITIVE_COLUMNS.search(stripped)
     if match:
-        return False, f"Khong duoc truy van truong nhay cam: {match.group()}"
+        return False, f"Không được truy vấn trường nhạy cảm: {match.group()}"
 
     if not _HEALTH_PROFILE_TABLE.search(stripped):
-        return False, "Query phai join hoac truy van bang health_profile de gioi han tenant"
+        return False, "Query phải join hoặc truy vấn bảng health_profile để giới hạn tenant"
 
     if not _TENANT_FILTER.search(stripped):
         return False, "Query thieu dieu kien loc tenant theo health_profile.user_id"
 
     return True, ""
+

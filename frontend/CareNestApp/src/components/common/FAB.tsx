@@ -5,6 +5,8 @@ import { shadows } from '../../theme/spacing';
 import { BOTTOM_NAV_HEIGHT } from '../../utils/constants';
 import Icon from './Icon';
 
+const FAB_BOTTOM_OFFSET = Math.round(BOTTOM_NAV_HEIGHT / 2.4);
+
 interface FABProps {
   iconName?: string;
   onPress: () => void;
@@ -22,14 +24,15 @@ export default function FAB({ iconName = 'add', onPress, style }: FABProps) {
 const styles = StyleSheet.create({
   fab: {
     position: 'absolute',
-    bottom: BOTTOM_NAV_HEIGHT + 12,
+    bottom: FAB_BOTTOM_OFFSET,
     right: 20,
-    width: 56,
-    height: 56,
-    borderRadius: 16,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
     backgroundColor: colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
+    zIndex: 20,
     ...shadows.lg,
   },
 });

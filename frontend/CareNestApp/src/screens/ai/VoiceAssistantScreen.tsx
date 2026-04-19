@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
 import {
   Alert,
+  StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
-  StyleSheet,
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -26,7 +26,10 @@ export default function VoiceAssistantScreen() {
   const activeProfileId = selectedProfileId || (user?.profileId ? Number(user.profileId) : null);
 
   async function handleSubmit() {
-    if (!transcript.trim() || loading) return;
+    if (!transcript.trim() || loading) {
+      return;
+    }
+
     try {
       setLoading(true);
       const reply = await chatAi({
@@ -35,7 +38,10 @@ export default function VoiceAssistantScreen() {
       });
       setResponse(reply.reply);
     } catch (error) {
-      Alert.alert('Không thể xử lý trợ lý giọng nói', error instanceof Error ? error.message : 'Đã có lỗi xảy ra');
+      Alert.alert(
+        'Không thể xử lý trợ lý giọng nói',
+        error instanceof Error ? error.message : 'Đã có lỗi xảy ra',
+      );
     } finally {
       setLoading(false);
     }
@@ -56,7 +62,8 @@ export default function VoiceAssistantScreen() {
 
         <Text style={styles.badgeText}>VOICE FALLBACK MODE</Text>
         <Text style={styles.caption}>
-          FE hiện chưa có recorder native trong repo, nên màn này dùng transcript text để vẫn chạy được end-to-end với backend và AI.
+          Repo hiện chưa có native audio recorder. Màn này vẫn cho phép thử luồng hỏi đáp AI
+          bằng transcript văn bản để tránh để lộ một flow ghi âm giả chưa hoàn thiện.
         </Text>
 
         <TextInput
@@ -68,7 +75,11 @@ export default function VoiceAssistantScreen() {
           multiline
         />
 
-        <TouchableOpacity style={[styles.submitBtn, loading && styles.submitBtnDisabled]} onPress={() => void handleSubmit()} disabled={loading}>
+        <TouchableOpacity
+          style={[styles.submitBtn, loading && styles.submitBtnDisabled]}
+          onPress={() => void handleSubmit()}
+          disabled={loading}
+        >
           <Text style={styles.submitText}>{loading ? 'Đang xử lý...' : 'Gửi đến trợ lý'}</Text>
         </TouchableOpacity>
 
@@ -91,18 +102,62 @@ export default function VoiceAssistantScreen() {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#0f131a' },
   header: { height: 60, alignItems: 'flex-end', paddingHorizontal: 24, justifyContent: 'center' },
-  closeBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.1)', alignItems: 'center', justifyContent: 'center' },
+  closeBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   content: { flex: 1, alignItems: 'center', paddingHorizontal: 24, gap: 18 },
-  mainMic: { width: 110, height: 110, borderRadius: 55, backgroundColor: '#3498db', alignItems: 'center', justifyContent: 'center', marginTop: 24 },
+  mainMic: {
+    width: 110,
+    height: 110,
+    borderRadius: 55,
+    backgroundColor: '#3498db',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 24,
+  },
   badgeText: { color: '#fff', fontSize: 13, fontWeight: '800', letterSpacing: 1.2 },
   caption: { color: 'rgba(255,255,255,0.6)', fontSize: 14, textAlign: 'center', lineHeight: 22 },
-  input: { width: '100%', minHeight: 120, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.08)', padding: 16, color: '#fff', textAlignVertical: 'top' },
-  submitBtn: { width: '100%', height: 54, borderRadius: 20, backgroundColor: '#3498db', alignItems: 'center', justifyContent: 'center' },
+  input: {
+    width: '100%',
+    minHeight: 120,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    padding: 16,
+    color: '#fff',
+    textAlignVertical: 'top',
+  },
+  submitBtn: {
+    width: '100%',
+    height: 54,
+    borderRadius: 20,
+    backgroundColor: '#3498db',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   submitBtnDisabled: { opacity: 0.6 },
   submitText: { color: '#fff', fontSize: 16, fontWeight: '800' },
-  aiCard: { width: '100%', backgroundColor: 'rgba(255,255,255,0.06)', borderRadius: 24, padding: 24, borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)' },
+  aiCard: {
+    width: '100%',
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    borderRadius: 24,
+    padding: 24,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+  },
   aiHeader: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 16 },
-  aiAvatar: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#1a73e8', alignItems: 'center', justifyContent: 'center' },
+  aiAvatar: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#1a73e8',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   aiName: { flex: 1, color: '#fff', fontSize: 15, fontWeight: '700' },
   aiText: { color: 'rgba(255,255,255,0.85)', fontSize: 16, lineHeight: 24, fontFamily: 'Inter' },
 });

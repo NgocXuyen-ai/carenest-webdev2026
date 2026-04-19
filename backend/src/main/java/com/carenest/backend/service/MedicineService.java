@@ -91,7 +91,7 @@ public class MedicineService {
         Integer cabinetId = getMyCabinet(currentUserId).getCabinetId();
         DetailsMedicine medicine = detailsMedicineRepository
                 .findByMedicineIdAndCabinet_CabinetId(request.getMedicineId(), cabinetId)
-                .orElseThrow(() -> new EntityNotFoundException("Vui long them thuoc vao tu"));
+            .orElseThrow(() -> new EntityNotFoundException("Vui lòng thêm thuốc vào tủ"));
 
         MedicineSchedule schedule = new MedicineSchedule();
         schedule.setProfile(profile);
@@ -134,17 +134,17 @@ public class MedicineService {
 
     public FamilyMedicineCabinet getMyCabinet(Integer currentUserId) {
         FamilyRelationship relationship = profileAccessService.getCurrentFamilyRelationship(currentUserId)
-                .orElseThrow(() -> new RuntimeException("Ban chua thuoc family"));
+            .orElseThrow(() -> new RuntimeException("Bạn chưa thuộc gia đình"));
 
         return cabinetRepository.findByFamily_FamilyId(relationship.getFamily().getFamilyId())
-                .orElseThrow(() -> new RuntimeException("Khong tim thay tu thuoc"));
+            .orElseThrow(() -> new RuntimeException("Không tìm thấy tủ thuốc"));
     }
 
     public void createMedicine(Integer currentUserId, CreateMedicineRequest request) {
         FamilyMedicineCabinet cabinet = getMyCabinet(currentUserId);
 
         if (detailsMedicineRepository.existsByCabinet_CabinetIdAndName(cabinet.getCabinetId(), request.getName())) {
-            throw new RuntimeException("Thuoc da ton tai trong tu thuoc");
+            throw new RuntimeException("Thuốc đã tồn tại trong tủ thuốc");
         }
 
         DetailsMedicine medicine = new DetailsMedicine();
@@ -169,7 +169,7 @@ public class MedicineService {
         FamilyMedicineCabinet cabinet = getMyCabinet(currentUserId);
         DetailsMedicine medicine = detailsMedicineRepository
                 .findByMedicineIdAndCabinet_CabinetId(medicineId, cabinet.getCabinetId())
-                .orElseThrow(() -> new RuntimeException("Khong tim thay thuoc"));
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy thuốc"));
         return mapToResponse(medicine);
     }
 
@@ -177,10 +177,10 @@ public class MedicineService {
         FamilyMedicineCabinet cabinet = getMyCabinet(currentUserId);
         DetailsMedicine medicine = detailsMedicineRepository
                 .findByMedicineIdAndCabinet_CabinetId(medicineId, cabinet.getCabinetId())
-                .orElseThrow(() -> new RuntimeException("Khong tim thay thuoc"));
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy thuốc"));
 
         if (medicineScheduleRepository.existsByMedicine_MedicineId(medicineId)) {
-            throw new RuntimeException("Khong the xoa thuoc vi dang duoc dung trong lich uong thuoc");
+            throw new RuntimeException("Không thể xóa thuốc vì đang được dùng trong lịch uống thuốc");
         }
 
         detailsMedicineRepository.delete(medicine);
@@ -209,7 +209,7 @@ public class MedicineService {
 
     public void takeDose(TakeMedicineDoseRequest request, Integer userId) {
         MedicineDoseStatus dose = medicineDoseStatusRepository.findById(request.getDoseId())
-                .orElseThrow(() -> new RuntimeException("Khong tim thay dose"));
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy dose"));
 
         profileAccessService.requireAccessibleProfile(userId, dose.getSchedule().getProfile().getProfile());
 
@@ -222,7 +222,7 @@ public class MedicineService {
 
     public void deleteMedicineSchedule(Integer scheduleId, Integer currentUserId) {
         MedicineSchedule schedule = medicineScheduleRepository.findById(scheduleId)
-                .orElseThrow(() -> new RuntimeException("Khong tim thay lich thuoc"));
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy lịch thuốc"));
 
         profileAccessService.requireAccessibleProfile(currentUserId, schedule.getProfile().getProfile());
         medicineScheduleRepository.delete(schedule);
@@ -300,3 +300,4 @@ public class MedicineService {
         return "STABLE";
     }
 }
+

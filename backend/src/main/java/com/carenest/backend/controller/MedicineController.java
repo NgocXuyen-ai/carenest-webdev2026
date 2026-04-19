@@ -40,11 +40,11 @@ public class MedicineController {
             @AuthenticationPrincipal CustomUserDetails userDetails
     ) {
         if (userDetails == null) {
-            throw new RuntimeException("Ban chua dang nhap");
+            throw new RuntimeException("Bạn chưa đăng nhập");
         }
 
         MedicineScheduleFormResponse data = medicineService.getFormData(userDetails.getId());
-        return ApiResponse.success(data, "Lay du lieu form thanh cong");
+        return ApiResponse.success(data, "Lấy dữ liệu form thành công");
     }
 
     @PostMapping("/schedules")
@@ -53,11 +53,11 @@ public class MedicineController {
             @AuthenticationPrincipal CustomUserDetails userDetails
     ) {
         if (userDetails == null) {
-            throw new RuntimeException("Ban chua dang nhap");
+            throw new RuntimeException("Bạn chưa đăng nhập");
         }
 
         medicineService.createMedicineSchedule(userDetails.getId(), request);
-        return ApiResponse.success(null, "Tao lich uong thuoc thanh cong");
+        return ApiResponse.success(null, "Tạo lịch uống thuốc thành công");
     }
 
     @GetMapping("/medicine-schedules/{profileId}")
@@ -66,11 +66,11 @@ public class MedicineController {
             @AuthenticationPrincipal CustomUserDetails userDetails
     ) {
         if (userDetails == null) {
-            throw new RuntimeException("Ban chua dang nhap");
+            throw new RuntimeException("Bạn chưa đăng nhập");
         }
 
         List<MedicineScheduleResponse> data = medicineService.getMedicineSchedules(profileId, userDetails.getId());
-        return ApiResponse.success(data, "Lay danh sach lich uong thuoc thanh cong");
+        return ApiResponse.success(data, "Lấy danh sách lịch uống thuốc thành công");
     }
 
     @PostMapping("/cabinet/create-medicine")
@@ -79,11 +79,11 @@ public class MedicineController {
             @AuthenticationPrincipal CustomUserDetails userDetails
     ) {
         if (userDetails == null) {
-            throw new RuntimeException("Ban chua dang nhap");
+            throw new RuntimeException("Bạn chưa đăng nhập");
         }
 
         medicineService.createMedicine(userDetails.getId(), request);
-        return ApiResponse.success(null, "Them thuoc thanh cong");
+        return ApiResponse.success(null, "Thêm thuốc thành công");
     }
 
     @DeleteMapping("/{medicineId}")
@@ -92,11 +92,11 @@ public class MedicineController {
             @AuthenticationPrincipal CustomUserDetails userDetails
     ) {
         if (userDetails == null) {
-            throw new RuntimeException("Ban chua dang nhap");
+            throw new RuntimeException("Bạn chưa đăng nhập");
         }
 
         medicineService.deleteMedicine(userDetails.getId(), medicineId);
-        return ApiResponse.success(null, "Xoa thuoc thanh cong");
+        return ApiResponse.success(null, "Xóa thuốc thành công");
     }
 
     @GetMapping("/{medicineId}")
@@ -105,11 +105,11 @@ public class MedicineController {
             @AuthenticationPrincipal CustomUserDetails userDetails
     ) {
         if (userDetails == null) {
-            throw new RuntimeException("Ban chua dang nhap");
+            throw new RuntimeException("Bạn chưa đăng nhập");
         }
 
         MedicineResponse data = medicineService.getMedicineDetail(userDetails.getId(), medicineId);
-        return ApiResponse.success(data, "Lay chi tiet thuoc thanh cong");
+        return ApiResponse.success(data, "Lấy chi tiết thuốc thành công");
     }
 
     @GetMapping("/cabinet")
@@ -117,11 +117,11 @@ public class MedicineController {
             @AuthenticationPrincipal CustomUserDetails userDetails
     ) {
         if (userDetails == null) {
-            throw new RuntimeException("Ban chua dang nhap");
+            throw new RuntimeException("Bạn chưa đăng nhập");
         }
 
         List<MedicineResponse> data = medicineService.getMyMedicines(userDetails.getId());
-        return ApiResponse.success(data, "Lay danh sach thuoc thanh cong");
+        return ApiResponse.success(data, "Lấy danh sách thuốc thành công");
     }
 
     @GetMapping("/medicine-schedules/{profileId}/daily")
@@ -131,11 +131,11 @@ public class MedicineController {
             @AuthenticationPrincipal CustomUserDetails userDetails
     ) {
         if (userDetails == null) {
-            throw new RuntimeException("Ban chua dang nhap");
+            throw new RuntimeException("Bạn chưa đăng nhập");
         }
 
         DailyMedicineScheduleResponse data = medicineService.getDailySchedule(profileId, date, userDetails.getId());
-        return ApiResponse.success(data, "Lay lich theo ngay thanh cong");
+        return ApiResponse.success(data, "Lấy lịch theo ngày thành công");
     }
 
     @PostMapping("/medicine-schedules/take-dose")
@@ -144,11 +144,11 @@ public class MedicineController {
             @AuthenticationPrincipal CustomUserDetails userDetails
     ) {
         if (userDetails == null) {
-            throw new RuntimeException("Ban chua dang nhap");
+            throw new RuntimeException("Bạn chưa đăng nhập");
         }
 
         medicineService.takeDose(request, userDetails.getId());
-        return ApiResponse.success(null, "Da cap nhat trang thai uong thuoc");
+        return ApiResponse.success(null, "Đã cập nhật trạng thái uống thuốc");
     }
 
     @DeleteMapping("/medicine-schedules/{scheduleId}")
@@ -157,10 +157,11 @@ public class MedicineController {
             @AuthenticationPrincipal CustomUserDetails userDetails
     ) {
         if (userDetails == null) {
-            throw new RuntimeException("Ban chua dang nhap");
+            throw new RuntimeException("Bạn chưa đăng nhập");
         }
 
         medicineService.deleteMedicineSchedule(scheduleId, userDetails.getId());
-        return ApiResponse.success(null, "Xoa lich thuoc thanh cong");
+        return ApiResponse.success(null, "Xóa lịch thuốc thành công");
     }
 }
+

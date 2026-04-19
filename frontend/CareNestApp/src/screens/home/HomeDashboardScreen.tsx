@@ -70,6 +70,41 @@ type ProfileContext = {
   }>;
 };
 
+const AI_SUMMARY_FALLBACK =
+  'CareNest AI sẽ tóm tắt nhanh các việc cần chú ý trong ngày của gia đình bạn.';
+
+const AI_SUMMARY_NORMALIZERS: Array<{ pattern: RegExp; value: string }> = [
+  {
+    pattern:
+      /^hom nay chua co canh bao lon\.? ban co the kiem tra lich thuoc, lich kham va hoi carenest ai neu can tra cuu nhanh\.?$/i,
+    value:
+      'Hôm nay chưa có cảnh báo lớn. Bạn có thể kiểm tra lịch thuốc, lịch khám và hỏi CareNest AI nếu cần tra cứu nhanh.',
+  },
+  {
+    pattern:
+      /^che do ca nha dang tong hop suc khoe cua toan bo thanh vien\.? ban co the xem nhac nho, lich kham va hoi carenest ai de tra cuu nhanh\.?$/i,
+    value:
+      'Chế độ Cả nhà đang tổng hợp sức khỏe của toàn bộ thành viên. Bạn có thể xem nhắc nhở, lịch khám và hỏi CareNest AI để tra cứu nhanh.',
+  },
+];
+
+function normalizeAiSummaryText(summary?: string | null): string {
+  if (!summary || !summary.trim()) {
+    return AI_SUMMARY_FALLBACK;
+  }
+
+  const trimmed = summary.trim();
+  const normalized = trimmed.toLowerCase().replace(/\s+/g, ' ');
+
+  for (const item of AI_SUMMARY_NORMALIZERS) {
+    if (item.pattern.test(normalized)) {
+      return item.value;
+    }
+  }
+
+  return trimmed;
+}
+
 function buildTasks(context?: ProfileContext): TaskCard[] {
   if (!context) {
     return [];
@@ -88,6 +123,7 @@ function buildTasks(context?: ProfileContext): TaskCard[] {
       badge: item.isTaken ? 'ĐÃ UỐNG' : 'CHƯA UỐNG',
     })),
   )[0];
+
   if (firstDose) {
     nextTasks.push(firstDose);
   }
@@ -107,6 +143,7 @@ function buildTasks(context?: ProfileContext): TaskCard[] {
   const nextVaccination = context.vaccinations
     ?.flatMap(group => group.vaccinations)
     .find(item => item.status !== 'DONE');
+
   if (nextVaccination) {
     nextTasks.push({
       id: `vac-${nextVaccination.vaccineLogId}`,
@@ -114,7 +151,10 @@ function buildTasks(context?: ProfileContext): TaskCard[] {
       iconBg: '#FFF7ED',
       iconColor: '#EA580C',
       title: nextVaccination.vaccineName,
-      subtitle: nextVaccination.plannedDate || nextVaccination.dateGiven || 'Theo dõi lịch tiêm',
+      subtitle:
+        nextVaccination.plannedDate ||
+        nextVaccination.dateGiven ||
+        'Theo dõi lịch tiêm',
     });
   }
 
@@ -134,7 +174,10 @@ export default function HomeDashboardScreen() {
       .catch(() => setDashboard(null));
   }, [selectedProfileId]);
 
-  const profileContexts = useMemo(() => (dashboard?.profileContexts || []) as ProfileContext[], [dashboard]);
+  const profileContexts = useMemo(
+    () => (dashboard?.profileContexts || []) as ProfileContext[],
+    [dashboard],
+  );
 
   const selectedProfileContext = useMemo(
     () =>
@@ -158,7 +201,10 @@ export default function HomeDashboardScreen() {
   }, [dashboard, profileContexts, selectedProfileContext]);
 
   const unreadCount = dashboard?.unreadNotificationCount ?? 0;
-  const selectedProfileRouteId = String(selectedProfileId || user?.profileId || members[0]?.profileId || '');
+  const aiSummaryText = normalizeAiSummaryText(dashboard?.aiSummary);
+  const selectedProfileRouteId = String(
+    selectedProfileId || user?.profileId || members[0]?.profileId || '',
+  );
 
   return (
     <View style={styles.container}>
@@ -169,10 +215,6 @@ export default function HomeDashboardScreen() {
           <Avatar uri={user?.avatarUrl} name={user?.fullName || 'CareNest'} size="sm" bordered />
           <Text style={styles.logoText}>CareNest</Text>
         </View>
-        <TouchableOpacity style={styles.notificationBtn} onPress={() => navigation.navigate('NotificationsCenter')}>
-          <Icon name="notifications" size={24} color="#0047AB" />
-          {unreadCount > 0 ? <View style={styles.notificationDot} /> : null}
-        </TouchableOpacity>
       </View>
 
       <ScrollView
@@ -183,25 +225,41 @@ export default function HomeDashboardScreen() {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.greetingSection}>
-          <Text style={styles.greetingTitle}>Xin chào, {user?.fullName || 'bạn'}!</Text>
-          <Text style={styles.greetingSubtitle}>Hy vọng gia đình mình có một ngày khỏe mạnh.</Text>
+          <Text style={styles.greetingTitle}>
+            Xin chào, {user?.fullName || 'bạn'}!
+          </Text>
+          <Text style={styles.greetingSubtitle}>
+            Hy vọng gia đình mình có một ngày khỏe mạnh.
+          </Text>
         </View>
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>THÀNH VIÊN</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.memberList}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.memberList}
+          >
             <TouchableOpacity
               style={[styles.memberPill, selectedProfileId === null && styles.memberPillActive]}
               onPress={() => setSelectedProfileId(null)}
             >
-              <Text style={[styles.memberPillText, selectedProfileId === null && styles.memberPillTextActive]}>
+              <Text
+                style={[
+                  styles.memberPillText,
+                  selectedProfileId === null && styles.memberPillTextActive,
+                ]}
+              >
                 Cả nhà
               </Text>
             </TouchableOpacity>
             {members.map(member => (
               <TouchableOpacity
                 key={member.profileId}
-                style={[styles.memberPill, selectedProfileId === member.profileId && styles.memberPillActive]}
+                style={[
+                  styles.memberPill,
+                  selectedProfileId === member.profileId && styles.memberPillActive,
+                ]}
                 onPress={() => setSelectedProfileId(member.profileId)}
               >
                 <Text
@@ -218,13 +276,19 @@ export default function HomeDashboardScreen() {
         </View>
 
         <View style={styles.shortcutGrid}>
-          <TouchableOpacity style={styles.shortcutCard} onPress={() => navigation.navigate('MedicineSchedule')}>
+          <TouchableOpacity
+            style={styles.shortcutCard}
+            onPress={() => navigation.navigate('MedicineSchedule')}
+          >
             <View style={[styles.shortcutIconWrap, { backgroundColor: '#E0F2FE' }]}>
               <Icon name="pill" size={26} color="#0EA5E9" />
             </View>
             <Text style={styles.shortcutLabel}>Lịch thuốc</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.shortcutCard} onPress={() => navigation.navigate('AppointmentList')}>
+          <TouchableOpacity
+            style={styles.shortcutCard}
+            onPress={() => navigation.navigate('AppointmentList')}
+          >
             <View style={[styles.shortcutIconWrap, { backgroundColor: '#F3E8FF' }]}>
               <Icon name="calendar_month" size={26} color="#A855F7" />
             </View>
@@ -232,7 +296,9 @@ export default function HomeDashboardScreen() {
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.shortcutCard}
-            onPress={() => navigation.navigate('VaccinationTracker', { memberId: selectedProfileRouteId })}
+            onPress={() =>
+              navigation.navigate('VaccinationTracker', { memberId: selectedProfileRouteId })
+            }
           >
             <View style={[styles.shortcutIconWrap, { backgroundColor: '#E0F7FA' }]}>
               <Icon name="syringe" size={26} color="#0097A7" />
@@ -256,8 +322,14 @@ export default function HomeDashboardScreen() {
 
           <View style={styles.heroHeader}>
             <View>
-              <Text style={styles.heroDate}>{dashboard?.generatedAt || new Date().toLocaleDateString('vi-VN')}</Text>
-              <Text style={styles.heroStatus}>{unreadCount > 0 ? 'Có việc cần chú ý' : 'Mọi thứ đều ổn'}</Text>
+              <Text style={styles.heroDate}>
+                {dashboard?.generatedAt || new Date().toLocaleDateString('vi-VN')}
+              </Text>
+              <Text style={styles.heroStatus}>
+                {unreadCount > 0
+                  ? 'Có việc cần chú ý'
+                  : 'Mọi thứ đều ổn'}
+              </Text>
             </View>
             <Icon name="sunny" size={40} color="rgba(255,255,255,0.8)" />
           </View>
@@ -265,18 +337,41 @@ export default function HomeDashboardScreen() {
           <View style={styles.glassStatsRow}>
             <View style={styles.glassModule}>
               <Icon name="group" size={18} color="#fff" />
-              <Text style={styles.moduleLabel}>Thành viên</Text>
+              <Text
+                style={styles.moduleLabel}
+                numberOfLines={1}
+                adjustsFontSizeToFit
+                minimumFontScale={0.8}
+              >
+                Thành viên
+              </Text>
               <Text style={styles.moduleValue}>{members.length}</Text>
             </View>
             <View style={styles.glassModule}>
               <Icon name="notifications" size={18} color="#fff" />
-              <Text style={styles.moduleLabel}>Nhắc nhở</Text>
+              <Text
+                style={styles.moduleLabel}
+                numberOfLines={1}
+                adjustsFontSizeToFit
+                minimumFontScale={0.8}
+              >
+                Nhắc nhở
+              </Text>
               <Text style={styles.moduleValue}>{unreadCount}</Text>
             </View>
             <View style={styles.glassModule}>
               <Icon name="pill" size={18} color="#fff" />
-              <Text style={styles.moduleLabel}>Thuốc hôm nay</Text>
-              <Text style={styles.moduleValue}>{tasks.filter(task => task.icon === 'pill').length}</Text>
+              <Text
+                style={styles.moduleLabel}
+                numberOfLines={1}
+                adjustsFontSizeToFit
+                minimumFontScale={0.7}
+              >
+                Thuốc hôm nay
+              </Text>
+              <Text style={styles.moduleValue}>
+                {tasks.filter(task => task.icon === 'pill').length}
+              </Text>
             </View>
           </View>
         </View>
@@ -293,7 +388,10 @@ export default function HomeDashboardScreen() {
               </View>
               <View style={styles.taskInfo}>
                 <Text style={styles.taskTitle}>Chưa có việc nào cần xử lý</Text>
-                <Text style={styles.taskTime}>Dashboard sẽ tự cập nhật khi có lịch thuốc, khám hoặc tiêm chủng.</Text>
+                <Text style={styles.taskTime}>
+                  Dashboard sẽ tự cập nhật khi có lịch thuốc, khám
+                  hoặc tiêm chủng.
+                </Text>
               </View>
             </View>
           ) : (
@@ -326,7 +424,9 @@ export default function HomeDashboardScreen() {
             <Text style={styles.aiLabel}>AI CỐ VẤN</Text>
           </View>
           <Text style={styles.aiAdviceText}>
-            "{dashboard?.aiSummary || 'CareNest AI sẽ tóm tắt nhanh các việc cần chú ý trong ngày của gia đình bạn.'}"
+            "
+            {aiSummaryText}
+            "
           </Text>
         </View>
       </ScrollView>
@@ -350,26 +450,6 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: '#0047AB',
     letterSpacing: -0.5,
-  },
-  notificationBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: '#F3F4F6',
-    alignItems: 'center',
-    justifyContent: 'center',
-    position: 'relative',
-  },
-  notificationDot: {
-    position: 'absolute',
-    top: 12,
-    right: 13,
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: '#EF4444',
-    borderWidth: 1.5,
-    borderColor: '#fff',
   },
   scroll: { paddingHorizontal: 20, paddingTop: 10 },
   greetingSection: { marginBottom: 24 },
@@ -481,10 +561,12 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   moduleLabel: {
-    fontSize: 10,
+    fontSize: 9,
     fontFamily: 'Inter',
     color: 'rgba(255,255,255,0.8)',
     textTransform: 'uppercase',
+    textAlign: 'center',
+    width: '100%',
   },
   moduleValue: {
     fontSize: 14,

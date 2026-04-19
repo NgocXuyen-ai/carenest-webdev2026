@@ -42,17 +42,17 @@ public class DashboardService {
     private String buildAiSummary(String scopeType, List<Map<String, Object>> profiles, int unreadNotificationCount) {
         int trackedProfiles = profiles.size();
         if (trackedProfiles == 0) {
-            return "Hom nay chua co du du lieu de tao tom tat suc khoe.";
+            return "Hôm nay chưa có đủ dữ liệu để tạo tóm tắt sức khỏe.";
         }
 
         if (unreadNotificationCount > 0) {
-            return "Hom nay co " + unreadNotificationCount + " nhac nho can kiem tra. Uu tien xem thuoc trong ngay va lich hen sap toi.";
+            return "Hôm nay có " + unreadNotificationCount + " nhắc nhở cần kiểm tra. Ưu tiên xem thuốc trong ngày và lịch hẹn sắp tới.";
         }
 
         if ("FAMILY".equals(scopeType)) {
-            return "Che do Ca nha dang tong hop suc khoe cua toan bo thanh vien. Ban co the xem nhac nho, lich kham va hoi CareNest AI de tra cuu nhanh.";
+            return "Chế độ Cả nhà đang tổng hợp sức khỏe của toàn bộ thành viên. Bạn có thể xem nhắc nhở, lịch khám và hỏi CareNest AI để tra cứu nhanh.";
         }
 
-        return "Hom nay chua co canh bao lon. Ban co the kiem tra lich thuoc, lich kham va hoi CareNest AI neu can tra cuu nhanh.";
+        return "Hôm nay chưa có cảnh báo lớn. Bạn có thể kiểm tra lịch thuốc, lịch khám và hỏi CareNest AI nếu cần tra cứu nhanh.";
     }
 }

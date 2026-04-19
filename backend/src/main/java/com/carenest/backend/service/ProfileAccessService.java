@@ -1,4 +1,4 @@
-package com.carenest.backend.service;
+﻿package com.carenest.backend.service;
 
 import com.carenest.backend.model.FamilyRelationship;
 import com.carenest.backend.model.HealthProfile;
@@ -25,7 +25,7 @@ public class ProfileAccessService {
 
     public HealthProfile getRequiredCurrentProfile(Integer currentUserId) {
         return healthProfileRepository.findFirstByUser_UserIdOrderByProfileAsc(currentUserId)
-                .orElseThrow(() -> new RuntimeException("Khong tim thay ho so suc khoe cua nguoi dung"));
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy hồ sơ sức khỏe của người dùng"));
     }
 
     public Optional<FamilyRelationship> getCurrentFamilyRelationship(Integer currentUserId) {
@@ -44,7 +44,7 @@ public class ProfileAccessService {
                         .forEach(item -> accessibleProfileIds.add(item.getProfile().getProfile())));
 
         if (accessibleProfileIds.isEmpty()) {
-            throw new RuntimeException("Khong tim thay ho so suc khoe cua nguoi dung");
+            throw new RuntimeException("Không tìm thấy hồ sơ sức khỏe của người dùng");
         }
 
         return accessibleProfileIds;
@@ -54,18 +54,19 @@ public class ProfileAccessService {
         Set<Integer> accessibleProfileIds = getAccessibleProfileIds(currentUserId);
         return accessibleProfileIds.stream()
                 .map(profileId -> healthProfileRepository.findById(profileId)
-                        .orElseThrow(() -> new RuntimeException("Khong tim thay profile voi id = " + profileId)))
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy hồ sơ với id = " + profileId)))
                 .toList();
     }
 
     public HealthProfile requireAccessibleProfile(Integer currentUserId, Integer profileId) {
         HealthProfile profile = healthProfileRepository.findById(profileId)
-                .orElseThrow(() -> new RuntimeException("Khong tim thay profile"));
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy hồ sơ"));
 
         if (!getAccessibleProfileIds(currentUserId).contains(profileId)) {
-            throw new RuntimeException("Ban khong co quyen truy cap profile nay");
+            throw new RuntimeException("Bạn không có quyền truy cập hồ sơ này");
         }
 
         return profile;
     }
 }
+

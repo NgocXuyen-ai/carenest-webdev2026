@@ -85,7 +85,7 @@ public class FamilyService {
         HealthProfile profile = getPrimaryProfile(currentUserId);
 
         if (familyRelationshipRepository.findByProfile_Profile(profile.getProfile()).isPresent()) {
-            throw new RuntimeException("Ban da thuoc mot family roi");
+            throw new RuntimeException("Bạn đã thuộc một gia đình rồi");
         }
 
         Family family = new Family();
@@ -104,7 +104,7 @@ public class FamilyService {
 
         FamilyMedicineCabinet cabinet = new FamilyMedicineCabinet();
         cabinet.setFamily(savedFamily);
-        cabinet.setName("Tu thuoc gia dinh");
+        cabinet.setName("Tủ thuốc gia đình");
         cabinetRepository.save(cabinet);
     }
 
@@ -112,7 +112,7 @@ public class FamilyService {
         User user = getRequiredUser(currentUserId);
         healthProfileRepository.findFirstByUser_UserIdOrderByProfileAsc(user.getUserId())
                 .ifPresent(existingProfile -> {
-                    throw new RuntimeException("Ban da co ho so suc khoe roi");
+                    throw new RuntimeException("Bạn đã có hồ sơ sức khỏe rồi");
                 });
 
         HealthProfile profile = new HealthProfile();
@@ -131,10 +131,10 @@ public class FamilyService {
 
     public void updateProfile(Integer userId, Integer profileId, UpdateHealthProfileRequest req) {
         HealthProfile profile = healthProfileRepository.findById(profileId)
-                .orElseThrow(() -> new RuntimeException("Khong tim thay profile"));
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy profile"));
 
         if (!profile.getUser().getUserId().equals(userId)) {
-            throw new RuntimeException("Ban khong co quyen cap nhat profile nay");
+            throw new RuntimeException("Bạn không có quyền cập nhật hồ sơ này");
         }
 
         profile.setFullName(req.getFullName());
@@ -152,10 +152,10 @@ public class FamilyService {
     public void createDependentProfile(Integer currentUserId, Integer familyId, CreateFamilyMemberProfileRequest req) {
         User currentUser = getRequiredUser(currentUserId);
         Family family = familyRepository.findById(familyId)
-                .orElseThrow(() -> new RuntimeException("Khong tim thay family"));
+            .orElseThrow(() -> new RuntimeException("Không tìm thấy gia đình"));
 
         if (!family.getOwner().getUserId().equals(currentUserId)) {
-            throw new RuntimeException("Ban khong phai owner cua family nay");
+            throw new RuntimeException("Bạn không phải chủ gia đình này");
         }
 
         HealthProfile profile = new HealthProfile();
@@ -210,12 +210,12 @@ public class FamilyService {
     public ProfileDetailsResponse getFamilyMemberProfile(Integer currentUserId, Integer targetProfileId) {
         FamilyRelationship myRelationship = getRequiredFamilyRelationship(currentUserId);
         HealthProfile targetProfile = healthProfileRepository.findById(targetProfileId)
-                .orElseThrow(() -> new RuntimeException("Khong tim thay ho so suc khoe"));
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy hồ sơ sức khỏe"));
         FamilyRelationship targetRelationship = familyRelationshipRepository.findByProfile_Profile(targetProfile.getProfile())
-                .orElseThrow(() -> new RuntimeException("Nguoi nay chua thuoc family nao"));
+            .orElseThrow(() -> new RuntimeException("Người này chưa thuộc gia đình nào"));
 
         if (!myRelationship.getFamily().getFamilyId().equals(targetRelationship.getFamily().getFamilyId())) {
-            throw new RuntimeException("Ban khong co quyen xem ho so nay");
+            throw new RuntimeException("Bạn không có quyền xem hồ sơ này");
         }
 
         return ProfileDetailsResponse.builder()
@@ -229,6 +229,7 @@ public class FamilyService {
                 .weight(targetProfile.getWeight())
                 .medicalHistory(targetProfile.getMedicalHistory())
                 .allergy(targetProfile.getAllergy())
+                .emergencyContactPhone(targetProfile.getEmergencyContactPhone())
                 .healthStatus(mapHealthStatus(targetProfile))
                 .build();
     }
@@ -240,17 +241,17 @@ public class FamilyService {
 
         String receiverEmail = dto.getReceiverEmail().trim().toLowerCase(Locale.ROOT);
         User receiver = userRepository.findByEmail(receiverEmail)
-                .orElseThrow(() -> new RuntimeException("Khong tim thay user"));
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy user"));
 
         if (receiver.getUserId().equals(currentUser.getUserId())) {
-            throw new RuntimeException("Khong the tu moi chinh minh");
+            throw new RuntimeException("Không thể tự mời chính mình");
         }
 
         HealthProfile receiverProfile = healthProfileRepository.findFirstByUser_UserIdOrderByProfileAsc(receiver.getUserId())
-                .orElseThrow(() -> new RuntimeException("Nguoi nay chua co profile"));
+            .orElseThrow(() -> new RuntimeException("Người này chưa có hồ sơ"));
 
         if (familyRelationshipRepository.existsByProfile_ProfileAndFamily_FamilyId(receiverProfile.getProfile(), family.getFamilyId())) {
-            throw new RuntimeException("Da la thanh vien roi");
+            throw new RuntimeException("Đã là thành viên rồi");
         }
 
         if (familyInvitationRepository.existsByReceiver_UserIdAndFamily_FamilyIdAndStatus(
@@ -258,7 +259,7 @@ public class FamilyService {
                 family.getFamilyId(),
                 InvitationStatus.PENDING
         )) {
-            throw new RuntimeException("Da co loi moi pending");
+            throw new RuntimeException("Đã có lời mời đang chờ");
         }
 
         FamilyInvitation invitation = new FamilyInvitation();
@@ -279,7 +280,7 @@ public class FamilyService {
                 .receiverId(receiver.getUserId())
                 .receiverEmail(receiver.getEmail())
                 .status(saved.getStatus().name())
-                .message("Invite thanh cong")
+                .message("Gửi lời mời thành công")
                 .build();
     }
 
@@ -299,7 +300,7 @@ public class FamilyService {
                 .receiverId(currentUser.getUserId())
                 .receiverEmail(currentUser.getEmail())
                 .status(invite.getStatus().name())
-                .message("Ban co loi moi tham gia family")
+                .message("Bạn có lời mời tham gia gia đình")
                 .build()).toList();
     }
 
@@ -340,15 +341,15 @@ public class FamilyService {
     public void acceptInvitation(Integer currentUserId, Integer inviteId) {
         User currentUser = getRequiredUser(currentUserId);
         FamilyInvitation invitation = familyInvitationRepository.findByInviteId_AndReceiver(inviteId, currentUser)
-                .orElseThrow(() -> new RuntimeException("Khong tim thay loi moi"));
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy lời mời"));
 
         if (invitation.getStatus() != InvitationStatus.PENDING) {
-            throw new RuntimeException("Loi moi khong con hieu luc");
+            throw new RuntimeException("Lời mời không còn hiệu lực");
         }
 
         HealthProfile profile = getPrimaryProfile(currentUserId);
         familyRelationshipRepository.findByProfile_Profile(profile.getProfile()).ifPresent(existing -> {
-            throw new RuntimeException("Ban da thuoc family khac");
+            throw new RuntimeException("Bạn đã thuộc gia đình khác");
         });
 
         FamilyRelationship relationship = new FamilyRelationship();
@@ -365,10 +366,10 @@ public class FamilyService {
     public void rejectInvitation(Integer currentUserId, Integer inviteId) {
         User currentUser = getRequiredUser(currentUserId);
         FamilyInvitation invitation = familyInvitationRepository.findByInviteIdAndReceiver_UserId(inviteId, currentUser.getUserId())
-                .orElseThrow(() -> new RuntimeException("Khong tim thay loi moi"));
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy lời mời"));
 
         if (invitation.getStatus() != InvitationStatus.PENDING) {
-            throw new RuntimeException("Loi moi khong con hieu luc");
+            throw new RuntimeException("Lời mời không còn hiệu lực");
         }
 
         invitation.setStatus(InvitationStatus.REJECTED);
@@ -380,15 +381,15 @@ public class FamilyService {
         Integer familyId = currentRelationship.getFamily().getFamilyId();
 
         if (currentRelationship.getProfile().getProfile().equals(profileId)) {
-            throw new RuntimeException("OWNER khong the tu xoa chinh minh");
+            throw new RuntimeException("Chủ gia đình không thể tự xóa chính mình");
         }
 
         FamilyRelationship targetRelationship = familyRelationshipRepository
                 .findByProfile_ProfileAndFamily_FamilyId(profileId, familyId)
-                .orElseThrow(() -> new RuntimeException("Khong tim thay thanh vien trong family"));
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy thành viên trong gia đình"));
 
         if (targetRelationship.getRole() == FamilyRole.OWNER) {
-            throw new RuntimeException("Khong the xoa OWNER");
+            throw new RuntimeException("Không thể xóa OWNER");
         }
 
         HealthProfile targetProfile = targetRelationship.getProfile();
@@ -419,7 +420,7 @@ public class FamilyService {
     public MyFamilyResponse joinByCode(Integer currentUserId, JoinFamilyByCodeRequest request) {
         HealthProfile profile = getPrimaryProfile(currentUserId);
         familyRelationshipRepository.findByProfile_Profile(profile.getProfile()).ifPresent(existing -> {
-            throw new RuntimeException("Ban da thuoc mot family khac");
+            throw new RuntimeException("Bạn đã thuộc một gia đình khác");
         });
 
         Family family = getJoinableFamily(currentUserId, request.getJoinCode());
@@ -430,7 +431,7 @@ public class FamilyService {
 
     public MyFamilyResponse joinByQr(Integer currentUserId, MultipartFile image) {
         if (image == null || image.isEmpty()) {
-            throw new RuntimeException("Khong tim thay anh QR");
+            throw new RuntimeException("Không tìm thấy ảnh QR");
         }
 
         String qrPayload = decodeQrPayload(image);
@@ -442,24 +443,24 @@ public class FamilyService {
 
     private User getRequiredUser(Integer currentUserId) {
         return userRepository.findById(currentUserId)
-                .orElseThrow(() -> new UsernameNotFoundException("Khong tim thay user"));
+                .orElseThrow(() -> new UsernameNotFoundException("Không tìm thấy user"));
     }
 
     private HealthProfile getPrimaryProfile(Integer currentUserId) {
         return healthProfileRepository.findFirstByUser_UserIdOrderByProfileAsc(currentUserId)
-                .orElseThrow(() -> new RuntimeException("Ban chua co health profile"));
+            .orElseThrow(() -> new RuntimeException("Bạn chưa có hồ sơ sức khỏe"));
     }
 
     private FamilyRelationship getRequiredFamilyRelationship(Integer currentUserId) {
         HealthProfile profile = getPrimaryProfile(currentUserId);
         return familyRelationshipRepository.findByProfile_Profile(profile.getProfile())
-                .orElseThrow(() -> new RuntimeException("Ban chua thuoc family nao"));
+            .orElseThrow(() -> new RuntimeException("Bạn chưa thuộc gia đình nào"));
     }
 
     private FamilyRelationship getRequiredOwnerRelationship(Integer currentUserId) {
         FamilyRelationship relationship = getRequiredFamilyRelationship(currentUserId);
         if (relationship.getRole() != FamilyRole.OWNER) {
-            throw new RuntimeException("Chi OWNER moi duoc thuc hien thao tac nay");
+            throw new RuntimeException("Chỉ OWNER mới được thực hiện thao tác này");
         }
         return relationship;
     }
@@ -479,14 +480,14 @@ public class FamilyService {
     private Family getJoinableFamily(Integer currentUserId, String rawJoinCode) {
         String normalizedCode = extractJoinCode(rawJoinCode);
         Family family = familyRepository.findByJoinCode(normalizedCode)
-                .orElseThrow(() -> new RuntimeException("Ma tham gia khong hop le"));
+                .orElseThrow(() -> new RuntimeException("Mã tham gia không hợp lệ"));
 
         if (family.getJoinCodeExpiresAt() == null || family.getJoinCodeExpiresAt().isBefore(LocalDateTime.now())) {
-            throw new RuntimeException("Ma tham gia da het han");
+            throw new RuntimeException("Mã tham gia đã hết hạn");
         }
 
         if (family.getOwner().getUserId().equals(currentUserId)) {
-            throw new RuntimeException("Ban da la chu family nay");
+            throw new RuntimeException("Bạn đã là chủ gia đình này");
         }
 
         return family;
@@ -533,7 +534,7 @@ public class FamilyService {
             MatrixToImageWriter.writeToStream(matrix, "PNG", outputStream);
             return Base64.getEncoder().encodeToString(outputStream.toByteArray());
         } catch (Exception exception) {
-            throw new RuntimeException("Khong the tao QR code", exception);
+            throw new RuntimeException("Không thể tạo QR code", exception);
         }
     }
 
@@ -541,7 +542,7 @@ public class FamilyService {
         try {
             BufferedImage bufferedImage = ImageIO.read(image.getInputStream());
             if (bufferedImage == null) {
-                throw new RuntimeException("Anh QR khong hop le");
+                throw new RuntimeException("Ảnh QR không hợp lệ");
             }
 
             BinaryBitmap bitmap = new BinaryBitmap(
@@ -549,15 +550,15 @@ public class FamilyService {
             );
             return new MultiFormatReader().decode(bitmap).getText();
         } catch (NotFoundException exception) {
-            throw new RuntimeException("Khong doc duoc ma QR trong anh");
+            throw new RuntimeException("Không đọc được mã QR trong ảnh");
         } catch (IOException exception) {
-            throw new RuntimeException("Khong the doc anh QR", exception);
+            throw new RuntimeException("Không thể đọc ảnh QR", exception);
         }
     }
 
     private String extractJoinCode(String rawValue) {
         if (rawValue == null || rawValue.isBlank()) {
-            throw new RuntimeException("Ma tham gia khong hop le");
+            throw new RuntimeException("Mã tham gia không hợp lệ");
         }
 
         String normalizedValue = rawValue.trim();
@@ -581,8 +582,9 @@ public class FamilyService {
 
     private String mapHealthStatus(HealthProfile profile) {
         if (profile.getMedicalHistory() != null && !profile.getMedicalHistory().isBlank()) {
-            return "CAN THEO DOI";
+            return "CẦN THEO DÕI";
         }
-        return "SUC KHOE TOT";
+        return "SỨC KHỎE TỐT";
     }
 }
+

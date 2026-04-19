@@ -1,4 +1,4 @@
-package com.carenest.backend.service;
+﻿package com.carenest.backend.service;
 
 import com.carenest.backend.dto.growth.ChartDataPoint;
 import com.carenest.backend.dto.growth.CreateGrowthLogRequest;
@@ -35,12 +35,12 @@ public class GrowthService {
         HealthProfile profile = profileAccessService.requireAccessibleProfile(currentUserId, profileId);
 
         if (profile.getBirthday() == null) {
-            throw new RuntimeException("Vui long cap nhat ngay sinh de su dung tinh nang nay");
+            throw new RuntimeException("Vui lòng cập nhật ngày sinh để sử dụng tính năng này");
         }
 
         Period agePeriod = Period.between(profile.getBirthday(), LocalDate.now());
         if (agePeriod.getYears() >= 20) {
-            throw new RuntimeException("Tinh nang theo doi tang truong chi danh cho nguoi duoi 20 tuoi");
+            throw new RuntimeException("Tính năng theo dõi tăng trưởng chỉ dành cho người dưới 20 tuổi");
         }
 
         List<GrowthLog> logsAsc = growthLogRepository.findByProfileOrderByRecordDateAsc(profile);
@@ -50,8 +50,8 @@ public class GrowthService {
         response.setChildName(profile.getFullName());
 
         int totalMonths = agePeriod.getYears() * 12 + agePeriod.getMonths();
-        response.setAgeString(totalMonths + " thang tuoi");
-        response.setStatusLabel("Binh thuong");
+        response.setAgeString(totalMonths + " tháng tuổi");
+        response.setStatusLabel("Bình thường");
 
         if (logsAsc.size() >= 5) {
             response.setCanDrawChart(true);
@@ -63,7 +63,7 @@ public class GrowthService {
                     .toList());
         } else {
             response.setCanDrawChart(false);
-            response.setChartMessage("Ban can nhap it nhat 5 chi so do (hien co " + logsAsc.size() + ") de he thong ve bieu do tang truong.");
+            response.setChartMessage("Bạn cần nhập ít nhất 5 chỉ số đo (hiện có " + logsAsc.size() + ") để hệ thống vẽ biểu đồ tăng trưởng.");
             response.setWeightChart(new ArrayList<>());
             response.setHeightChart(new ArrayList<>());
         }
@@ -85,16 +85,16 @@ public class GrowthService {
         HealthProfile profile = profileAccessService.requireAccessibleProfile(currentUserId, request.getProfileId());
 
         if (profile.getBirthday() == null) {
-            throw new RuntimeException("Vui long cap nhat ngay sinh truoc khi ghi nhan tang truong");
+            throw new RuntimeException("Vui lòng cập nhật ngày sinh trước khi ghi nhận tăng trưởng");
         }
 
         Period agePeriod = Period.between(profile.getBirthday(), LocalDate.now());
         if (agePeriod.getYears() >= 20) {
-            throw new RuntimeException("Khong the them du lieu tang truong cho nguoi tu 20 tuoi tro len");
+            throw new RuntimeException("Không thể thêm dữ liệu tăng trưởng cho người từ 20 tuổi trở lên");
         }
 
         if (growthLogRepository.existsByProfileAndRecordDate(profile, request.getRecordDate())) {
-            throw new RuntimeException("Ngay nay da co du lieu roi");
+            throw new RuntimeException("Ngày này đã có dữ liệu rồi");
         }
 
         GrowthLog log = new GrowthLog();
@@ -113,6 +113,7 @@ public class GrowthService {
     private String formatLabel(LocalDate birthday, LocalDate recordDate) {
         Period period = Period.between(birthday, recordDate);
         int months = period.getYears() * 12 + period.getMonths();
-        return "Thang " + months;
+        return "Tháng " + months;
     }
 }
+

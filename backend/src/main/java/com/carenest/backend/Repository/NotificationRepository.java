@@ -14,8 +14,10 @@ import com.carenest.backend.model.enums.NotificationType;
 public interface NotificationRepository extends JpaRepository<Notification, Integer> {
 
     List<Notification> findByProfile_Profile(Integer profileId, Sort sort);
+    List<Notification> findByProfile_ProfileIn(List<Integer> profileIds, Sort sort);
 
     List<Notification> findByProfile_ProfileAndIsRead(Integer profileId, Boolean isRead, Sort sort);
+    List<Notification> findByProfile_ProfileInAndIsRead(List<Integer> profileIds, Boolean isRead, Sort sort);
 
     long countByProfile_ProfileAndIsRead(Integer profileId, Boolean isRead);
 

@@ -56,7 +56,7 @@ public class AiContextService {
                     ? profileAccessService.requireAccessibleProfile(userId, requestedProfileId).getProfile()
                     : accessibleProfiles.getFirst().getProfile();
             selectedProfile = healthProfileRepository.findById(effectiveProfileId)
-                    .orElseThrow(() -> new RuntimeException("Khong tim thay profile duoc chon"));
+                    .orElseThrow(() -> new RuntimeException("Không tìm thấy hồ sơ được chọn"));
         }
 
         Map<String, Object> familyData = null;
@@ -156,3 +156,4 @@ public class AiContextService {
         T get();
     }
 }
+

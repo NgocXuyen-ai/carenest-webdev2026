@@ -1,4 +1,4 @@
-package com.carenest.backend.service;
+﻿package com.carenest.backend.service;
 
 import com.carenest.backend.dto.notification.NotificationResponse;
 import com.carenest.backend.model.Notification;
@@ -22,19 +22,29 @@ public class NotificationService {
     }
 
     public List<NotificationResponse> getNotifications(Integer currentUserId, Integer profileId, Boolean isRead) {
-        profileAccessService.requireAccessibleProfile(currentUserId, profileId);
         Sort sort = Sort.by(Sort.Direction.DESC, "scheduledTime");
+        List<Notification> notifications;
 
-        List<Notification> notifications = isRead == null
-                ? notificationRepository.findByProfile_Profile(profileId, sort)
-                : notificationRepository.findByProfile_ProfileAndIsRead(profileId, isRead, sort);
+        if (profileId != null) {
+            profileAccessService.requireAccessibleProfile(currentUserId, profileId);
+            notifications = isRead == null
+                    ? notificationRepository.findByProfile_Profile(profileId, sort)
+                    : notificationRepository.findByProfile_ProfileAndIsRead(profileId, isRead, sort);
+        } else {
+            List<Integer> accessibleProfileIds = profileAccessService.getAccessibleProfileIds(currentUserId)
+                    .stream()
+                    .toList();
+            notifications = isRead == null
+                    ? notificationRepository.findByProfile_ProfileIn(accessibleProfileIds, sort)
+                    : notificationRepository.findByProfile_ProfileInAndIsRead(accessibleProfileIds, isRead, sort);
+        }
 
         return notifications.stream().map(this::mapToResponse).toList();
     }
 
     public void markAsRead(Integer currentUserId, Integer notificationId) {
         Notification notification = notificationRepository.findById(notificationId)
-                .orElseThrow(() -> new EntityNotFoundException("Khong tim thay notification voi id = " + notificationId));
+                .orElseThrow(() -> new EntityNotFoundException("Không tìm thấy thông báo với id = " + notificationId));
 
         profileAccessService.requireAccessibleProfile(currentUserId, notification.getProfile().getProfile());
         notification.setIsRead(true);
@@ -53,3 +63,4 @@ public class NotificationService {
                 .build();
     }
 }
+

@@ -46,6 +46,7 @@ export interface ProfileDetails {
   weight?: number | null;
   medicalHistory?: string | null;
   allergy?: string | null;
+  emergencyContactPhone?: string | null;
   healthStatus?: string | null;
 }
 

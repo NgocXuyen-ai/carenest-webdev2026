@@ -1,4 +1,4 @@
-package com.carenest.backend.controller;
+﻿package com.carenest.backend.controller;
 
 import com.carenest.backend.dto.growth.CreateGrowthLogRequest;
 import com.carenest.backend.dto.growth.GrowthSummaryResponse;
@@ -33,11 +33,11 @@ public class GrowthController {
     ) {
         try {
             if (userDetails == null) {
-                throw new RuntimeException("Ban chua dang nhap");
+                throw new RuntimeException("Bạn chưa đăng nhập");
             }
 
             GrowthSummaryResponse data = growthService.getGrowthSummary(userDetails.getId(), profileId);
-            return ApiResponse.success(data, "Lay thong tin tang truong thanh cong");
+            return ApiResponse.success(data, "Lấy thông tin tăng trưởng thành công");
         } catch (RuntimeException e) {
             return ApiResponse.error(HttpStatus.BAD_REQUEST, e.getMessage());
         }
@@ -50,13 +50,14 @@ public class GrowthController {
     ) {
         try {
             if (userDetails == null) {
-                throw new RuntimeException("Ban chua dang nhap");
+                throw new RuntimeException("Bạn chưa đăng nhập");
             }
 
             growthService.addGrowthLog(userDetails.getId(), request);
-            return ApiResponse.success(null, "Ghi nhan thong so thanh cong");
+            return ApiResponse.success(null, "Ghi nhận thông số thành công");
         } catch (RuntimeException e) {
             return ApiResponse.error(HttpStatus.BAD_REQUEST, e.getMessage());
         }
     }
 }
+

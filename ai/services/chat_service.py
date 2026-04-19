@@ -25,9 +25,13 @@ _llm: Optional[ChatAnthropic] = None
 _CONVERSATION_TIMEOUT_MINUTES = 30
 _CONTEXT_ONLY_PATTERNS = [
     re.compile(r"^\s*(xin chao|chao|hello|hi)\b", re.IGNORECASE),
-    re.compile(r"\b(ban la ai|ban giup duoc gi|help|huong dan|tro giup)\b", re.IGNORECASE),
+    re.compile(r"\b(bạn là ai|bạn giúp được gì|help|hướng dẫn|trợ giúp)\b", re.IGNORECASE),
     re.compile(r"\b(cam on|thank you)\b", re.IGNORECASE),
 ]
+
+_ACCENTED_REPLY_INSTRUCTION = (
+    "Luôn trả lời bằng tiếng Việt có dấu, tự nhiên, dễ hiểu."
+)
 
 
 def _get_llm() -> ChatAnthropic:
@@ -119,18 +123,18 @@ def _llm_judge_sql(user_message: str, user_id: int, sql: str) -> tuple[bool, str
     import json as _json
 
     llm = _get_llm()
-    prompt = f"""Ban la security reviewer. Kiem tra cau SQL co dat du 3 tieu chi:
-1. Tra loi dung cau hoi cua user
-2. Loc du lieu theo user_id = {user_id} (truc tiep hoac qua JOIN health_profile)
-3. Khong tra ve du lieu nhay cam khong lien quan den yeu cau
+    prompt = f"""Bạn la security reviewer. Kiem tra cau SQL co dat du 3 tieu chi:
+1. Trả lời dung cau hoi cua user
+2. Loc dữ liệu theo user_id = {user_id} (truc tiep hoac qua JOIN health_profile)
+3. Không tra ve dữ liệu nhay cam không lien quan den yêu cầu
 
 Cau hoi: {user_message}
 SQL: {sql}
 
-Chi tra loi JSON:
+Chi trả lời JSON:
 {{"ok": true}}
 hoac
-{{"ok": false, "reason": "ly do ngan bang tieng Viet"}}"""
+{{"ok": false, "reason": "ly do ngan bang tiếng Việt"}}"""
 
     try:
         resp = llm.invoke([HumanMessage(content=prompt)])
@@ -140,10 +144,10 @@ hoac
         data = _json.loads(raw)
         if data.get("ok"):
             return True, ""
-        return False, data.get("reason", "SQL khong hop le theo danh gia bao mat")
+        return False, data.get("reason", "SQL không hop le theo danh gia bao mat")
     except Exception as exc:
         logger.warning("LLM judge failed (fail-closed): %s", exc)
-        return False, "Khong the xac minh do an toan cua truy van duoc sinh ra"
+        return False, "Không thể xác minh độ an toàn của truy vấn được sinh ra"
 
 
 def _select_chat_route(user_message: str) -> str:
@@ -222,7 +226,7 @@ def process_chat(request: ChatRequest) -> ChatResponse:
             )
         except Exception as exc:
             logger.error("Context-based chat failed: %s", exc)
-            reply = "Xin loi, toi chua the xu ly yeu cau luc nay. Vui long thu lai sau."
+            reply = "Xin lỗi, tôi chưa thể xử lý yêu cầu lúc này. Vui lòng thử lại sau."
             msg_id = _save_assistant_response(conversation_id, None, reply, "error", time.time() - start_time)
             conversation_service.touch_conversation(conversation_id)
             return ChatResponse(reply=reply, conversation_id=conversation_id, message_id=msg_id)
@@ -238,7 +242,7 @@ def process_chat(request: ChatRequest) -> ChatResponse:
         response_text = response1.content
     except Exception as exc:
         logger.error("LLM call failed: %s", exc)
-        reply = "Xin loi, toi gap su co khi xu ly yeu cau. Vui long thu lai."
+        reply = "Xin lỗi, tôi gặp sự cố khi xử lý yêu cầu. Vui lòng thử lại."
         msg_id = _save_assistant_response(conversation_id, None, reply, "error", time.time() - start_time)
         conversation_service.touch_conversation(conversation_id)
         return ChatResponse(reply=reply, conversation_id=conversation_id, message_id=msg_id)
@@ -251,14 +255,14 @@ def process_chat(request: ChatRequest) -> ChatResponse:
 
     is_safe, error_msg = validate_sql(sql)
     if not is_safe:
-        reply = f"Xin loi, toi khong the thuc hien yeu cau nay: {error_msg}"
+        reply = f"Xin lỗi, tôi không thể thực hiện yêu cầu này: {error_msg}"
         msg_id = _save_assistant_response(conversation_id, sql, reply, "error", time.time() - start_time)
         conversation_service.touch_conversation(conversation_id)
         return ChatResponse(reply=reply, conversation_id=conversation_id, message_id=msg_id, sql_generated=sql)
 
     is_valid, reason = _llm_judge_sql(request.message, request.user_id, sql)
     if not is_valid:
-        reply = f"Xin loi, toi khong the thuc hien yeu cau nay: {reason}"
+        reply = f"Xin lỗi, tôi không thể thực hiện yêu cầu này: {reason}"
         msg_id = _save_assistant_response(conversation_id, sql, reply, "error", time.time() - start_time)
         conversation_service.touch_conversation(conversation_id)
         return ChatResponse(reply=reply, conversation_id=conversation_id, message_id=msg_id, sql_generated=sql)
@@ -269,20 +273,25 @@ def process_chat(request: ChatRequest) -> ChatResponse:
         rows = execute_query(sql)
     except Exception as exc:
         logger.error("SQL execution failed: %s", exc)
-        reply = "Khong tim thay du lieu phu hop hoac co loi khi truy van co so du lieu."
+        reply = "Không tìm thấy dữ liệu phù hợp hoặc có lỗi khi truy vấn cơ sở dữ liệu."
         msg_id = _save_assistant_response(conversation_id, sql, reply, "error", time.time() - start_time)
         conversation_service.touch_conversation(conversation_id)
         return ChatResponse(reply=reply, conversation_id=conversation_id, message_id=msg_id, sql_generated=sql)
 
     previous_reply = _get_previous_reply(history)
     result_prompt = build_answer_context(previous_reply, request.message, rows)
+    result_prompt = f"{_ACCENTED_REPLY_INSTRUCTION}\n\n{result_prompt}"
 
     try:
         response2 = llm.invoke([HumanMessage(content=result_prompt)])
         final_reply = response2.content
     except Exception as exc:
         logger.warning("Answer generation failed, fallback to summary: %s", exc)
-        final_reply = f"Tim thay {len(rows)} ket qua." if rows else "Khong tim thay du lieu phu hop."
+        final_reply = (
+            f"Tìm thấy {len(rows)} kết quả."
+            if rows
+            else "Không tìm thấy dữ liệu phù hợp."
+        )
 
     msg_id = _save_assistant_response(conversation_id, sql, final_reply, "success", time.time() - start_time)
     conversation_service.touch_conversation(conversation_id)
@@ -294,3 +303,4 @@ def process_chat(request: ChatRequest) -> ChatResponse:
         sql_generated=sql,
         data=rows if rows else None,
     )
+

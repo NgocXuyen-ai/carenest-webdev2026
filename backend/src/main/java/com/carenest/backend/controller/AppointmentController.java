@@ -1,4 +1,4 @@
-package com.carenest.backend.controller;
+﻿package com.carenest.backend.controller;
 
 import com.carenest.backend.dto.appointment.AppointmentDetailResponse;
 import com.carenest.backend.dto.appointment.AppointmentFormResponse;
@@ -36,11 +36,11 @@ public class AppointmentController {
             @Valid @RequestBody CreateAppointmentRequest request
     ) {
         if (userDetails == null) {
-            throw new RuntimeException("Ban chua dang nhap");
+            throw new RuntimeException("Bạn chưa đăng nhập");
         }
 
         AppointmentDetailResponse response = appointmentService.createAppointment(userDetails.getId(), request);
-        return ApiResponse.success(response, "Tao cuoc hen voi bac si thanh cong");
+        return ApiResponse.success(response, "Tạo cuộc hẹn với bác sĩ thành công");
     }
 
     @GetMapping("/appointment/overview/{profileId}")
@@ -49,11 +49,11 @@ public class AppointmentController {
             @PathVariable Integer profileId
     ) {
         if (userDetails == null) {
-            throw new RuntimeException("Ban chua dang nhap");
+            throw new RuntimeException("Bạn chưa đăng nhập");
         }
 
         AppointmentOverviewResponse data = appointmentService.getOverview(userDetails.getId(), profileId);
-        return ApiResponse.success(data, "Lay danh sach lich kham thanh cong");
+        return ApiResponse.success(data, "Lấy danh sách lịch khám thành công");
     }
 
     @GetMapping("/form-data")
@@ -61,11 +61,11 @@ public class AppointmentController {
             @AuthenticationPrincipal CustomUserDetails userDetails
     ) {
         if (userDetails == null) {
-            throw new RuntimeException("Ban chua dang nhap");
+            throw new RuntimeException("Bạn chưa đăng nhập");
         }
 
         AppointmentFormResponse data = appointmentService.getFormData(userDetails.getId());
-        return ApiResponse.success(data, "Lay du lieu form thanh cong");
+        return ApiResponse.success(data, "Lấy dữ liệu form thành công");
     }
 
     @PutMapping("/appointment/{appointmentId}")
@@ -75,11 +75,11 @@ public class AppointmentController {
             @Valid @RequestBody UpdateAppointmentRequest request
     ) {
         if (userDetails == null) {
-            throw new RuntimeException("Ban chua dang nhap");
+            throw new RuntimeException("Bạn chưa đăng nhập");
         }
 
         AppointmentResponse data = appointmentService.updateAppointment(userDetails.getId(), appointmentId, request);
-        return ApiResponse.success(data, "Cap nhat lich kham thanh cong");
+        return ApiResponse.success(data, "Cập nhật lịch khám thành công");
     }
 
     @PatchMapping("/{appointmentId}/cancel")
@@ -88,10 +88,11 @@ public class AppointmentController {
             @PathVariable Integer appointmentId
     ) {
         if (userDetails == null) {
-            throw new RuntimeException("Ban chua dang nhap");
+            throw new RuntimeException("Bạn chưa đăng nhập");
         }
 
         AppointmentResponse data = appointmentService.cancelAppointment(userDetails.getId(), appointmentId);
-        return ApiResponse.success(data, "Huy lich hen thanh cong");
+        return ApiResponse.success(data, "Hủy lịch hẹn thành công");
     }
 }
+

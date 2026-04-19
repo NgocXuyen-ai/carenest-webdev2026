@@ -1,4 +1,4 @@
-package com.carenest.backend.service;
+﻿package com.carenest.backend.service;
 
 import com.carenest.backend.dto.ai.AiChatRequest;
 import com.carenest.backend.dto.ai.AiOcrRequest;
@@ -180,7 +180,7 @@ public class AiProxyService {
         Integer cabinetId = medicineService.getMyCabinet(userId).getCabinetId();
         return detailsMedicineRepository
                 .findByCabinet_CabinetIdAndNameIgnoreCase(cabinetId, medicineDraft.getName().trim())
-                .orElseThrow(() -> new RuntimeException("Khong the tao thuoc tu OCR"));
+            .orElseThrow(() -> new RuntimeException("Không thể tạo thuốc từ OCR"));
     }
 
     private Map<String, Object> postJson(String path, Map<String, Object> body) {
@@ -210,7 +210,7 @@ public class AiProxyService {
                 }
             };
         } catch (IOException e) {
-            throw new RuntimeException("Khong the doc file audio", e);
+            throw new RuntimeException("Không thể đọc file audio", e);
         }
     }
 
@@ -218,7 +218,7 @@ public class AiProxyService {
         try {
             return objectMapper.writeValueAsString(context);
         } catch (Exception e) {
-            throw new RuntimeException("Khong the ma hoa AI context", e);
+            throw new RuntimeException("Không thể mã hóa AI context", e);
         }
     }
 
@@ -261,3 +261,4 @@ public class AiProxyService {
         return value != null && !value.isBlank() ? value : fallback;
     }
 }
+

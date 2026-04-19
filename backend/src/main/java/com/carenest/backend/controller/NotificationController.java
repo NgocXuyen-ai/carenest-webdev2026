@@ -1,4 +1,4 @@
-package com.carenest.backend.controller;
+﻿package com.carenest.backend.controller;
 
 import com.carenest.backend.dto.notification.NotificationResponse;
 import com.carenest.backend.helper.ApiResponse;
@@ -29,15 +29,15 @@ public class NotificationController {
     @GetMapping
     public ResponseEntity<ApiResponse<List<NotificationResponse>>> getNotifications(
             @AuthenticationPrincipal CustomUserDetails userDetails,
-            @RequestParam Integer profileId,
+            @RequestParam(required = false) Integer profileId,
             @RequestParam(required = false) Boolean isRead
     ) {
         if (userDetails == null) {
-            throw new RuntimeException("Ban chua dang nhap");
+            throw new RuntimeException("Bạn chưa đăng nhập");
         }
 
         List<NotificationResponse> notifications = notificationService.getNotifications(userDetails.getId(), profileId, isRead);
-        return ApiResponse.success(notifications, "Lay danh sach notification thanh cong");
+        return ApiResponse.success(notifications, "Lấy danh sách thông báo thành công");
     }
 
     @PatchMapping("/{notificationId}/read")
@@ -46,11 +46,11 @@ public class NotificationController {
             @PathVariable Integer notificationId
     ) {
         if (userDetails == null) {
-            throw new RuntimeException("Ban chua dang nhap");
+            throw new RuntimeException("Bạn chưa đăng nhập");
         }
 
         notificationService.markAsRead(userDetails.getId(), notificationId);
-        return ApiResponse.success("OK", "Danh dau da doc thanh cong");
+        return ApiResponse.success("OK", "Đánh dấu đã đọc thành công");
     }
 
     @PostMapping("/generate/medicine")
@@ -58,11 +58,11 @@ public class NotificationController {
             @AuthenticationPrincipal CustomUserDetails userDetails
     ) {
         if (userDetails == null) {
-            throw new RuntimeException("Ban chua dang nhap");
+            throw new RuntimeException("Bạn chưa đăng nhập");
         }
 
         notificationGenerationService.generateMedicineNotifications();
-        return ApiResponse.success("OK", "Tao notification thuoc thanh cong");
+        return ApiResponse.success("OK", "Tạo thông báo thuốc thành công");
     }
 
     @PostMapping("/generate/appointment")
@@ -70,11 +70,11 @@ public class NotificationController {
             @AuthenticationPrincipal CustomUserDetails userDetails
     ) {
         if (userDetails == null) {
-            throw new RuntimeException("Ban chua dang nhap");
+            throw new RuntimeException("Bạn chưa đăng nhập");
         }
 
         notificationGenerationService.generateAppointmentNotifications();
-        return ApiResponse.success("OK", "Tao notification lich hen thanh cong");
+        return ApiResponse.success("OK", "Tạo thông báo lịch hẹn thành công");
     }
 
     @PostMapping("/generate/vaccination")
@@ -82,10 +82,11 @@ public class NotificationController {
             @AuthenticationPrincipal CustomUserDetails userDetails
     ) {
         if (userDetails == null) {
-            throw new RuntimeException("Ban chua dang nhap");
+            throw new RuntimeException("Bạn chưa đăng nhập");
         }
 
         notificationGenerationService.generateVaccinationNotifications();
-        return ApiResponse.success("OK", "Tao notification tiem chung thanh cong");
+        return ApiResponse.success("OK", "Tạo thông báo tiêm chủng thành công");
     }
 }
+

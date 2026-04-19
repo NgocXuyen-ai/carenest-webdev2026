@@ -36,7 +36,14 @@ interface InputFieldProps {
   keyboardType?: 'default' | 'email-address' | 'phone-pad';
 }
 
-function InputField({ icon, label, value, onChangeText, placeholder, keyboardType = 'default' }: InputFieldProps) {
+function InputField({
+  icon,
+  label,
+  value,
+  onChangeText,
+  placeholder,
+  keyboardType = 'default',
+}: InputFieldProps) {
   return (
     <View style={styles.inputContainer}>
       <View style={styles.inputIconWrap}>
@@ -103,7 +110,7 @@ export default function UserProfileSettingsScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<any>();
   const { user, logout, refreshUser } = useAuth();
-  const { members } = useFamily();
+  const { members, refreshFamily } = useFamily();
 
   const [medReminder, setMedReminder] = useState(true);
   const [apptReminder, setApptReminder] = useState(true);
@@ -146,13 +153,19 @@ export default function UserProfileSettingsScreen() {
   }, []);
 
   const handleChoosePhoto = () => {
-    Alert.alert('Chưa hỗ trợ', 'Tính năng đổi ảnh đại diện sẽ được kết nối khi backend upload ảnh sẵn sàng.');
+    Alert.alert(
+      'Chưa hỗ trợ',
+      'Tính năng đổi ảnh đại diện sẽ được kết nối khi backend upload ảnh sẵn sàng.',
+    );
   };
 
   const handleSave = async () => {
     const isoBirthday = toIsoBirthday(birthday);
     if (!isoBirthday) {
-      Alert.alert('Ngày sinh chưa hợp lệ', 'Vui lòng nhập ngày sinh theo định dạng dd/mm/yyyy.');
+      Alert.alert(
+        'Ngày sinh chưa hợp lệ',
+        'Vui lòng nhập ngày sinh theo định dạng dd/mm/yyyy.',
+      );
       return;
     }
 
@@ -171,10 +184,16 @@ export default function UserProfileSettingsScreen() {
         weight,
         emergencyContactPhone,
       });
-      await refreshUser();
-      Alert.alert('Thành công', 'Thông tin của bạn đã được cập nhật.');
+      await Promise.all([refreshUser(), refreshFamily()]);
+      Alert.alert(
+        'Thành công',
+        'Thông tin của bạn đã được cập nhật.',
+      );
     } catch (error) {
-      Alert.alert('Không thể lưu', error instanceof Error ? error.message : 'Đã có lỗi xảy ra');
+      Alert.alert(
+        'Không thể lưu',
+        error instanceof Error ? error.message : 'Đã có lỗi xảy ra',
+      );
     } finally {
       setIsSaving(false);
     }
@@ -188,15 +207,14 @@ export default function UserProfileSettingsScreen() {
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Thông tin tài khoản</Text>
         <TouchableOpacity style={styles.saveBtn} onPress={() => void handleSave()} disabled={isSaving}>
-          <Text style={styles.saveBtnText}>{isSaving ? 'Đang lưu' : 'Lưu'}</Text>
+          <Text style={styles.saveBtnText}>
+            {isSaving ? 'Đang lưu' : 'Lưu'}
+          </Text>
         </TouchableOpacity>
       </View>
 
       <ScrollView
-        contentContainerStyle={[
-          styles.scroll,
-          { paddingBottom: BOTTOM_NAV_HEIGHT + 40 },
-        ]}
+        contentContainerStyle={[styles.scroll, { paddingBottom: BOTTOM_NAV_HEIGHT + 40 }]}
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.avatarSection}>
@@ -223,7 +241,9 @@ export default function UserProfileSettingsScreen() {
             </View>
             <View style={styles.medicalTextWrap}>
               <Text style={styles.medicalTitle}>Hồ sơ y tế</Text>
-              <Text style={styles.medicalSub}>Xem tiền sử, dị ứng và nhóm máu</Text>
+              <Text style={styles.medicalSub}>
+                Xem tiền sử, dị ứng và nhóm máu
+              </Text>
             </View>
             <Icon name="chevron_right" size={22} color="#CBD5E1" />
           </TouchableOpacity>
@@ -232,10 +252,33 @@ export default function UserProfileSettingsScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionLabel}>Thông tin cá nhân</Text>
           <View style={[styles.formCard, shadows.sm]}>
-            <InputField icon="person" label="Họ và tên" value={fullName} onChangeText={setFullName} />
-            <InputField icon="mail" label="Email" value={email} onChangeText={setEmail} keyboardType="email-address" />
-            <InputField icon="phone" label="Số điện thoại" value={phone} onChangeText={setPhone} keyboardType="phone-pad" />
-            <InputField icon="calendar_today" label="Ngày sinh" value={birthday} onChangeText={setBirthday} placeholder="dd/mm/yyyy" />
+            <InputField
+              icon="person"
+              label="Họ và tên"
+              value={fullName}
+              onChangeText={setFullName}
+            />
+            <InputField
+              icon="mail"
+              label="Email"
+              value={email}
+              onChangeText={setEmail}
+              keyboardType="email-address"
+            />
+            <InputField
+              icon="phone"
+              label="Số điện thoại"
+              value={phone}
+              onChangeText={setPhone}
+              keyboardType="phone-pad"
+            />
+            <InputField
+              icon="calendar_today"
+              label="Ngày sinh"
+              value={birthday}
+              onChangeText={setBirthday}
+              placeholder="dd/mm/yyyy"
+            />
             <SelectField
               icon="wc"
               label="Giới tính"
@@ -346,9 +389,19 @@ const styles = StyleSheet.create({
     backgroundColor: '#F8FAFC',
   },
   headerBtn: { padding: 4 },
-  headerTitle: { fontSize: 18, fontFamily: 'Manrope', fontWeight: '800', color: '#1E3A8A' },
+  headerTitle: {
+    fontSize: 18,
+    fontFamily: 'Manrope',
+    fontWeight: '800',
+    color: '#1E3A8A',
+  },
   saveBtn: { paddingHorizontal: 16, paddingVertical: 8 },
-  saveBtnText: { fontSize: 16, fontFamily: 'Inter', fontWeight: '700', color: '#3B82F6' },
+  saveBtnText: {
+    fontSize: 16,
+    fontFamily: 'Inter',
+    fontWeight: '700',
+    color: '#3B82F6',
+  },
   scroll: { paddingHorizontal: 20 },
   avatarSection: { alignItems: 'center', marginVertical: 24 },
   avatarContainer: {
@@ -373,7 +426,13 @@ const styles = StyleSheet.create({
     borderWidth: 3,
     borderColor: '#fff',
   },
-  userNameText: { fontSize: 22, fontFamily: 'Manrope', fontWeight: '800', color: '#1E293B', marginTop: 16 },
+  userNameText: {
+    fontSize: 22,
+    fontFamily: 'Manrope',
+    fontWeight: '800',
+    color: '#1E293B',
+    marginTop: 16,
+  },
   userRoleText: { fontSize: 14, fontFamily: 'Inter', color: '#64748B', marginTop: 4 },
   section: { marginBottom: 24 },
   sectionLabel: {
@@ -405,8 +464,20 @@ const styles = StyleSheet.create({
     marginRight: 16,
   },
   inputContent: { flex: 1 },
-  inputLabel: { fontSize: 12, fontFamily: 'Inter', fontWeight: '600', color: '#94A3B8', marginBottom: 2 },
-  textInput: { fontSize: 16, fontFamily: 'Inter', fontWeight: '700', color: '#1E293B', padding: 0 },
+  inputLabel: {
+    fontSize: 12,
+    fontFamily: 'Inter',
+    fontWeight: '600',
+    color: '#94A3B8',
+    marginBottom: 2,
+  },
+  textInput: {
+    fontSize: 16,
+    fontFamily: 'Inter',
+    fontWeight: '700',
+    color: '#1E293B',
+    padding: 0,
+  },
   settingsRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -423,7 +494,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  rowLabelText: { flex: 1, fontSize: 15, fontFamily: 'Inter', fontWeight: '600', color: '#1E293B' },
+  rowLabelText: {
+    flex: 1,
+    fontSize: 15,
+    fontFamily: 'Inter',
+    fontWeight: '600',
+    color: '#1E293B',
+  },
   rowValueText: { fontSize: 14, fontFamily: 'Inter', color: '#64748B', marginRight: 4 },
   medicalRecordBtn: {
     flexDirection: 'row',
@@ -442,7 +519,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   medicalTextWrap: { flex: 1 },
-  medicalTitle: { fontSize: 16, fontFamily: 'Inter', fontWeight: '700', color: '#1E293B' },
+  medicalTitle: {
+    fontSize: 16,
+    fontFamily: 'Inter',
+    fontWeight: '700',
+    color: '#1E293B',
+  },
   medicalSub: { fontSize: 12, fontFamily: 'Inter', color: '#64748B', marginTop: 2 },
   logoutBtn: {
     flexDirection: 'row',
@@ -454,5 +536,10 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     marginBottom: 20,
   },
-  logoutText: { fontSize: 16, fontFamily: 'Inter', fontWeight: '700', color: '#EF4444' },
+  logoutText: {
+    fontSize: 16,
+    fontFamily: 'Inter',
+    fontWeight: '700',
+    color: '#EF4444',
+  },
 });

@@ -35,11 +35,11 @@ public class VaccinationController {
     ) {
         try {
             if (userDetails == null) {
-                throw new RuntimeException("Ban chua dang nhap");
+                throw new RuntimeException("Bạn chưa đăng nhập");
             }
 
             List<VaccinationTrackerResponse> data = vaccinationService.getTrackerData(userDetails.getId(), profileId);
-            return ApiResponse.success(data, "Lay lich tiem thanh cong");
+            return ApiResponse.success(data, "Lấy lịch tiêm thành công");
         } catch (RuntimeException e) {
             return ApiResponse.error(HttpStatus.BAD_REQUEST, e.getMessage());
         }
@@ -53,13 +53,14 @@ public class VaccinationController {
     ) {
         try {
             if (userDetails == null) {
-                throw new RuntimeException("Ban chua dang nhap");
+                throw new RuntimeException("Bạn chưa đăng nhập");
             }
 
             vaccinationService.addVaccination(userDetails.getId(), profileId, request);
-            return ApiResponse.success(null, "Luu thong tin tiem chung thanh cong");
+            return ApiResponse.success(null, "Luu thông tin tiêm chủng thành công");
         } catch (RuntimeException e) {
             return ApiResponse.error(HttpStatus.BAD_REQUEST, e.getMessage());
         }
     }
 }
+

@@ -67,7 +67,7 @@ export default function TopAppBar({
             <Text style={styles.chatSubtitle}>Trực tuyến</Text>
           </View>
         </View>
-        {rightAction ?? <View style={styles.backBtn} />}
+        {rightAction ?? <View style={styles.rightSpacer} />}
       </View>
     );
   }
@@ -81,7 +81,7 @@ export default function TopAppBar({
       <Text style={styles.detailTitle} numberOfLines={1}>
         {title ?? ''}
       </Text>
-      {rightAction ?? <View style={styles.backBtn} />}
+      {rightAction ?? <View style={styles.rightSpacer} />}
     </View>
   );
 }
@@ -123,7 +123,18 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: colors.surface,
   },
-  backBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
+  backBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.primaryFixed,
+  },
+  rightSpacer: {
+    width: 40,
+    height: 40,
+  },
   detailTitle: {
     flex: 1,
     fontSize: 17,

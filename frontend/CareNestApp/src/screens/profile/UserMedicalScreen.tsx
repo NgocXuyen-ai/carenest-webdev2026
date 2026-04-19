@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
 import {
   Animated,
   Dimensions,
@@ -11,7 +11,7 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
+import { useFocusEffect, useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { ProfileStackParamList } from '../../navigation/navigationTypes';
 import Icon from '../../components/common/Icon';
 import { getCurrentUserProfile } from '../../api/auth';
@@ -40,7 +40,9 @@ const StatItem = ({ label, value, unit, isBmi = false }: any) => (
       {unit ? <Text style={styles.statUnit}>{unit}</Text> : null}
       {isBmi ? (
         <View style={styles.bmiMiniBar}>
-          <View style={styles.bmiBarBg}><View style={[styles.bmiBarFill, { width: '60%' }]} /></View>
+          <View style={styles.bmiBarBg}>
+            <View style={[styles.bmiBarFill, { width: '60%' }]} />
+          </View>
         </View>
       ) : null}
     </View>
@@ -71,34 +73,37 @@ export default function UserMedicalScreen() {
   const slideAnim = useRef(new Animated.Value(0)).current;
   const [profile, setProfile] = useState<ProfileDetails | null>(null);
 
-  React.useEffect(() => {
-    const loadProfile = async () => {
-      try {
-        if (memberId) {
-          const response = await getFamilyProfile(Number(memberId));
-          setProfile(response);
-          return;
-        }
-
-        const response = await getCurrentUserProfile();
-        setProfile({
-          profileId: response.profileId,
-          fullName: response.fullName,
-          birthday: response.birthday,
-          gender: response.gender,
-          bloodType: response.bloodType,
-          height: response.height,
-          weight: response.weight,
-          medicalHistory: response.medicalHistory,
-          allergy: response.allergy,
-        });
-      } catch {
-        setProfile(null);
+  const loadProfile = useCallback(async () => {
+    try {
+      if (memberId) {
+        const response = await getFamilyProfile(Number(memberId));
+        setProfile(response);
+        return;
       }
-    };
 
-    void loadProfile();
+      const response = await getCurrentUserProfile();
+      setProfile({
+        profileId: response.profileId,
+        fullName: response.fullName,
+        birthday: response.birthday,
+        gender: response.gender,
+        bloodType: response.bloodType,
+        height: response.height,
+        weight: response.weight,
+        medicalHistory: response.medicalHistory,
+        allergy: response.allergy,
+        emergencyContactPhone: response.emergencyContactPhone,
+      });
+    } catch {
+      setProfile(null);
+    }
   }, [memberId]);
+
+  useFocusEffect(
+    useCallback(() => {
+      void loadProfile();
+    }, [loadProfile]),
+  );
 
   const age = useMemo(() => calculateAge(profile?.birthday), [profile?.birthday]);
   const bmi = useMemo(() => {
@@ -120,11 +125,22 @@ export default function UserMedicalScreen() {
     }).start();
   };
 
-  const allergies = (profile?.allergy || 'Không có').split(',').map(item => item.trim()).filter(Boolean);
+  const allergies = (profile?.allergy || 'Không có')
+    .split(',')
+    .map(item => item.trim())
+    .filter(Boolean);
 
   const renderTabContent = () => {
     if (activeTab === 1) {
-      return <Emergency />;
+      return (
+        <Emergency
+          fullName={profile?.fullName}
+          bloodType={profile?.bloodType}
+          allergy={profile?.allergy}
+          medicalHistory={profile?.medicalHistory}
+          emergencyContactPhone={profile?.emergencyContactPhone}
+        />
+      );
     }
 
     return (
@@ -174,7 +190,9 @@ export default function UserMedicalScreen() {
           ) : (
             <View style={styles.historyItemLast}>
               <Text style={styles.historyName}>Chưa có dữ liệu</Text>
-              <Text style={styles.historyDesc}>Thông tin bệnh lý sẽ hiển thị tại đây khi được cập nhật.</Text>
+              <Text style={styles.historyDesc}>
+                Thông tin bệnh lý sẽ hiển thị tại đây khi được cập nhật.
+              </Text>
             </View>
           )}
         </View>
@@ -188,20 +206,21 @@ export default function UserMedicalScreen() {
 
       <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
         <TouchableOpacity style={styles.circleBtn} onPress={() => navigation.goBack()}>
-          <Icon name="arrow_back" size={24} color="#333" />
+          <Icon name="arrow_back" size={24} color="#334155" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>CareNest</Text>
         <View style={styles.editBtn} />
       </View>
 
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.scrollContent}
-      >
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
         <View style={styles.profileSection}>
           <View style={styles.avatarWrap}>
             <Image
-              source={{ uri: `https://ui-avatars.com/api/?name=${encodeURIComponent(profile?.fullName || 'CareNest')}&background=eff6ff&color=2563eb&bold=true` }}
+              source={{
+                uri: `https://ui-avatars.com/api/?name=${encodeURIComponent(
+                  profile?.fullName || 'CareNest',
+                )}&background=eff6ff&color=2563eb&bold=true`,
+              }}
               style={styles.avatar}
             />
             <View style={styles.verifiedBadge}>
@@ -211,7 +230,9 @@ export default function UserMedicalScreen() {
 
           <Text style={styles.userName}>{profile?.fullName || 'Đang tải...'}</Text>
           <View style={styles.roleChip}>
-            <Text style={styles.roleText}>{memberId ? 'THÀNH VIÊN GIA ĐÌNH' : 'TÀI KHOẢN CỦA BẠN'}</Text>
+            <Text style={styles.roleText}>
+              {memberId ? 'THÀNH VIÊN GIA ĐÌNH' : 'TÀI KHOẢN CỦA BẠN'}
+            </Text>
           </View>
           <Text style={styles.userMeta}>
             {age || '--'} Tuổi • {formatGender(profile?.gender)}
@@ -221,10 +242,14 @@ export default function UserMedicalScreen() {
         <View style={styles.tabContainer}>
           <Animated.View style={[styles.slideBg, { transform: [{ translateX: slideAnim }] }]} />
           <TouchableOpacity style={styles.tabItem} onPress={() => handleTabPress(0)}>
-            <Text style={[styles.tabLabel, activeTab === 0 && styles.activeLabel]}>Thông tin</Text>
+            <Text style={[styles.tabLabel, activeTab === 0 && styles.activeLabel]}>
+              Thông tin
+            </Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.tabItem} onPress={() => handleTabPress(1)}>
-            <Text style={[styles.tabLabel, activeTab === 1 && styles.activeLabel]}>Khẩn cấp</Text>
+            <Text style={[styles.tabLabel, activeTab === 1 && styles.activeLabel]}>
+              Khẩn cấp
+            </Text>
           </TouchableOpacity>
         </View>
 
@@ -237,40 +262,94 @@ export default function UserMedicalScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#FCFDFF' },
   header: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 8, paddingBottom: 10, backgroundColor: '#fff',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 8,
+    paddingBottom: 10,
+    backgroundColor: '#fff',
   },
-  circleBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  circleBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#EFF6FF',
+  },
   headerTitle: { fontSize: 20, fontWeight: '800', color: '#1E3A8A', fontFamily: 'Inter' },
   editBtn: { width: 44, height: 44 },
   scrollContent: { paddingHorizontal: 16, paddingBottom: 120 },
   profileSection: { alignItems: 'center', marginTop: 24, marginBottom: 32 },
   avatarWrap: {
-    width: 120, height: 120, borderRadius: 60, padding: 4,
-    backgroundColor: '#fff', elevation: 12, shadowColor: '#000',
-    shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.1, shadowRadius: 10,
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    padding: 4,
+    backgroundColor: '#fff',
+    elevation: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
   },
   avatar: { width: '100%', height: '100%', borderRadius: 60 },
   verifiedBadge: {
-    position: 'absolute', bottom: 4, right: 4, width: 28, height: 28,
-    borderRadius: 14, backgroundColor: '#3B82F6', alignItems: 'center',
-    justifyContent: 'center', borderWidth: 2, borderColor: '#fff',
+    position: 'absolute',
+    bottom: 4,
+    right: 4,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#3B82F6',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: '#fff',
   },
-  userName: { fontSize: 28, fontWeight: '800', color: '#1E293B', marginTop: 16, fontFamily: 'Inter' },
+  userName: {
+    fontSize: 28,
+    fontWeight: '800',
+    color: '#1E293B',
+    marginTop: 16,
+    fontFamily: 'Inter',
+  },
   roleChip: {
-    backgroundColor: '#EBF2FF', paddingHorizontal: 16, paddingVertical: 4,
-    borderRadius: 20, marginTop: 10,
+    backgroundColor: '#EBF2FF',
+    paddingHorizontal: 16,
+    paddingVertical: 4,
+    borderRadius: 20,
+    marginTop: 10,
   },
   roleText: { color: '#3B82F6', fontSize: 13, fontWeight: '800', fontFamily: 'Inter' },
-  userMeta: { fontSize: 15, color: '#64748B', marginTop: 8, fontFamily: 'Inter', fontWeight: '500' },
+  userMeta: {
+    fontSize: 15,
+    color: '#64748B',
+    marginTop: 8,
+    fontFamily: 'Inter',
+    fontWeight: '500',
+  },
   tabContainer: {
-    flexDirection: 'row', backgroundColor: '#F1F5F9', borderRadius: 24,
-    padding: 6, marginBottom: 32, position: 'relative',
+    flexDirection: 'row',
+    backgroundColor: '#F1F5F9',
+    borderRadius: 24,
+    padding: 6,
+    marginBottom: 32,
+    position: 'relative',
   },
   slideBg: {
-    position: 'absolute', top: 6, left: 6, width: TAB_WIDTH, height: 44,
-    backgroundColor: '#fff', borderRadius: 18, elevation: 4,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4,
+    position: 'absolute',
+    top: 6,
+    left: 6,
+    width: TAB_WIDTH,
+    height: 44,
+    backgroundColor: '#fff',
+    borderRadius: 18,
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
   },
   tabItem: { flex: 1, height: 44, alignItems: 'center', justifyContent: 'center' },
   tabLabel: { fontSize: 16, fontWeight: '700', color: '#64748B', fontFamily: 'Inter' },
@@ -278,18 +357,41 @@ const styles = StyleSheet.create({
   tabContent: { paddingHorizontal: 16 },
   grid: { flexDirection: 'row', gap: 16, marginBottom: 32 },
   healthCard: { flex: 1, padding: 20, borderRadius: 28 },
-  cardHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 12 },
-  cardTitle: { fontSize: 12, fontWeight: '800', fontFamily: 'Inter' },
-  cardValue: { fontSize: 40, fontWeight: '800' },
-  pillContainer: { gap: 6 },
-  pill: { backgroundColor: 'rgba(255,255,255,0.7)', alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
+  cardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    marginBottom: 12,
+  },
+  cardTitle: { fontSize: 12, fontWeight: '800', fontFamily: 'Inter', textAlign: 'center' },
+  cardValue: { fontSize: 40, fontWeight: '800', textAlign: 'center' },
+  pillContainer: { gap: 6, alignItems: 'center', justifyContent: 'center', minHeight: 52 },
+  pill: {
+    backgroundColor: 'rgba(255,255,255,0.7)',
+    alignSelf: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
   pillText: { fontSize: 11, fontWeight: '700', color: '#9A3412' },
   statsRow: {
-    flexDirection: 'row', gap: 20, paddingHorizontal: 4,
-    marginBottom: 40, borderBottomWidth: 1, borderBottomColor: '#F1F5F9', paddingBottom: 24,
+    flexDirection: 'row',
+    gap: 20,
+    paddingHorizontal: 4,
+    marginBottom: 40,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+    paddingBottom: 24,
   },
   statItem: { flex: 1 },
-  statLabel: { fontSize: 11, fontWeight: '700', color: '#94A3B8', marginBottom: 8, fontFamily: 'Inter' },
+  statLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#94A3B8',
+    marginBottom: 8,
+    fontFamily: 'Inter',
+  },
   statLine: { flexDirection: 'row', alignItems: 'baseline', gap: 4 },
   statValue: { fontSize: 24, fontWeight: '800', color: '#1E293B', fontFamily: 'Inter' },
   statUnit: { fontSize: 14, color: '#64748B', fontWeight: '600' },

@@ -10,9 +10,9 @@ export interface NotificationItem {
   referenceId?: number | null;
 }
 
-export async function getNotifications(profileId: number, isRead?: boolean): Promise<NotificationItem[]> {
+export async function getNotifications(profileId?: number, isRead?: boolean): Promise<NotificationItem[]> {
   return apiGet<NotificationItem[]>('/notifications', {
-    profileId,
+    ...(typeof profileId === 'number' ? { profileId } : {}),
     ...(typeof isRead === 'boolean' ? { isRead } : {}),
   });
 }

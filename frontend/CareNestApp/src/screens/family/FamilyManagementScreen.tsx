@@ -20,7 +20,7 @@ import { useNavigation } from '@react-navigation/native';
 import { colors } from '../../theme/colors';
 import { useFamily } from '../../context/FamilyContext';
 import { useAuth } from '../../context/AuthContext';
-import { BOTTOM_NAV_HEIGHT } from '../../utils/constants';
+import FAB from '../../components/common/FAB';
 import {
   acceptInvitation,
   getFamilyJoinCode,
@@ -102,7 +102,8 @@ export default function FamilyManagementScreen() {
   const [tempName, setTempName] = useState('Tổ ấm thân thương');
   const [tempImage, setTempImage] = useState<string | null>(null);
   const [addModalVisible, setAddModalVisible] = useState(false);
-  const [selectedRelation, setSelectedRelation] = useState<(typeof RELATIONS)[number]>('Mẹ');
+  const [selectedRelation, setSelectedRelation] =
+    useState<(typeof RELATIONS)[number]>('Mẹ');
   const [inviteValue, setInviteValue] = useState('');
   const [joinCodeInput, setJoinCodeInput] = useState('');
   const [receivedInvitations, setReceivedInvitations] = useState<FamilyInvitationItem[]>([]);
@@ -151,7 +152,10 @@ export default function FamilyManagementScreen() {
 
   const handleFinishSetup = async () => {
     if (!tempName.trim()) {
-      Alert.alert('Thiếu tên gia đình', 'Vui lòng nhập tên trước khi tạo gia đình.');
+      Alert.alert(
+        'Thiếu tên gia đình',
+        'Vui lòng nhập tên trước khi tạo gia đình.',
+      );
       return;
     }
 
@@ -160,7 +164,10 @@ export default function FamilyManagementScreen() {
       await createFamily(tempName.trim(), tempImage);
       setStep(1);
     } catch (error) {
-      Alert.alert('Không thể tạo gia đình', error instanceof Error ? error.message : 'Đã có lỗi xảy ra');
+      Alert.alert(
+        'Không thể tạo gia đình',
+        error instanceof Error ? error.message : 'Đã có lỗi xảy ra',
+      );
     } finally {
       setIsBusy(false);
     }
@@ -168,7 +175,10 @@ export default function FamilyManagementScreen() {
 
   const handleInviteMember = async () => {
     if (!inviteValue.trim()) {
-      Alert.alert('Thiếu thông tin', 'Vui lòng nhập email người thân.');
+      Alert.alert(
+        'Thiếu thông tin',
+        'Vui lòng nhập email người thân.',
+      );
       return;
     }
 
@@ -177,9 +187,15 @@ export default function FamilyManagementScreen() {
       await inviteMember(inviteValue.trim(), mapRelationToRole(selectedRelation));
       setInviteValue('');
       setSentInvitations(await getSentInvitations());
-      Alert.alert('Đã gửi lời mời', 'Người thân của bạn sẽ nhận được lời mời tham gia gia đình.');
+      Alert.alert(
+        'Đã gửi lời mời',
+        'Người thân của bạn sẽ nhận được lời mời tham gia gia đình.',
+      );
     } catch (error) {
-      Alert.alert('Không thể gửi lời mời', error instanceof Error ? error.message : 'Đã có lỗi xảy ra');
+      Alert.alert(
+        'Không thể gửi lời mời',
+        error instanceof Error ? error.message : 'Đã có lỗi xảy ra',
+      );
     } finally {
       setIsBusy(false);
     }
@@ -188,7 +204,10 @@ export default function FamilyManagementScreen() {
   const handleJoinByCode = async () => {
     const code = joinCodeInput.trim();
     if (!code) {
-      Alert.alert('Thiếu mã tham gia', 'Vui lòng nhập mã hoặc quét mã QR để tham gia gia đình.');
+      Alert.alert(
+        'Thiếu mã tham gia',
+        'Vui lòng nhập mã hoặc quét mã QR để tham gia gia đình.',
+      );
       return;
     }
 
@@ -197,9 +216,15 @@ export default function FamilyManagementScreen() {
       await joinFamilyByCode(code);
       await refreshFamily();
       setJoinCodeInput('');
-      Alert.alert('Tham gia thành công', 'Bạn đã được thêm vào gia đình.');
+      Alert.alert(
+        'Tham gia thành công',
+        'Bạn đã được thêm vào gia đình.',
+      );
     } catch (error) {
-      Alert.alert('Không thể tham gia', error instanceof Error ? error.message : 'Đã có lỗi xảy ra');
+      Alert.alert(
+        'Không thể tham gia',
+        error instanceof Error ? error.message : 'Đã có lỗi xảy ra',
+      );
     } finally {
       setIsBusy(false);
     }
@@ -228,9 +253,15 @@ export default function FamilyManagementScreen() {
       } as never);
       await joinFamilyByQr(formData);
       await refreshFamily();
-      Alert.alert('Tham gia thành công', 'Bạn đã quét QR và tham gia gia đình.');
+      Alert.alert(
+        'Tham gia thành công',
+        'Bạn đã quét QR và tham gia gia đình.',
+      );
     } catch (error) {
-      Alert.alert('Không thể quét QR', error instanceof Error ? error.message : 'Đã có lỗi xảy ra');
+      Alert.alert(
+        'Không thể quét QR',
+        error instanceof Error ? error.message : 'Đã có lỗi xảy ra',
+      );
     } finally {
       setIsBusy(false);
     }
@@ -239,8 +270,14 @@ export default function FamilyManagementScreen() {
   const openQrScannerOptions = () => {
     Alert.alert('Quét mã QR', 'Chọn cách quét mã gia đình.', [
       { text: 'Hủy', style: 'cancel' },
-      { text: 'Chụp bằng camera', onPress: () => void handleJoinByQrImage('camera') },
-      { text: 'Chọn từ thư viện', onPress: () => void handleJoinByQrImage('library') },
+      {
+        text: 'Chụp bằng camera',
+        onPress: () => void handleJoinByQrImage('camera'),
+      },
+      {
+        text: 'Chọn từ thư viện',
+        onPress: () => void handleJoinByQrImage('library'),
+      },
     ]);
   };
 
@@ -255,7 +292,10 @@ export default function FamilyManagementScreen() {
       }
       setReceivedInvitations(await getReceivedInvitations());
     } catch (error) {
-      Alert.alert('Không thể cập nhật lời mời', error instanceof Error ? error.message : 'Đã có lỗi xảy ra');
+      Alert.alert(
+        'Không thể cập nhật lời mời',
+        error instanceof Error ? error.message : 'Đã có lỗi xảy ra',
+      );
     } finally {
       setIsBusy(false);
     }
@@ -264,10 +304,15 @@ export default function FamilyManagementScreen() {
   const handleCreateQr = async () => {
     try {
       setIsBusy(true);
-      const nextJoinCode = joinCodeInfo ? await rotateFamilyJoinCode() : await getFamilyJoinCode();
+      const nextJoinCode = joinCodeInfo
+        ? await rotateFamilyJoinCode()
+        : await getFamilyJoinCode();
       setJoinCodeInfo(nextJoinCode);
     } catch (error) {
-      Alert.alert('Không thể tạo mã QR', error instanceof Error ? error.message : 'Đã có lỗi xảy ra');
+      Alert.alert(
+        'Không thể tạo mã QR',
+        error instanceof Error ? error.message : 'Đã có lỗi xảy ra',
+      );
     } finally {
       setIsBusy(false);
     }
@@ -276,11 +321,7 @@ export default function FamilyManagementScreen() {
   const handleOpenAddMemberModal = async () => {
     setAddModalVisible(true);
 
-    if (!isOwner) {
-      return;
-    }
-
-    if (joinCodeInfo) {
+    if (!isOwner || joinCodeInfo) {
       return;
     }
 
@@ -404,8 +445,15 @@ export default function FamilyManagementScreen() {
             disabled={isBusy}
             onPress={() => void handleInviteMember()}
           >
-            <Text style={styles.submitBtnText}>{isBusy ? 'Đang gửi...' : 'Gửi lời mời'}</Text>
-            <MaterialCommunityIcons name="send" size={20} color="#fff" style={styles.inlineIcon} />
+            <Text style={styles.submitBtnText}>
+              {isBusy ? 'Đang gửi...' : 'Gửi lời mời'}
+            </Text>
+            <MaterialCommunityIcons
+              name="send"
+              size={20}
+              color="#fff"
+              style={styles.inlineIcon}
+            />
           </TouchableOpacity>
         </View>
 
@@ -424,7 +472,9 @@ export default function FamilyManagementScreen() {
               </View>
               <View style={styles.pendingTextWrap}>
                 <Text style={styles.pendingEmail}>Chưa có lời mời nào</Text>
-                <Text style={styles.pendingStatus}>Danh sách sẽ hiện tại đây sau khi gửi.</Text>
+                <Text style={styles.pendingStatus}>
+                  Danh sách sẽ hiện tại đây sau khi gửi.
+                </Text>
               </View>
             </View>
           ) : (
@@ -436,7 +486,9 @@ export default function FamilyManagementScreen() {
                   </Text>
                 </View>
                 <View style={styles.pendingTextWrap}>
-                  <Text style={styles.pendingEmail}>{item.receiverEmail || 'Người thân'}</Text>
+                  <Text style={styles.pendingEmail}>
+                    {item.receiverEmail || 'Người thân'}
+                  </Text>
                   <Text style={styles.pendingStatus}>{formatInvitationStatus(item.status)}</Text>
                 </View>
               </View>
@@ -456,10 +508,7 @@ export default function FamilyManagementScreen() {
     >
       <View style={[styles.root, { paddingTop: insets.top }]}>
         <View style={styles.topBar}>
-          <TouchableOpacity
-            style={styles.profileBtn}
-            onPress={() => setAddModalVisible(false)}
-          >
+          <TouchableOpacity style={styles.profileBtn} onPress={() => setAddModalVisible(false)}>
             <MaterialCommunityIcons name="arrow-left" size={24} color="#1e293b" />
           </TouchableOpacity>
           <Text style={styles.topBarTitle}>Thêm thành viên</Text>
@@ -501,8 +550,14 @@ export default function FamilyManagementScreen() {
               />
             </View>
           </View>
-          <TouchableOpacity style={[styles.joinSubmitBtn, isBusy && styles.disabledBtn]} activeOpacity={0.8} onPress={() => void handleJoinByCode()}>
-            <Text style={styles.submitBtnText}>{isBusy ? 'Đang xử lý...' : 'Tham gia bằng mã'}</Text>
+          <TouchableOpacity
+            style={[styles.joinSubmitBtn, isBusy && styles.disabledBtn]}
+            activeOpacity={0.8}
+            onPress={() => void handleJoinByCode()}
+          >
+            <Text style={styles.submitBtnText}>
+              {isBusy ? 'Đang xử lý...' : 'Tham gia bằng mã'}
+            </Text>
             <MaterialCommunityIcons name="arrow-right" size={20} color="#fff" />
           </TouchableOpacity>
           <View style={styles.dividerWrap}>
@@ -532,7 +587,9 @@ export default function FamilyManagementScreen() {
                 </View>
                 <View style={styles.pendingTextWrap}>
                   <Text style={styles.pendingEmail}>{item.familyName || 'Gia đình'}</Text>
-                  <Text style={styles.pendingStatus}>{item.senderEmail || 'Không rõ người gửi'}</Text>
+                  <Text style={styles.pendingStatus}>
+                    {item.senderEmail || 'Không rõ người gửi'}
+                  </Text>
                 </View>
                 <View style={styles.actionButtons}>
                   <TouchableOpacity
@@ -559,7 +616,11 @@ export default function FamilyManagementScreen() {
   const renderWelcomeStep = () => (
     <View style={styles.centerContainer}>
       <View style={styles.heroCircle}>
-        <MaterialCommunityIcons name="account-group-outline" size={120} color={colors.primary} />
+        <MaterialCommunityIcons
+          name="account-group-outline"
+          size={120}
+          color={colors.primary}
+        />
       </View>
       <Text style={styles.stepTitle}>Bắt đầu tổ ấm của bạn</Text>
       <Text style={styles.stepSub}>
@@ -617,11 +678,16 @@ export default function FamilyManagementScreen() {
           placeholder="Ví dụ: Gia đình hạnh phúc..."
           value={tempName}
           onChangeText={setTempName}
+          placeholderTextColor="#94A3B8"
         />
       </View>
       <View style={styles.tipCardCompact}>
         <View style={styles.tipIconWrap}>
-          <MaterialCommunityIcons name="information-outline" size={24} color={colors.secondary} />
+          <MaterialCommunityIcons
+            name="information-outline"
+            size={24}
+            color={colors.secondary}
+          />
         </View>
         <View style={styles.tipTextWrap}>
           <Text style={styles.tipTitle}>Mẹo nhỏ</Text>
@@ -631,8 +697,14 @@ export default function FamilyManagementScreen() {
         </View>
       </View>
       <View style={styles.flexSpacer} />
-      <TouchableOpacity style={[styles.primaryBtn, isBusy && styles.disabledBtn]} onPress={() => void handleFinishSetup()} disabled={isBusy}>
-        <Text style={styles.primaryBtnText}>{isBusy ? 'Đang tạo...' : 'Tiếp tục'}</Text>
+      <TouchableOpacity
+        style={[styles.primaryBtn, isBusy && styles.disabledBtn]}
+        onPress={() => void handleFinishSetup()}
+        disabled={isBusy}
+      >
+        <Text style={styles.primaryBtnText}>
+          {isBusy ? 'Đang tạo...' : 'Tiếp tục'}
+        </Text>
         <MaterialCommunityIcons name="arrow-right" size={24} color="#fff" style={styles.inlineIcon} />
       </TouchableOpacity>
     </KeyboardAvoidingView>
@@ -668,7 +740,11 @@ export default function FamilyManagementScreen() {
                   <View style={styles.avatarWrapper}>
                     <Image
                       source={{
-                        uri: member.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(member.fullName)}&background=eff6ff&color=2563eb&bold=true`,
+                        uri:
+                          member.avatarUrl ||
+                          `https://ui-avatars.com/api/?name=${encodeURIComponent(
+                            member.fullName,
+                          )}&background=eff6ff&color=2563eb&bold=true`,
                       }}
                       style={styles.memberImage}
                     />
@@ -677,7 +753,11 @@ export default function FamilyManagementScreen() {
 
                   <TouchableOpacity
                     style={styles.memberInfo}
-                    onPress={() => navigation.navigate('UserMedical', { memberId: String(member.profileId) })}
+                    onPress={() =>
+                      navigation.navigate('UserMedical', {
+                        memberId: String(member.profileId),
+                      })
+                    }
                   >
                     <View style={styles.nameRow}>
                       <Text style={styles.memberName}>{member.fullName}</Text>
@@ -692,11 +772,24 @@ export default function FamilyManagementScreen() {
                 {isChild ? (
                   <TouchableOpacity
                     style={styles.growthBar}
-                    onPress={() => navigation.navigate('GrowthTracker', { memberId: String(member.profileId) })}
+                    onPress={() =>
+                      navigation.navigate('GrowthTracker', {
+                        memberId: String(member.profileId),
+                      })
+                    }
                   >
-                    <MaterialCommunityIcons name="human-male-female-child" size={18} color="#0369a1" />
+                    <MaterialCommunityIcons
+                      name="human-male-female-child"
+                      size={18}
+                      color="#0369a1"
+                    />
                     <Text style={styles.growthBarText}>THEO DÕI PHÁT TRIỂN</Text>
-                    <MaterialCommunityIcons name="chevron-right" size={18} color="#0369a1" style={styles.autoMarginLeft} />
+                    <MaterialCommunityIcons
+                      name="chevron-right"
+                      size={18}
+                      color="#0369a1"
+                      style={styles.autoMarginLeft}
+                    />
                   </TouchableOpacity>
                 ) : null}
               </View>
@@ -705,15 +798,7 @@ export default function FamilyManagementScreen() {
         </View>
       </ScrollView>
 
-      {isOwner ? (
-        <TouchableOpacity
-          style={styles.fab}
-          activeOpacity={0.9}
-          onPress={() => void handleOpenAddMemberModal()}
-        >
-          <MaterialCommunityIcons name="plus" size={32} color="#fff" />
-        </TouchableOpacity>
-      ) : null}
+      {isOwner ? <FAB onPress={() => void handleOpenAddMemberModal()} iconName="add" /> : null}
     </View>
   );
 
@@ -723,27 +808,25 @@ export default function FamilyManagementScreen() {
         <View style={styles.topBarLeft}>
           <TouchableOpacity style={styles.profileBtn}>
             <Image
-              source={{ uri: user?.avatarUrl || 'https://ui-avatars.com/api/?name=User&background=1a73e8&color=fff' }}
+              source={{
+                uri:
+                  user?.avatarUrl ||
+                  'https://ui-avatars.com/api/?name=User&background=1a73e8&color=fff',
+              }}
               style={styles.smallAvatar}
             />
           </TouchableOpacity>
           <Text style={styles.topBarTitle}>{hasFamily ? familyName : 'Gia đình'}</Text>
         </View>
-        <TouchableOpacity style={styles.notifBtn}>
-          <MaterialCommunityIcons name="bell" size={24} color="#0369a1" />
-          <View style={styles.notifDot} />
-        </TouchableOpacity>
       </View>
 
-      {!hasFamily ? (
-        step === 1
+      {!hasFamily
+        ? step === 1
           ? renderWelcomeStep()
           : step === 4
             ? renderJoinStep()
             : renderSetupStep()
-      ) : (
-        renderManagementStep()
-      )}
+        : renderManagementStep()}
 
       {renderAddMemberModal()}
     </View>
@@ -763,23 +846,6 @@ const styles = StyleSheet.create({
   topBarTitle: { fontSize: 18, fontWeight: '800', color: '#0369a1' },
   topBarLeft: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   smallAvatar: { width: 36, height: 36, borderRadius: 18 },
-  notifBtn: {
-    width: 40,
-    height: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  notifDot: {
-    position: 'absolute',
-    top: 8,
-    right: 10,
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: '#ef4444',
-    borderWidth: 1.5,
-    borderColor: '#fff',
-  },
   profileBtn: {
     width: 36,
     height: 36,
@@ -945,9 +1011,20 @@ const styles = StyleSheet.create({
     backgroundColor: '#60a5fa',
   },
   memberInfo: { flex: 1, marginLeft: 16 },
-  nameRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4, flexWrap: 'wrap' },
+  nameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 4,
+    flexWrap: 'wrap',
+  },
   memberName: { fontSize: 18, fontWeight: '800', color: '#1e293b' },
-  roleTag: { backgroundColor: '#f1f5f9', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6 },
+  roleTag: {
+    backgroundColor: '#f1f5f9',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
   roleTagText: { fontSize: 11, fontWeight: '800', color: '#64748b' },
   memberAge: { fontSize: 14, color: '#64748b', fontWeight: '600' },
   growthBar: {
@@ -960,23 +1037,6 @@ const styles = StyleSheet.create({
   },
   growthBarText: { fontSize: 13, fontWeight: '800', color: '#0369a1', letterSpacing: 0.5 },
   autoMarginLeft: { marginLeft: 'auto' },
-  fab: {
-    position: 'absolute',
-    bottom: BOTTOM_NAV_HEIGHT + 12,
-    right: 20,
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: colors.primary,
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.4,
-    shadowRadius: 16,
-    elevation: 12,
-    zIndex: 20,
-  },
   modalContent: { paddingBottom: 40 },
   inviteCard: {
     backgroundColor: '#fff',
@@ -990,8 +1050,21 @@ const styles = StyleSheet.create({
     elevation: 5,
     marginBottom: 24,
   },
-  inputLabel: { fontSize: 14, fontWeight: '700', color: '#475569', marginBottom: 10, marginLeft: 4 },
-  relationLabel: { fontSize: 14, fontWeight: '700', color: '#475569', marginTop: 24, marginBottom: 10, marginLeft: 4 },
+  inputLabel: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#475569',
+    marginBottom: 10,
+    marginLeft: 4,
+  },
+  relationLabel: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#475569',
+    marginTop: 24,
+    marginBottom: 10,
+    marginLeft: 4,
+  },
   inviteInputWrap: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1008,7 +1081,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     height: 60,
   },
-  joinInput: { flex: 1, marginLeft: 12, fontSize: 16, color: '#0f172a', fontWeight: '600' },
+  joinInput: {
+    flex: 1,
+    marginLeft: 12,
+    fontSize: 16,
+    color: '#0f172a',
+    fontWeight: '600',
+  },
   relationGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginTop: 8 },
   relationItem: {
     width: (SCREEN_WIDTH - 48 - 48 - 12) / 2,
@@ -1051,7 +1130,7 @@ const styles = StyleSheet.create({
   qrCreateBtn: {
     height: 56,
     borderRadius: 18,
-    backgroundColor: '#0f766e',
+    backgroundColor: '#1a73e8',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -1094,7 +1173,13 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   pendingSection: { width: '100%', marginTop: 24 },
-  pendingHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 16, paddingHorizontal: 12 },
+  pendingHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 16,
+    paddingHorizontal: 12,
+  },
   pendingTitle: { fontSize: 16, fontWeight: '800', color: '#1e293b' },
   pendingItem: {
     flexDirection: 'row',
@@ -1145,7 +1230,14 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     width: '100%',
   },
-  blueBar: { position: 'absolute', top: 0, left: 0, right: 0, height: 6, backgroundColor: '#1a73e8' },
+  blueBar: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 6,
+    backgroundColor: '#1a73e8',
+  },
   joinHeroIcon: {
     width: 64,
     height: 64,
@@ -1155,12 +1247,35 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginBottom: 24,
   },
-  joinTitle: { fontSize: 32, fontWeight: '800', color: '#0f172a', textAlign: 'center', marginBottom: 12 },
-  joinSubText: { fontSize: 16, color: '#64748b', textAlign: 'center', lineHeight: 24, marginBottom: 32 },
+  joinTitle: {
+    fontSize: 32,
+    fontWeight: '800',
+    color: '#0f172a',
+    textAlign: 'center',
+    marginBottom: 12,
+  },
+  joinSubText: {
+    fontSize: 16,
+    color: '#64748b',
+    textAlign: 'center',
+    lineHeight: 24,
+    marginBottom: 32,
+  },
   inputSection: { width: '100%', marginBottom: 24 },
-  dividerWrap: { flexDirection: 'row', alignItems: 'center', width: '100%', marginVertical: 32 },
+  dividerWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    width: '100%',
+    marginVertical: 32,
+  },
   dividerLine: { flex: 1, height: 1, backgroundColor: '#f1f5f9' },
-  dividerText: { marginHorizontal: 16, fontSize: 14, fontWeight: '800', color: '#cbd5e1', letterSpacing: 1 },
+  dividerText: {
+    marginHorizontal: 16,
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#cbd5e1',
+    letterSpacing: 1,
+  },
   qrBtn: {
     width: '100%',
     height: 60,
@@ -1172,7 +1287,13 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   qrBtnText: { fontSize: 16, fontWeight: '800', color: '#0369a1' },
-  joinBackBtn: { marginTop: 32, flexDirection: 'row', alignItems: 'center', gap: 6, padding: 10 },
+  joinBackBtn: {
+    marginTop: 32,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    padding: 10,
+  },
   joinBackText: { fontSize: 16, fontWeight: '700', color: '#1a73e8' },
   actionButtons: {
     flexDirection: 'row',

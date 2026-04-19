@@ -83,26 +83,27 @@ public class VaccinationService {
 
     private String calculateAgeStage(LocalDate birthday, LocalDate targetDate) {
         if (birthday == null || targetDate == null) {
-            return "Khac";
+            return "Khác";
         }
         Period period = Period.between(birthday, targetDate);
         int totalMonths = period.getYears() * 12 + period.getMonths();
         if (totalMonths == 0) {
-            return "So sinh";
+            return "Sơ sinh";
         }
-        return totalMonths + " thang tuoi";
+        return totalMonths + " tháng tuổi";
     }
 
     private String getStageDescription(String stage) {
-        if ("So sinh".equals(stage)) {
-            return "Giai doan dau tien sau khi chao doi";
+        if ("Sơ sinh".equals(stage)) {
+            return "Giai đoạn đầu tiên sau khi chào đời";
         }
-        if (stage.contains("2 thang")) {
-            return "Sap toi 3 mui quan trong";
+        if (stage.contains("2 tháng")) {
+            return "Sắp tới 3 mũi quan trọng";
         }
-        if (stage.contains("6 thang")) {
-            return "Ke hoach tuong lai";
+        if (stage.contains("6 tháng")) {
+            return "Kế hoạch tương lai";
         }
-        return "Lich trinh tiem chung dinh ky";
+        return "Lịch trình tiêm chủng định kỳ";
     }
 }
+

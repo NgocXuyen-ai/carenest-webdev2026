@@ -1,14 +1,14 @@
 import React, { useRef, useState } from 'react';
 import {
-  View,
-  Text,
-  ScrollView,
-  TextInput,
-  TouchableOpacity,
-  StyleSheet,
+  Alert,
   KeyboardAvoidingView,
   Platform,
-  Alert,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
@@ -46,11 +46,14 @@ export default function AiChatbotScreen() {
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [conversationId, setConversationId] = useState<number | null>(null);
+  const shouldShowSuggestions = messages.length === 0;
 
   const activeProfileId = selectedProfileId || (user?.profileId ? Number(user.profileId) : null);
 
   const sendMessage = async (text: string) => {
-    if (!text.trim() || isTyping) return;
+    if (!text.trim() || isTyping) {
+      return;
+    }
 
     const userMsg: Message = {
       id: `user-${Date.now()}`,
@@ -82,7 +85,10 @@ export default function AiChatbotScreen() {
         },
       ]);
     } catch (error) {
-      Alert.alert('AI chưa phản hồi được', error instanceof Error ? error.message : 'Đã có lỗi xảy ra');
+      Alert.alert(
+        'AI chưa phản hồi được',
+        error instanceof Error ? error.message : 'Đã có lỗi xảy ra',
+      );
     } finally {
       setIsTyping(false);
       setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 120);
@@ -105,9 +111,6 @@ export default function AiChatbotScreen() {
               </View>
             </View>
           </View>
-          <TouchableOpacity>
-            <MaterialCommunityIcons name="dots-vertical" size={24} color={colors.onSurfaceVariant} />
-          </TouchableOpacity>
         </View>
       </View>
 
@@ -126,7 +129,8 @@ export default function AiChatbotScreen() {
               <MaterialCommunityIcons name="robot-outline" size={54} color="#94a3b8" />
               <Text style={styles.emptyTitle}>Hỏi CareNest AI</Text>
               <Text style={styles.emptyText}>
-                Bạn có thể hỏi về thuốc hôm nay, lịch hẹn sắp tới, tiêm chủng hoặc thông tin sức khỏe của gia đình.
+                Bạn có thể hỏi về thuốc hôm nay, lịch hẹn sắp tới, tiêm chủng hoặc thông tin
+                sức khỏe của gia đình.
               </Text>
             </View>
           ) : null}
@@ -141,7 +145,9 @@ export default function AiChatbotScreen() {
                   <MaterialCommunityIcons name="robot" size={16} color="#fff" />
                 </View>
               ) : null}
-              <View style={[styles.bubble, msg.role === 'user' ? styles.bubbleUser : styles.bubbleAI]}>
+              <View
+                style={[styles.bubble, msg.role === 'user' ? styles.bubbleUser : styles.bubbleAI]}
+              >
                 {msg.role === 'assistant' ? (
                   <Markdown style={markdownStyles}>{normalizeMarkdown(msg.content)}</Markdown>
                 ) : (
@@ -164,16 +170,26 @@ export default function AiChatbotScreen() {
           ) : null}
         </ScrollView>
 
-        <View style={styles.suggestionSection}>
-          <Text style={styles.suggestionLabel}>GỢI Ý CÂU HỎI</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.suggestionList}>
-            {QUICK_PROMPTS.map(prompt => (
-              <TouchableOpacity key={prompt} style={styles.suggestionChip} onPress={() => void sendMessage(prompt)}>
-                <Text style={styles.suggestionText}>{prompt}</Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-        </View>
+        {shouldShowSuggestions ? (
+          <View style={styles.suggestionSection}>
+            <Text style={styles.suggestionLabel}>GỢI Ý CÂU HỎI</Text>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.suggestionList}
+            >
+              {QUICK_PROMPTS.map(prompt => (
+                <TouchableOpacity
+                  key={prompt}
+                  style={styles.suggestionChip}
+                  onPress={() => void sendMessage(prompt)}
+                >
+                  <Text style={styles.suggestionText}>{prompt}</Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        ) : null}
 
         <View style={[styles.inputContainer, { paddingBottom: Math.max(insets.bottom, 12) }]}>
           <View style={styles.inputBar}>
@@ -288,61 +304,60 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 4,
   },
   bubbleText: { fontSize: 15, fontFamily: 'Inter', lineHeight: 22 },
-  textAI: { color: '#334155' },
   textUser: { color: '#fff' },
   timestamp: { fontSize: 10, color: '#94a3b8', marginTop: 6 },
   typingDots: { fontSize: 18, color: '#94a3b8', letterSpacing: 4 },
   suggestionSection: {
-    paddingVertical: 16,
+    paddingVertical: 10,
     borderTopWidth: 1,
     borderTopColor: '#f1f5f9',
   },
   suggestionLabel: {
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: '800',
     color: '#64748b',
-    marginBottom: 10,
+    marginBottom: 8,
     paddingHorizontal: 16,
   },
   suggestionList: { paddingHorizontal: 16, gap: 10 },
   suggestionChip: {
-    paddingHorizontal: 16,
-    paddingVertical: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
     backgroundColor: '#fff',
-    borderRadius: 24,
+    borderRadius: 20,
     borderWidth: 1,
     borderColor: '#e2e8f0',
   },
-  suggestionText: { fontSize: 13, color: '#1a73e8', fontWeight: '500' },
+  suggestionText: { fontSize: 12, color: '#1a73e8', fontWeight: '500' },
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
-    paddingVertical: 12,
-    gap: 10,
+    paddingVertical: 8,
+    gap: 8,
     borderTopWidth: 1,
     borderTopColor: '#f1f5f9',
   },
   inputBar: {
     flex: 1,
-    height: 52,
+    height: 46,
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#f1f5f9',
-    borderRadius: 26,
+    borderRadius: 23,
     paddingHorizontal: 8,
   },
   inputActionBtn: {
-    width: 40,
-    height: 40,
+    width: 34,
+    height: 34,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  input: { flex: 1, fontSize: 15, color: '#1e293b', paddingHorizontal: 8 },
+  input: { flex: 1, fontSize: 14, color: '#1e293b', paddingHorizontal: 8 },
   sendBtn: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
+    width: 46,
+    height: 46,
+    borderRadius: 23,
     backgroundColor: '#1a73e8',
     alignItems: 'center',
     justifyContent: 'center',

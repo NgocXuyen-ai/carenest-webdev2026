@@ -1,14 +1,14 @@
 package com.carenest.backend.model.enums;
 
 public enum FamilyRole {
-    OWNER("Chu gia dinh"),
-    MEMBER("Thanh vien"),
+    OWNER("Chủ gia đình"),
+    MEMBER("Thành viên"),
     FATHER("Bo"),
     MOTHER("Me"),
     OLDER_BROTHER("Anh"),
     OLDER_SISTER("Chi"),
     YOUNGER("Em"),
-    OTHER("Nguoi than");
+    OTHER("Người thân");
 
     private final String displayName;
 

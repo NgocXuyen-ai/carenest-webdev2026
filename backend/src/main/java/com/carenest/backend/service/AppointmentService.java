@@ -104,13 +104,13 @@ public class AppointmentService {
 
     public AppointmentResponse updateAppointment(Integer userId, Integer appointmentId, UpdateAppointmentRequest request) {
         Appointment appointment = appointmentRepository.findById(appointmentId)
-                .orElseThrow(() -> new EntityNotFoundException("Khong tim thay cuoc hen"));
+                .orElseThrow(() -> new EntityNotFoundException("Không tìm thấy cuộc hẹn"));
 
         profileAccessService.requireAccessibleProfile(userId, appointment.getProfile().getProfile());
         HealthProfile profile = profileAccessService.requireAccessibleProfile(userId, request.getProfileId());
 
         if (AppointmentStatus.CANCELLED.equals(appointment.getStatus())) {
-            throw new IllegalStateException("Cuoc hen da bi huy, khong the cap nhat");
+                        throw new IllegalStateException("Cuộc hẹn đã bị hủy, không thể cập nhật");
         }
 
         appointment.setProfile(profile);
@@ -126,12 +126,12 @@ public class AppointmentService {
 
     public AppointmentResponse cancelAppointment(Integer userId, Integer appointmentId) {
         Appointment appointment = appointmentRepository.findById(appointmentId)
-                .orElseThrow(() -> new EntityNotFoundException("Khong tim thay cuoc hen"));
+                .orElseThrow(() -> new EntityNotFoundException("Không tìm thấy cuộc hẹn"));
 
         profileAccessService.requireAccessibleProfile(userId, appointment.getProfile().getProfile());
 
         if (AppointmentStatus.CANCELLED.equals(appointment.getStatus())) {
-            throw new IllegalStateException("Cuoc hen da duoc huy truoc do");
+            throw new IllegalStateException("Cuộc hẹn đã được hủy trước đó");
         }
 
         appointment.setStatus(AppointmentStatus.CANCELLED);
@@ -173,7 +173,7 @@ public class AppointmentService {
     }
 
     private String formatDisplayDate(LocalDateTime dateTime) {
-        return String.format("%02d Thang %d, %d - %02d:%02d",
+                return String.format("%02d Tháng %d, %d - %02d:%02d",
                 dateTime.getDayOfMonth(),
                 dateTime.getMonthValue(),
                 dateTime.getYear(),
@@ -196,3 +196,4 @@ public class AppointmentService {
                 .build();
     }
 }
+
