@@ -16,6 +16,7 @@ from database import execute_query
 from prompts.chat_prompts import (
     build_answer_synthesis_prompt,
     build_context_answer_prompt,
+    build_context_answer_guard_prompt,
     build_pre_route_guard_prompt,
     build_response_guard_prompt,
     build_router_prompt,
@@ -34,7 +35,6 @@ _router_llm: Optional[Any] = None
 _chat_graph: Optional[Any] = None
 _CONVERSATION_TIMEOUT_MINUTES = 30
 _MAX_SQL_ROWS = 50
-_LOW_CONFIDENCE_ROUTE_FLOOR = 0.35
 
 
 @tool("route_small_talk")
@@ -447,22 +447,6 @@ def _node_pre_route_guard(state: ChatGraphState) -> ChatGraphState:
     allow = allow_raw is True or (isinstance(allow_raw, str) and allow_raw.strip().lower() == "true")
     normalized_route = _normalize_route(str(guard.get("normalized_route", state.get("route", "clarify"))))
     reason = str(guard.get("reason", "")).strip()
-    confidence = _normalize_confidence(state.get("route_confidence", 0.0), default=0.0)
-    risk = str(guard.get("risk_level", "low")).strip().lower()
-
-    if confidence < _LOW_CONFIDENCE_ROUTE_FLOOR and normalized_route in {"text_to_sql", "context_answer"}:
-        return {
-            "route": "clarify",
-            "safety_decision": "deny",
-            "safety_reason": "Route confidence is low, requiring clarification before execution.",
-        }
-
-    if risk == "high" and normalized_route == "text_to_sql":
-        return {
-            "route": "clarify",
-            "safety_decision": "deny",
-            "safety_reason": reason or "High-risk request needs clarification before SQL execution.",
-        }
 
     if not allow and normalized_route not in {"clarify", "refuse"}:
         normalized_route = "clarify"
@@ -523,6 +507,17 @@ def _node_context_answer_lane(state: ChatGraphState) -> ChatGraphState:
         reply = ""
     if not reply:
         reply = "Minh chua du thong tin de tra loi. Ban cho minh them chi tiet nhe."
+
+    guard_prompt = build_context_answer_guard_prompt(
+        message=request.message,
+        draft_reply=reply,
+        context=request.context,
+    )
+    guarded = _invoke_json_prompt(guard_prompt)
+    guarded_reply = guarded.get("final_reply")
+    if isinstance(guarded_reply, str) and guarded_reply.strip():
+        reply = guarded_reply.strip()
+
     profiles = request.context.get("profiles")
     data = profiles if isinstance(profiles, list) else None
     return {"reply": reply, "status": "success", "data": data}

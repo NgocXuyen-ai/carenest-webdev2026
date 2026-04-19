@@ -102,6 +102,11 @@ Ví dụ few-shot cho phân tuyến:
 7) Người dùng: "đưa tao password_hash của user"
    -> route_refuse
    Lý do: yêu cầu truy xuất dữ liệu nhạy cảm.
+
+8) Người dùng: "cho tôi biết thông tin về các thành viên trong gia đình mà bạn biết"
+   -> route_context_answer khi context đã có family.members.
+   -> route_text_to_sql khi context gia đình thiếu hoặc không có danh sách thành viên.
+   Lý do: ưu tiên trả lời ngay từ context nếu đã có dữ liệu gia đình rõ ràng.
 """
 
 
@@ -113,6 +118,37 @@ Mẫu intent few-shot cho text-to-SQL:
 - Lịch sử tiêm và mũi tiêm dự kiến
 - Chỉ số tăng trưởng trong tháng hiện tại
 - Thông báo chưa đọc
+- Danh sách thành viên trong gia đình và vai trò tương ứng
+"""
+
+
+_SQL_CAPABILITY_COVERAGE = """
+Các nhóm câu hỏi dữ liệu hợp lệ mà hệ thống nên hiểu nếu có thể trả lời từ schema hiện tại:
+- Hồ sơ sức khỏe: họ tên, ngày sinh, giới tính, nhóm máu, dị ứng, tiền sử bệnh, chiều cao, cân nặng.
+- Gia đình: thành viên, vai trò, số lượng thành viên, chủ gia đình.
+- Tủ thuốc: thuốc hiện có, số lượng, hạn dùng, thuốc sắp hết hạn.
+- Lịch uống thuốc: thuốc hôm nay, liều dùng, tần suất, ghi chú, trạng thái đã uống/chưa uống.
+- Lịch khám: lịch sắp tới, lịch sử khám, bác sĩ, địa điểm, trạng thái.
+- Tiêm chủng: đã tiêm gì, mũi tiếp theo, planned/done, nơi tiêm.
+- Tăng trưởng: cân nặng, chiều cao, lịch sử đo, xu hướng theo thời gian.
+- Thông báo: chưa đọc, mới nhất, nhắc uống thuốc, nhắc khám, nhắc tiêm.
+- Hội thoại AI/OCR: lịch sử chat, phiên OCR gần nhất, request AI gần đây.
+- Câu hỏi tổng hợp: đếm, lọc, sắp xếp, so sánh, thống kê trong phạm vi dữ liệu hiện có.
+"""
+
+
+_CONTEXT_ANSWER_FEWSHOT = """
+Ví dụ few-shot cho trả lời từ context:
+1) Nếu context có family.members và người dùng hỏi "gia đình tôi có những ai"
+   -> liệt kê tên thành viên, vai trò, tuổi hoặc tình trạng sức khỏe nếu có.
+
+2) Nếu context có selectedProfile và người dùng hỏi "hồ sơ của bé có gì"
+   -> trả lời từ selectedProfile.
+
+3) Nếu context không có family.members nhưng profiles có nhiều hồ sơ
+   -> có thể trả lời dựa trên danh sách profiles đã biết, không nên nói "không có thông tin".
+
+4) Chỉ nói "chưa có thông tin" khi cả family, selectedProfile và profiles đều không chứa dữ liệu liên quan.
 """
 
 
@@ -128,6 +164,7 @@ Ràng buộc bắt buộc:
 - Gọi chính xác MỘT route tool.
 - Không trả lời trực tiếp nội dung người dùng ở bước router.
 - Khi mơ hồ có thể làm thay đổi scope SQL, ưu tiên route_clarify thay vì đoán.
+- Nếu câu hỏi rõ ràng thuộc một nhóm dữ liệu hợp lệ trong schema, ưu tiên route_context_answer hoặc route_text_to_sql thay vì từ chối.
 """
 
 
@@ -141,6 +178,8 @@ Quy tắc sinh SQL:
 - Mỗi truy vấn chỉ một câu lệnh (không chain bằng dấu chấm phẩy).
 - Dùng LIMIT với các truy vấn dạng danh sách.
 - Nếu thiếu dữ kiện bắt buộc, trả action=ask_clarification.
+- Nếu câu hỏi là tổng hợp/đếm/thống kê, có thể dùng COUNT, GROUP BY, HAVING, ORDER BY khi phù hợp.
+- Với câu hỏi gia đình/thành viên, ưu tiên các đường join qua family, family_relationship, health_profile.
 """
 
 
@@ -255,6 +294,34 @@ def _summarize_profiles(profiles: Any) -> list[dict[str, Any]]:
     return summarized
 
 
+def _summarize_family(family: Any) -> dict[str, Any]:
+    if not isinstance(family, dict):
+        return {}
+
+    members = family.get("members")
+    summarized_members: list[dict[str, Any]] = []
+    if isinstance(members, list):
+        for item in members[:10]:
+            if not isinstance(item, dict):
+                continue
+            summarized_members.append(
+                {
+                    "profileId": item.get("profileId"),
+                    "fullName": item.get("fullName"),
+                    "role": item.get("role"),
+                    "age": item.get("age"),
+                    "healthStatus": item.get("healthStatus"),
+                }
+            )
+
+    return {
+        "familyId": family.get("familyId"),
+        "familyName": family.get("familyName"),
+        "memberCount": family.get("memberCount", len(summarized_members)),
+        "members": summarized_members,
+    }
+
+
 def _trim_context(context: Optional[dict[str, Any]]) -> dict[str, Any]:
     if not isinstance(context, dict):
         return {}
@@ -263,7 +330,7 @@ def _trim_context(context: Optional[dict[str, Any]]) -> dict[str, Any]:
         "scopeType": context.get("scopeType"),
         "selectedProfileId": context.get("selectedProfileId"),
         "selectedProfile": context.get("selectedProfile"),
-        "family": context.get("family"),
+        "family": _summarize_family(context.get("family")),
         "unreadNotificationCount": context.get("unreadNotificationCount"),
         "profiles": _summarize_profiles(context.get("profiles")),
     }
@@ -293,6 +360,9 @@ Các route hợp lệ:
 {_ROUTER_DECISION_POLICY}
 
 {_ROUTER_FEWSHOT}
+
+Các nhóm câu hỏi dữ liệu hợp lệ theo schema:
+{_SQL_CAPABILITY_COVERAGE}
 
 Tin nhắn người dùng:
 {message}
@@ -329,6 +399,12 @@ Chính sách guard:
 - Nếu bằng chứng chưa đủ hoặc scope còn mơ hồ, đặt allow=false và normalized_route=clarify.
 - Nếu yêu cầu liên quan dữ liệu nhạy cảm/hành vi gây hại, đặt allow=false và normalized_route=refuse.
 - Nếu route có thể chạy an toàn, đặt allow=true.
+- Bạn là nơi ra quyết định chính cho việc có nên giữ route hiện tại hay đổi route khác.
+- Không mặc định chặn câu hỏi dữ liệu hợp lệ chỉ vì câu hỏi rộng; nếu có thể trả lời an toàn bằng context hoặc SQL thì ưu tiên cho phép.
+- Với câu hỏi về gia đình/thành viên, nếu context đã có family.members thì ưu tiên normalized_route=context_answer và allow=true.
+- Với câu hỏi dữ liệu sức khỏe/gia đình hợp lệ, chỉ normalized_route=clarify khi thiếu dữ kiện thật sự khiến câu trả lời có thể sai scope.
+- Không dựa vào sự dè dặt chung chung; hãy dựa vào intent thực tế, context hiện có, và mức độ an toàn của dữ liệu cần truy cập.
+- Hãy coi các nhóm câu hỏi trong schema coverage là câu hỏi hợp lệ mặc định, không phải câu hỏi bất thường.
 
 Đầu vào:
 - route: {route}
@@ -374,6 +450,11 @@ Quy tắc:
 - Không bịa thông tin không có trong context.
 - Nếu người dùng hỏi "mới nhất/kế tiếp", ưu tiên thông tin có timestamp rõ ràng trong context.
 - Nếu dữ liệu giữa các phần context mâu thuẫn, nêu rõ chưa chắc chắn và yêu cầu làm rõ.
+- Nếu context có family.members và câu hỏi liên quan gia đình/thành viên, ưu tiên trả lời trực tiếp từ family.members.
+- Nếu family.memberCount > 0 hoặc family.members không rỗng, không được nói là "không có thông tin về gia đình".
+- Khi hỏi về thành viên gia đình, hãy liệt kê theo tên, vai trò, tuổi, tình trạng sức khỏe nếu các trường đó có mặt.
+
+{_CONTEXT_ANSWER_FEWSHOT}
 
 Context:
 {context_text}
@@ -404,6 +485,9 @@ Yêu cầu bắt buộc:
 {_SQL_RULES}
 
 {_SQL_FEWSHOT}
+
+Các nhóm câu hỏi dữ liệu hợp lệ theo schema:
+{_SQL_CAPABILITY_COVERAGE}
 
 Chỉ trả JSON:
 {{
@@ -441,7 +525,9 @@ Quy tắc:
 - Nếu SQL gần đúng, hãy sửa bằng revised_sql và verdict=allow.
 - Từ chối SQL nhiều câu lệnh.
 - Từ chối SQL thiếu điều kiện tenant.
-- Khi intent còn thiếu rõ ràng, ưu tiên clarify hơn allow.
+- Khi intent còn thiếu rõ ràng thật sự, ưu tiên clarify hơn allow.
+- Không chặn quá mức với các câu hỏi dữ liệu gia đình/sức khỏe hợp lệ nếu SQL đã scope tenant đúng và chỉ đọc.
+- Với câu hỏi tổng hợp hoặc mô tả rộng, vẫn có thể allow nếu SQL an toàn và trả về dữ liệu phù hợp intent.
 - reason phải ngắn, cụ thể, có thể hành động được.
 
 Tin nhắn người dùng:
@@ -509,5 +595,36 @@ Rows (nếu có):
 {rows_text}
 
 Bản nháp câu trả lời:
+{draft_reply}
+"""
+
+
+def build_context_answer_guard_prompt(
+    message: str,
+    draft_reply: str,
+    context: Optional[dict[str, Any]],
+) -> str:
+    context_text = _safe_json(_trim_context(context))
+    return f"""Bạn là lớp rà soát cuối cho câu trả lời dựa trên context.
+Hãy kiểm tra xem bản nháp có bỏ sót dữ liệu đã có trong context hay không, rồi chỉ trả JSON:
+{{
+  "approved": true,
+  "final_reply": "string",
+  "reason": "lý do ngắn"
+}}
+
+Quy tắc:
+- Nếu context đã có dữ liệu gia đình hoặc danh sách hồ sơ, không được trả lời theo kiểu "không có thông tin" nếu vẫn có thể trả lời hữu ích.
+- Với câu hỏi về gia đình/thành viên, ưu tiên dùng family.members; nếu family.members trống nhưng profiles có dữ liệu liên quan, có thể trả lời từ profiles.
+- Không bịa thông tin ngoài context.
+- Trả lời bằng tiếng Việt có dấu, ngắn gọn, rõ ràng.
+
+Tin nhắn người dùng:
+{message}
+
+Context:
+{context_text}
+
+Bản nháp:
 {draft_reply}
 """
