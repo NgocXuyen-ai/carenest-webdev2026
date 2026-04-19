@@ -1,123 +1,249 @@
 import React, { useState } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, Switch, StyleSheet } from 'react-native';
+import {
+  View, Text, ScrollView, TouchableOpacity, TextInput, StyleSheet, Image, Alert, Switch,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useNavigation } from '@react-navigation/native';
+import { launchImageLibrary } from 'react-native-image-picker';
 import { colors } from '../../theme/colors';
 import { shadows } from '../../theme/spacing';
 import { BOTTOM_NAV_HEIGHT } from '../../utils/constants';
 import Icon from '../../components/common/Icon';
-import Avatar from '../../components/common/Avatar';
+import NotificationBell from '../../components/common/NotificationBell';
 import { useAuth } from '../../context/AuthContext';
+import { mockFamilyMembers } from '../../data/mockFamilyMembers';
 
-interface SettingsRowProps {
+interface InputFieldProps {
   icon: string;
   label: string;
-  onPress?: () => void;
-  rightElement?: React.ReactNode;
-  isFirst?: boolean;
-  isLast?: boolean;
-  danger?: boolean;
+  value: string;
+  onChangeText: (text: string) => void;
+  placeholder?: string;
+  keyboardType?: 'default' | 'email-address' | 'phone-pad';
 }
 
-function SettingsRow({ icon, label, onPress, rightElement, isFirst, isLast, danger }: SettingsRowProps) {
+function InputField({ icon, label, value, onChangeText, placeholder, keyboardType = 'default' }: InputFieldProps) {
   return (
-    <TouchableOpacity
-      style={[styles.row, !isFirst && styles.rowDivider, isFirst && styles.rowFirst, isLast && styles.rowLast]}
-      onPress={onPress}
-      activeOpacity={onPress ? 0.7 : 1}
-    >
-      <View style={[styles.rowIconWrap, { backgroundColor: danger ? colors.errorContainer : colors.primaryFixed }]}>
-        <Icon name={icon} size={18} color={danger ? colors.onErrorContainer : colors.primary} />
+    <View style={styles.inputContainer}>
+      <View style={styles.inputIconWrap}>
+        <Icon name={icon} size={20} color={colors.primary} />
       </View>
-      <Text style={[styles.rowLabel, danger && styles.rowLabelDanger]}>{label}</Text>
-      {rightElement ?? (onPress ? <Icon name="chevron_right" size={18} color={colors.onSurfaceVariant} /> : null)}
-    </TouchableOpacity>
+      <View style={styles.inputContent}>
+        <Text style={styles.inputLabel}>{label}</Text>
+        <TextInput
+          style={styles.textInput}
+          value={value}
+          onChangeText={onChangeText}
+          placeholder={placeholder}
+          keyboardType={keyboardType}
+          placeholderTextColor="#94A3B8"
+        />
+      </View>
+    </View>
   );
 }
 
 export default function UserProfileSettingsScreen() {
   const insets = useSafeAreaInsets();
+  const navigation = useNavigation<any>();
   const { user, logout } = useAuth();
+  
+  // Local state for app settings
   const [medReminder, setMedReminder] = useState(true);
   const [apptReminder, setApptReminder] = useState(true);
+  
+  // Local state for user info
+  const [fullName, setFullName] = useState(user?.fullName || 'Nguyễn Lan Anh');
+  const [email, setEmail] = useState(user?.email || 'lananh@gmail.com');
+  const [phone, setPhone] = useState('0909654321');
+  const [birthday, setBirthday] = useState('15/03/1990');
+  const [bloodType, setBloodType] = useState('A+');
+  const [avatarUri, setAvatarUri] = useState<string | null>(null);
 
-  const switchMed = (
-    <Switch
-      value={medReminder}
-      onValueChange={setMedReminder}
-      trackColor={{ false: colors.outlineVariant, true: colors.primary }}
-      thumbColor={colors.onPrimary}
-    />
-  );
-  const switchAppt = (
-    <Switch
-      value={apptReminder}
-      onValueChange={setApptReminder}
-      trackColor={{ false: colors.outlineVariant, true: colors.primary }}
-      thumbColor={colors.onPrimary}
-    />
-  );
+  // Find corresponding member for medical record
+  const member = mockFamilyMembers.find(m => m.isCurrentUser || m.fullName === fullName);
+
+  const handleChoosePhoto = () => {
+    launchImageLibrary({ mediaType: 'photo', quality: 0.8 }, (response) => {
+      if (response.assets && response.assets.length > 0) {
+        setAvatarUri(response.assets[0].uri || null);
+      }
+    });
+  };
+
+  const handleSave = () => {
+    Alert.alert('Thành công', 'Thông tin của bạn đã được cập nhật.');
+  };
 
   return (
     <View style={styles.root}>
+      {/* Custom Header */}
+      <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
+        <TouchableOpacity style={styles.headerBtn} onPress={() => navigation.goBack()}>
+          <Icon name="arrow_back" size={26} color="#1E293B" />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Thông tin tài khoản</Text>
+        <TouchableOpacity style={styles.saveBtn} onPress={handleSave}>
+          <Text style={styles.saveBtnText}>Lưu</Text>
+        </TouchableOpacity>
+      </View>
+
       <ScrollView
         contentContainerStyle={[
           styles.scroll,
-          { paddingTop: insets.top + 24, paddingBottom: BOTTOM_NAV_HEIGHT + 24 },
+          { paddingBottom: BOTTOM_NAV_HEIGHT + 40 }
         ]}
         showsVerticalScrollIndicator={false}
       >
-        {/* Profile header */}
-        <View style={styles.profileCard}>
-          <Avatar name={user?.fullName} size="xl" bordered />
-          <View style={styles.profileInfo}>
-            <Text style={styles.profileName}>{user?.fullName ?? 'Người dùng'}</Text>
-            <Text style={styles.profileEmail}>{user?.email ?? ''}</Text>
+        {/* Avatar Section */}
+        <View style={styles.avatarSection}>
+          <View style={[styles.avatarContainer, shadows.md]}>
+            <Image
+              source={{ uri: avatarUri || `https://i.pravatar.cc/150?u=${user?.id || '1'}` }}
+              style={styles.avatar}
+            />
+            <TouchableOpacity style={styles.cameraBtn} onPress={handleChoosePhoto}>
+              <Icon name="photo_camera" size={20} color="#fff" />
+            </TouchableOpacity>
           </View>
-          <TouchableOpacity style={styles.editBtn} activeOpacity={0.8}>
-            <Icon name="edit" size={16} color={colors.primary} />
-            <Text style={styles.editBtnText}>Chỉnh sửa</Text>
+          <Text style={styles.userNameText}>{fullName}</Text>
+          <Text style={styles.userRoleText}>{member?.role || 'Thành viên gia đình'}</Text>
+        </View>
+
+        {/* Quick Actions */}
+        <View style={styles.section}>
+          <TouchableOpacity 
+            style={[styles.medicalRecordBtn, shadows.sm]}
+            onPress={() => navigation.navigate('UserMedical')}
+          >
+            <View style={styles.medicalIconWrap}>
+              <Icon name="description" size={22} color="#fff" />
+            </View>
+            <View style={styles.medicalTextWrap}>
+              <Text style={styles.medicalTitle}>Hồ sơ y tế</Text>
+              <Text style={styles.medicalSub}>Xem tiền sử, dị ứng & nhóm máu</Text>
+            </View>
+            <Icon name="chevron_right" size={22} color="#CBD5E1" />
           </TouchableOpacity>
         </View>
 
-        {/* Tài khoản */}
-        <Text style={styles.sectionLabel}>Tài khoản</Text>
-        <View style={[styles.card, shadows.sm]}>
-          <SettingsRow icon="manage_accounts" label="Chỉnh sửa hồ sơ" onPress={() => {}} isFirst />
-          <SettingsRow icon="lock" label="Đổi mật khẩu" onPress={() => {}} />
-          <SettingsRow icon="google" label="Tài khoản Google" onPress={() => {}} isLast />
+        {/* Info Form */}
+        <View style={styles.section}>
+          <Text style={styles.sectionLabel}>Thông tin cá nhân</Text>
+          <View style={[styles.formCard, shadows.sm]}>
+            <InputField
+              icon="person"
+              label="Họ và tên"
+              value={fullName}
+              onChangeText={setFullName}
+            />
+            <InputField
+              icon="mail"
+              label="Email"
+              value={email}
+              onChangeText={setEmail}
+              keyboardType="email-address"
+            />
+            <InputField
+              icon="phone"
+              label="Số điện thoại"
+              value={phone}
+              onChangeText={setPhone}
+              keyboardType="phone-pad"
+            />
+            <InputField
+              icon="calendar_today"
+              label="Ngày sinh"
+              value={birthday}
+              onChangeText={setBirthday}
+            />
+            <InputField
+              icon="bloodtype"
+              label="Nhóm máu"
+              value={bloodType}
+              onChangeText={setBloodType}
+            />
+          </View>
         </View>
 
-        {/* Thông báo */}
-        <Text style={styles.sectionLabel}>Thông báo</Text>
-        <View style={[styles.card, shadows.sm]}>
-          <SettingsRow icon="medication" label="Nhắc uống thuốc" rightElement={switchMed} isFirst />
-          <SettingsRow icon="calendar_month" label="Nhắc lịch tái khám" rightElement={switchAppt} isLast />
+        {/* Notifications */}
+        <View style={styles.section}>
+          <Text style={styles.sectionLabel}>Cài đặt thông báo</Text>
+          <View style={[styles.formCard, shadows.sm]}>
+            <View style={styles.settingsRow}>
+              <View style={[styles.rowIconWrap, { backgroundColor: '#F0F9FF' }]}>
+                <Icon name="medication" size={20} color="#0EA5E9" />
+              </View>
+              <Text style={styles.rowLabelText}>Nhắc uống thuốc</Text>
+              <Switch
+                value={medReminder}
+                onValueChange={setMedReminder}
+                trackColor={{ false: '#E2E8F0', true: '#3B82F6' }}
+                thumbColor="#fff"
+              />
+            </View>
+            <View style={styles.settingsRow}>
+              <View style={[styles.rowIconWrap, { backgroundColor: '#FDF2F8' }]}>
+                <Icon name="calendar_month" size={20} color="#DB2777" />
+              </View>
+              <Text style={styles.rowLabelText}>Nhắc lịch tái khám</Text>
+              <Switch
+                value={apptReminder}
+                onValueChange={setApptReminder}
+                trackColor={{ false: '#E2E8F0', true: '#3B82F6' }}
+                thumbColor="#fff"
+              />
+            </View>
+          </View>
         </View>
 
-        {/* Ứng dụng */}
-        <Text style={styles.sectionLabel}>Ứng dụng</Text>
-        <View style={[styles.card, shadows.sm]}>
-          <SettingsRow
-            icon="language"
-            label="Ngôn ngữ"
-            rightElement={<Text style={styles.valueText}>Tiếng Việt</Text>}
-            isFirst
-          />
-          <SettingsRow icon="info" label="Về CareNest" onPress={() => {}} />
-          <SettingsRow icon="privacy_tip" label="Chính sách bảo mật" onPress={() => {}} isLast />
+        {/* App Settings */}
+        <View style={styles.section}>
+          <Text style={styles.sectionLabel}>Ứng dụng</Text>
+          <View style={[styles.formCard, shadows.sm]}>
+            <TouchableOpacity style={styles.settingsRow}>
+              <View style={[styles.rowIconWrap, { backgroundColor: '#F5F3FF' }]}>
+                <Icon name="language" size={20} color="#7C3AED" />
+              </View>
+              <Text style={styles.rowLabelText}>Ngôn ngữ</Text>
+              <Text style={styles.rowValueText}>Tiếng Việt</Text>
+              <Icon name="chevron_right" size={20} color="#CBD5E1" />
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.settingsRow}>
+              <View style={[styles.rowIconWrap, { backgroundColor: '#F0FDFA' }]}>
+                <Icon name="security" size={20} color="#0D9488" />
+              </View>
+              <Text style={styles.rowLabelText}>Chính sách bảo mật</Text>
+              <Icon name="chevron_right" size={20} color="#CBD5E1" />
+            </TouchableOpacity>
+          </View>
         </View>
 
-        {/* Hỗ trợ */}
-        <Text style={styles.sectionLabel}>Hỗ trợ</Text>
-        <View style={[styles.card, shadows.sm]}>
-          <SettingsRow icon="help" label="Trung tâm hỗ trợ" onPress={() => {}} isFirst />
-          <SettingsRow icon="bug_report" label="Báo cáo sự cố" onPress={() => {}} isLast />
+        {/* Support */}
+        <View style={styles.section}>
+          <Text style={styles.sectionLabel}>Hỗ trợ</Text>
+          <View style={[styles.formCard, shadows.sm]}>
+            <TouchableOpacity style={styles.settingsRow}>
+              <View style={[styles.rowIconWrap, { backgroundColor: '#FFF7ED' }]}>
+                <Icon name="help_center" size={20} color="#EA580C" />
+              </View>
+              <Text style={styles.rowLabelText}>Trung tâm hỗ trợ</Text>
+              <Icon name="chevron_right" size={20} color="#CBD5E1" />
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.settingsRow}>
+              <View style={[styles.rowIconWrap, { backgroundColor: '#EFF6FF' }]}>
+                <Icon name="bug_report" size={20} color="#2563EB" />
+              </View>
+              <Text style={styles.rowLabelText}>Báo cáo sự cố</Text>
+              <Icon name="chevron_right" size={20} color="#CBD5E1" />
+            </TouchableOpacity>
+          </View>
         </View>
 
-        {/* Đăng xuất */}
-        <TouchableOpacity style={styles.logoutBtn} onPress={logout} activeOpacity={0.8}>
-          <Icon name="logout" size={20} color={colors.error} />
-          <Text style={styles.logoutText}>Đăng xuất</Text>
+        {/* Logout */}
+        <TouchableOpacity style={styles.logoutBtn} onPress={logout}>
+          <Icon name="logout" size={22} color="#EF4444" />
+          <Text style={styles.logoutText}>Đăng xuất tài khoản</Text>
         </TouchableOpacity>
       </ScrollView>
     </View>
@@ -125,81 +251,125 @@ export default function UserProfileSettingsScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: colors.surface },
-  scroll: { paddingHorizontal: 16, gap: 8 },
-
-  profileCard: {
-    backgroundColor: colors.surfaceContainerLowest,
-    borderRadius: 20,
-    padding: 20,
-    alignItems: 'center',
-    gap: 12,
-    marginBottom: 8,
-    ...shadows.sm,
-  },
-  profileInfo: { alignItems: 'center', gap: 4 },
-  profileName: { fontSize: 20, fontFamily: 'Manrope', fontWeight: '800', color: colors.onSurface },
-  profileEmail: { fontSize: 13, fontFamily: 'Inter', color: colors.onSurfaceVariant },
-  editBtn: {
+  root: { flex: 1, backgroundColor: '#F8FAFC' },
+  header: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    backgroundColor: colors.primaryFixed,
-    borderRadius: 999,
+    justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingVertical: 8,
+    paddingBottom: 16,
+    backgroundColor: '#F8FAFC',
   },
-  editBtnText: { fontSize: 13, fontFamily: 'Inter', fontWeight: '600', color: colors.primary },
+  headerBtn: { padding: 4 },
+  headerTitle: { fontSize: 18, fontFamily: 'Manrope', fontWeight: '800', color: '#1E3A8A' },
+  saveBtn: { paddingHorizontal: 16, paddingVertical: 8 },
+  saveBtnText: { fontSize: 16, fontFamily: 'Inter', fontWeight: '700', color: '#3B82F6' },
 
-  sectionLabel: {
-    fontSize: 11,
-    fontFamily: 'Inter',
-    fontWeight: '700',
-    letterSpacing: 1,
-    textTransform: 'uppercase',
-    color: colors.onSurfaceVariant,
-    marginLeft: 4,
-    marginTop: 8,
-    marginBottom: 4,
+  scroll: { paddingHorizontal: 20 },
+  
+  avatarSection: { alignItems: 'center', marginVertical: 24 },
+  avatarContainer: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    position: 'relative',
+    backgroundColor: '#fff',
+    padding: 4,
   },
-  card: {
-    backgroundColor: colors.surfaceContainerLowest,
-    borderRadius: 16,
-    overflow: 'hidden',
+  avatar: { width: '100%', height: '100%', borderRadius: 56 },
+  cameraBtn: {
+    position: 'absolute',
+    bottom: 2,
+    right: 2,
+    backgroundColor: '#3B82F6',
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 3,
+    borderColor: '#fff',
   },
-  row: {
+  userNameText: { fontSize: 22, fontFamily: 'Manrope', fontWeight: '800', color: '#1E293B', marginTop: 16 },
+  userRoleText: { fontSize: 14, fontFamily: 'Inter', color: '#64748B', marginTop: 4 },
+
+  section: { marginBottom: 24 },
+  sectionLabel: { 
+    fontSize: 14, fontFamily: 'Inter', fontWeight: '800', 
+    color: '#64748B', marginBottom: 12, marginLeft: 4,
+    textTransform: 'uppercase', letterSpacing: 0.5
+  },
+  
+  formCard: { backgroundColor: '#fff', borderRadius: 24, overflow: 'hidden' },
+  inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 14,
-    paddingVertical: 13,
-    gap: 12,
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
   },
-  rowFirst: { borderTopLeftRadius: 16, borderTopRightRadius: 16 },
-  rowLast: { borderBottomLeftRadius: 16, borderBottomRightRadius: 16 },
-  rowDivider: {
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: colors.outlineVariant,
+  inputIconWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: '#EFF6FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 16,
+  },
+  inputContent: { flex: 1 },
+  inputLabel: { fontSize: 12, fontFamily: 'Inter', fontWeight: '600', color: '#94A3B8', marginBottom: 2 },
+  textInput: { fontSize: 16, fontFamily: 'Inter', fontWeight: '700', color: '#1E293B', padding: 0 },
+
+  settingsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 18,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+    gap: 16,
   },
   rowIconWrap: {
-    width: 34,
-    height: 34,
-    borderRadius: 10,
+    width: 38,
+    height: 38,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  rowLabel: { flex: 1, fontSize: 14, fontFamily: 'Inter', fontWeight: '500', color: colors.onSurface },
-  rowLabelDanger: { color: colors.error },
-  valueText: { fontSize: 13, fontFamily: 'Inter', color: colors.onSurfaceVariant },
+  rowLabelText: { flex: 1, fontSize: 15, fontFamily: 'Inter', fontWeight: '600', color: '#1E293B' },
+  rowValueText: { fontSize: 14, fontFamily: 'Inter', color: '#64748B', marginRight: 4 },
+
+  medicalRecordBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    padding: 20,
+    borderRadius: 24,
+    gap: 16,
+  },
+  medicalIconWrap: {
+    width: 48,
+    height: 48,
+    borderRadius: 16,
+    backgroundColor: '#3B82F6',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  medicalTextWrap: { flex: 1 },
+  medicalTitle: { fontSize: 16, fontFamily: 'Inter', fontWeight: '700', color: '#1E293B' },
+  medicalSub: { fontSize: 12, fontFamily: 'Inter', color: '#64748B', marginTop: 2 },
 
   logoutBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 10,
-    marginTop: 12,
-    paddingVertical: 16,
-    backgroundColor: colors.errorContainer,
-    borderRadius: 16,
+    gap: 12,
+    paddingVertical: 18,
+    backgroundColor: '#FEF2F2',
+    borderRadius: 24,
+    marginBottom: 20,
   },
-  logoutText: { fontSize: 15, fontFamily: 'Inter', fontWeight: '700', color: colors.error },
+  logoutText: { fontSize: 16, fontFamily: 'Inter', fontWeight: '700', color: '#EF4444' },
 });

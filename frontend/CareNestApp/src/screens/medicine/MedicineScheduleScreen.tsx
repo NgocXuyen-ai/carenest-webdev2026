@@ -15,7 +15,7 @@ import { mockMedicineSchedule } from '../../data/mockMedicineSchedule';
 import type { MedicineStackParamList } from '../../navigation/navigationTypes';
 import type { ScheduledMedicine } from '../../types';
 
-type Nav = NativeStackNavigationProp<MedicineStackParamList, 'MedicineSchedule'>;
+type Nav = NativeStackNavigationProp<any, 'MedicineSchedule'>;
 
 const TIME_GROUPS = [
   { key: 'morning',   label: 'Buổi sáng',  icon: 'wb_sunny',    bg: '#FFF9C4', iconColor: '#F9A825' },

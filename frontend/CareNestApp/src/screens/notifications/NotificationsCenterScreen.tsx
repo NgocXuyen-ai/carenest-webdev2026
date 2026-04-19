@@ -14,18 +14,18 @@ type NotifType = Notification['type'];
 interface IconConfig { iconName: string; bg: string; iconColor: string; }
 
 const typeIconConfig: Record<NotifType, IconConfig> = {
-  medicine:    { iconName: 'pill', bg: '#E3F2FD', iconColor: '#1565C0' },
+  medicine: { iconName: 'pill', bg: '#E3F2FD', iconColor: '#1565C0' },
   appointment: { iconName: 'calendar_month', bg: '#E0F2F1', iconColor: '#00695C' },
-  vaccine:     { iconName: 'syringe', bg: '#E8F5E9', iconColor: '#2E7D32' },
-  warning:     { iconName: 'warning', bg: '#ffdad6', iconColor: '#93000a' },
-  ai_insight:  { iconName: 'smart_toy', bg: '#cfe5ff', iconColor: '#00629d' },
-  system:      { iconName: 'info', bg: '#e5e8ec', iconColor: '#404751' },
+  vaccine: { iconName: 'syringe', bg: '#E8F5E9', iconColor: '#2E7D32' },
+  warning: { iconName: 'warning', bg: '#ffdad6', iconColor: '#93000a' },
+  ai_insight: { iconName: 'smart_toy', bg: '#cfe5ff', iconColor: '#00629d' },
+  system: { iconName: 'info', bg: '#e5e8ec', iconColor: '#404751' },
 };
 const dateGroupLabel: Record<string, string> = {
-  today:     'Hom nay',
+  today: 'Hom nay',
   yesterday: 'Hom qua',
   this_week: 'Tuan nay',
-  older:     'Cu hon',
+  older: 'Cu hon',
 };
 
 const dateGroupOrder = ['today', 'yesterday', 'this_week', 'older'];
@@ -53,17 +53,17 @@ export default function NotificationsCenterScreen() {
   }, {});
   const markAllBtn = (
     <TouchableOpacity onPress={handleMarkAllRead} style={styles.markAllBtn} activeOpacity={0.75}>
-      <Text style={styles.markAllText}>Doc tat ca</Text>
+      <Text style={styles.markAllText}>Đánh dấu tất cả đã đọc</Text>
     </TouchableOpacity>
   );
   return (
     <View style={styles.root}>
-      <TopAppBar variant='detail' title='Thong bao' rightAction={unreadCount > 0 ? markAllBtn : undefined} />
+      <TopAppBar variant='detail' title='Thông báo' rightAction={unreadCount > 0 ? markAllBtn : undefined} />
       <ScrollView contentContainerStyle={[styles.scroll, { paddingTop: TOP_BAR_HEIGHT + insets.top + 16, paddingBottom: BOTTOM_NAV_HEIGHT + 16 }]} showsVerticalScrollIndicator={false}>
         {unreadCount > 0 && (
           <View style={styles.unreadBanner}>
             <Icon name='notifications' size={16} color={colors.primary} />
-            <Text style={styles.unreadBannerText}>{unreadCount} thong bao chua doc</Text>
+            <Text style={styles.unreadBannerText}>{unreadCount} thông báo chưa đọc</Text>
           </View>
         )}
         {Object.keys(grouped).length === 0 && (

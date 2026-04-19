@@ -157,3 +157,6 @@ frontend/CareNestApp/android/app/build/
 
 # Metro bundler (React Native)
 .metro/
+
+# Local Codex/agent artifacts
+.agent/

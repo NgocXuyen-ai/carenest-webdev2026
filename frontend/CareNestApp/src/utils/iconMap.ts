@@ -16,6 +16,7 @@ const iconMap: Record<string, string> = {
   location_on: 'map-marker',
   search: 'magnify',
   add: 'plus',
+  remove: 'minus',
   add_circle: 'plus-circle',
   arrow_back: 'arrow-left',
   arrow_forward: 'arrow-right',

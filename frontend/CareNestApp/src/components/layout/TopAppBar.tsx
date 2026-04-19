@@ -12,6 +12,7 @@ import { colors } from '../../theme/colors';
 import { TOP_BAR_HEIGHT } from '../../utils/constants';
 import Avatar from '../common/Avatar';
 import Icon from '../common/Icon';
+import NotificationBell from '../common/NotificationBell';
 
 type TopAppBarVariant = 'home' | 'detail' | 'chat';
 
@@ -20,7 +21,6 @@ interface TopAppBarProps {
   title?: string;
   userName?: string;
   avatarUri?: string;
-  onNotificationsPress?: () => void;
   notificationCount?: number;
   rightAction?: React.ReactNode;
 }
@@ -30,7 +30,6 @@ export default function TopAppBar({
   title,
   userName,
   avatarUri,
-  onNotificationsPress,
   notificationCount = 0,
   rightAction,
 }: TopAppBarProps) {
@@ -46,12 +45,8 @@ export default function TopAppBar({
           <Text style={styles.logoText}>CareNest</Text>
         </View>
         <View style={styles.homeRight}>
-          {onNotificationsPress && (
-            <TouchableOpacity onPress={onNotificationsPress} style={styles.bellBtn} activeOpacity={0.8}>
-              <Icon name="notifications" size={24} color={colors.onSurfaceVariant} />
-              {notificationCount > 0 && <View style={styles.badge} />}
-            </TouchableOpacity>
-          )}
+          <NotificationBell iconColor={colors.onSurfaceVariant} hasNotification={notificationCount > 0} />
+          {rightAction}
         </View>
       </View>
     );
