@@ -1,6 +1,8 @@
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
+  Animated,
+  Easing,
   FlatList,
   Image,
   KeyboardAvoidingView,
@@ -58,6 +60,65 @@ const MessageBubble = memo(function MessageBubble({ message }: { message: Messag
         )}
       </View>
       <Text style={styles.timestamp}>{message.timestamp}</Text>
+    </View>
+  );
+});
+
+const TypingIndicator = memo(function TypingIndicator() {
+  const progress = useRef(new Animated.Value(0)).current;
+
+  const dotConfigs = useMemo(() => [0.06, 0.26, 0.46].map(offset => ({
+    opacity: progress.interpolate({
+      inputRange: [0, offset, offset + 0.12, offset + 0.24, 1],
+      outputRange: [0.45, 0.45, 1, 0.45, 0.45],
+    }),
+    translateY: progress.interpolate({
+      inputRange: [0, offset, offset + 0.12, offset + 0.24, 1],
+      outputRange: [0, 0, -3, 0, 0],
+    }),
+    scale: progress.interpolate({
+      inputRange: [0, offset, offset + 0.12, offset + 0.24, 1],
+      outputRange: [1, 1, 1.2, 1, 1],
+    }),
+  })), [progress]);
+
+  useEffect(() => {
+    progress.setValue(0);
+    const loop = Animated.loop(
+      Animated.timing(progress, {
+        toValue: 1,
+        duration: 1100,
+        easing: Easing.linear,
+        useNativeDriver: true,
+      }),
+    );
+
+    loop.start();
+
+    return () => {
+      loop.stop();
+      progress.stopAnimation();
+      progress.setValue(0);
+    };
+  }, [progress]);
+
+  return (
+    <View style={styles.typingDotsWrap}>
+      {dotConfigs.map((dot, index) => (
+        <Animated.View
+          key={`typing-dot-${index}`}
+          style={[
+            styles.typingDot,
+            {
+              opacity: dot.opacity,
+              transform: [
+                { translateY: dot.translateY },
+                { scale: dot.scale },
+              ],
+            },
+          ]}
+        />
+      ))}
     </View>
   );
 });
@@ -187,7 +248,7 @@ export default function AiChatbotScreen() {
                   <Image source={CARENEST_LOGO_HOUSE} style={styles.aiAvatarIconSmall} resizeMode="contain" />
                 </View>
                 <View style={[styles.bubble, styles.bubbleAI]}>
-                  <Text style={styles.typingDots}>• • •</Text>
+                  <TypingIndicator />
                 </View>
               </View>
             ) : null
@@ -331,7 +392,20 @@ const styles = StyleSheet.create({
   bubbleText: { fontSize: 15, fontFamily: 'Inter', lineHeight: 22 },
   textUser: { color: '#fff' },
   timestamp: { fontSize: 10, color: '#94a3b8', marginTop: 6 },
-  typingDots: { fontSize: 18, color: '#94a3b8', letterSpacing: 4 },
+  typingDotsWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    minWidth: 34,
+    paddingVertical: 2,
+  },
+  typingDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    marginHorizontal: 2,
+    backgroundColor: '#94a3b8',
+  },
   suggestionSection: {
     paddingVertical: 10,
     borderTopWidth: 1,
