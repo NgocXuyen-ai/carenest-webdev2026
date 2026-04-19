@@ -6,312 +6,533 @@ import {
   TouchableOpacity,
   StyleSheet,
   StatusBar,
+  Image,
+  Dimensions,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, CompositeNavigationProp } from '@react-navigation/native';
+import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import Svg, { Defs, LinearGradient, Stop, Rect } from 'react-native-svg';
 import { colors } from '../../theme/colors';
 import { shadows } from '../../theme/spacing';
-import { TOP_BAR_HEIGHT, BOTTOM_NAV_HEIGHT } from '../../utils/constants';
+import { BOTTOM_NAV_HEIGHT } from '../../utils/constants';
 import Icon from '../../components/common/Icon';
-import TopAppBar from '../../components/layout/TopAppBar';
+import Avatar from '../../components/common/Avatar';
 import { mockFamilyMembers } from '../../data/mockFamilyMembers';
-import { mockMedicineSchedule } from '../../data/mockMedicineSchedule';
-import { mockAppointments } from '../../data/mockAppointments';
-import { mockMedicines } from '../../data/mockMedicines';
-import type { HomeStackParamList } from '../../navigation/navigationTypes';
+import type { HomeStackParamList, MainTabParamList } from '../../navigation/navigationTypes';
 
-type Nav = NativeStackNavigationProp<HomeStackParamList, 'HomeDashboard'>;
+const { width } = Dimensions.get('window');
 
-const ROLE_ICONS: Record<string, string> = {
-  'Mẹ': '👩',
-  'Bố': '👨',
-  'Con': '👦',
-  'Bà': '👵',
-  'Ông': '👴',
-};
+type Nav = CompositeNavigationProp<
+  NativeStackNavigationProp<HomeStackParamList, 'HomeDashboard'>,
+  BottomTabNavigationProp<MainTabParamList>
+>;
 
 export default function HomeDashboardScreen() {
   const navigation = useNavigation<Nav>();
   const insets = useSafeAreaInsets();
   const [selectedMemberId, setSelectedMemberId] = useState<string | null>(null);
 
-  const expiredMeds = mockMedicines.filter(m => m.status === 'expired' || m.status === 'expiring');
-  const todaySchedule = mockMedicineSchedule.filter(s =>
-    selectedMemberId ? s.profileId === selectedMemberId : true
-  );
-  const upcomingAppts = mockAppointments.filter(a => a.status === 'upcoming');
+  // Constants based on request
+  const PRIMARY_BLUE = '#0047AB';
+  const LIGHT_BLUE_BG = '#E0F7FA';
+  const GRADIENT_START = '#007BFF';
+  const GRADIENT_END = '#0047AB';
+  const AI_PASTEL = '#E1F5FE';
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor={colors.surface} />
-      <TopAppBar
-        variant="home"
-        userName="Lan Anh"
-        notificationCount={3}
-        onNotificationsPress={() => navigation.navigate('NotificationsCenter')}
-      />
+      <StatusBar barStyle="dark-content" backgroundColor="#fff" />
+      
+      {/* Custom Header Bar */}
+      <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
+        <View style={styles.headerLeft}>
+          <Avatar 
+            uri="https://i.pravatar.cc/150?u=lananh" 
+            name="Lan Anh" 
+            size="sm" 
+            bordered 
+          />
+          <Text style={styles.logoText}>CareNest</Text>
+        </View>
+        <TouchableOpacity 
+          style={styles.notificationBtn}
+          onPress={() => navigation.navigate('NotificationsCenter')}
+        >
+          <Icon name="notifications" size={24} color={PRIMARY_BLUE} />
+          <View style={styles.notificationDot} />
+        </TouchableOpacity>
+      </View>
 
       <ScrollView
         contentContainerStyle={[
           styles.scroll,
-          { paddingTop: TOP_BAR_HEIGHT + insets.top + 16, paddingBottom: BOTTOM_NAV_HEIGHT + 16 },
+          { paddingBottom: BOTTOM_NAV_HEIGHT + insets.bottom + 20 },
         ]}
         showsVerticalScrollIndicator={false}
       >
-        {/* Greeting */}
-        <View style={styles.greeting}>
+        {/* Greeting Section */}
+        <View style={styles.greetingSection}>
           <Text style={styles.greetingTitle}>Xin chào, Lan Anh!</Text>
-          <Text style={styles.greetingSubtitle}>Hy vọng gia đình mình có một ngày khỏe mạnh 🌿</Text>
+          <Text style={styles.greetingSubtitle}>Hy vọng gia đình mình có một ngày khỏe mạnh.</Text>
         </View>
 
-        {/* Family member chips */}
+        {/* Members Pill Section */}
         <View style={styles.section}>
-          <Text style={styles.sectionLabel}>THÀNH VIÊN</Text>
+          <Text style={styles.sectionTitle}>THÀNH VIÊN</Text>
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.memberChipsRow}
+            contentContainerStyle={styles.memberList}
           >
             <TouchableOpacity
-              style={[styles.memberChip, selectedMemberId === null && styles.memberChipActive]}
+              style={[styles.memberPill, selectedMemberId === null && styles.memberPillActive]}
               onPress={() => setSelectedMemberId(null)}
-              activeOpacity={0.8}
             >
-              <Text style={[styles.memberChipText, selectedMemberId === null && styles.memberChipTextActive]}>
+              <Text style={[styles.memberPillText, selectedMemberId === null && styles.memberPillTextActive]}>
                 Cả nhà
               </Text>
             </TouchableOpacity>
-            {mockFamilyMembers.map(member => (
+            {mockFamilyMembers.map((member) => (
               <TouchableOpacity
                 key={member.id}
                 style={[
-                  styles.memberChip,
-                  selectedMemberId === member.profileId && styles.memberChipActive,
+                  styles.memberPill,
+                  selectedMemberId === member.profileId && styles.memberPillActive,
                 ]}
-                onPress={() => setSelectedMemberId(
-                  selectedMemberId === member.profileId ? null : member.profileId
-                )}
-                activeOpacity={0.8}
+                onPress={() => setSelectedMemberId(member.profileId)}
               >
                 <Text style={[
-                  styles.memberChipText,
-                  selectedMemberId === member.profileId && styles.memberChipTextActive,
+                  styles.memberPillText,
+                  selectedMemberId === member.profileId && styles.memberPillTextActive,
                 ]}>
-                  {ROLE_ICONS[member.role] ?? '👤'} {member.fullName.split(' ').pop()}
+                  {member.fullName.split(' ').pop()}
                 </Text>
               </TouchableOpacity>
             ))}
-            <TouchableOpacity style={styles.addMemberChip} activeOpacity={0.8}>
-              <Icon name="add" size={20} color={colors.primary} />
+            <TouchableOpacity style={styles.addMemberBtn}>
+              <Icon name="add" size={20} color={PRIMARY_BLUE} />
             </TouchableOpacity>
           </ScrollView>
         </View>
 
-        {/* Hero summary card */}
-        <View style={[styles.heroCard, shadows.lg]}>
-          <View style={styles.heroOverlayIcon}>
-            <Icon name="cloud_done" size={60} color="rgba(255,255,255,0.2)" />
-          </View>
-          <View style={styles.heroContent}>
-            <View>
-              <Text style={styles.heroDate}>Thứ Ba, 15 Tháng 4</Text>
-              <Text style={styles.heroTitle}>Mọi thứ đều ổn</Text>
+        {/* Shortcut Grid */}
+        <View style={styles.shortcutGrid}>
+          <TouchableOpacity 
+            style={styles.shortcutCard}
+            onPress={() => navigation.navigate('MedicineSchedule')}
+          >
+            <View style={[styles.shortcutIconWrap, { backgroundColor: '#E0F2FE' }]}>
+              <Icon name="pill" size={26} color="#0EA5E9" />
             </View>
-            <View style={styles.heroStats}>
-              <View style={styles.heroStat}>
-                <Icon name="thermometer" size={14} color="rgba(255,255,255,0.8)" />
-                <Text style={styles.heroStatLabel}>Nhiệt độ</Text>
-                <Text style={styles.heroStatValue}>36.5°C</Text>
-              </View>
-              <View style={styles.heroStat}>
-                <Icon name="favorite" size={14} color="rgba(255,255,255,0.8)" />
-                <Text style={styles.heroStatLabel}>Nhịp tim</Text>
-                <Text style={styles.heroStatValue}>72 bpm</Text>
-              </View>
-              <View style={styles.heroStat}>
-                <Icon name="steps" size={14} color="rgba(255,255,255,0.8)" />
-                <Text style={styles.heroStatLabel}>Vận động</Text>
-                <Text style={styles.heroStatValue}>4.2k b</Text>
-              </View>
+            <Text style={styles.shortcutLabel}>Lịch thuốc</Text>
+          </TouchableOpacity>
+          <TouchableOpacity 
+            style={styles.shortcutCard}
+            onPress={() => navigation.navigate('AppointmentList')}
+          >
+            <View style={[styles.shortcutIconWrap, { backgroundColor: '#F3E8FF' }]}>
+              <Icon name="calendar_month" size={26} color="#A855F7" />
+            </View>
+            <Text style={styles.shortcutLabel}>Lịch hẹn</Text>
+          </TouchableOpacity>
+          <TouchableOpacity 
+            style={styles.shortcutCard}
+            onPress={() => navigation.navigate('VaccinationTracker', { 
+              memberId: selectedMemberId || mockFamilyMembers[0].profileId 
+            })}
+          >
+            <View style={[styles.shortcutIconWrap, { backgroundColor: LIGHT_BLUE_BG }]}>
+              <Icon name="syringe" size={26} color="#0097A7" />
+            </View>
+            <Text style={styles.shortcutLabel}>Tiêm chủng</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Health Summary Hero Card */}
+        <View style={[styles.heroCard, shadows.lg]}>
+          <View style={StyleSheet.absoluteFill}>
+            <Svg height="100%" width="100%">
+              <Defs>
+                <LinearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <Stop offset="0%" stopColor={GRADIENT_START} />
+                  <Stop offset="100%" stopColor={GRADIENT_END} />
+                </LinearGradient>
+              </Defs>
+              <Rect width="100%" height="100%" fill="url(#grad)" />
+            </Svg>
+          </View>
+          
+          <View style={styles.heroHeader}>
+            <View>
+              <Text style={styles.heroDate}>Thứ Ba, 24 Tháng 10</Text>
+              <Text style={styles.heroStatus}>Mọi thứ đều ổn</Text>
+            </View>
+            <Icon name="sunny" size={40} color="rgba(255,255,255,0.8)" />
+          </View>
+
+          <View style={styles.glassStatsRow}>
+            <View style={styles.glassModule}>
+              <Icon name="thermometer" size={18} color="#fff" />
+              <Text style={styles.moduleLabel}>Nhiệt độ</Text>
+              <Text style={styles.moduleValue}>36.5°C</Text>
+            </View>
+            <View style={styles.glassModule}>
+              <Icon name="favorite" size={18} color="#fff" />
+              <Text style={styles.moduleLabel}>Nhịp tim</Text>
+              <Text style={styles.moduleValue}>72 bpm</Text>
+            </View>
+            <View style={styles.glassModule}>
+              <Icon name="steps" size={18} color="#fff" />
+              <Text style={styles.moduleLabel}>Vận động</Text>
+              <Text style={styles.moduleValue}>4.2k b</Text>
             </View>
           </View>
         </View>
 
-        {/* Alerts */}
-        {expiredMeds.length > 0 && (
-          <View style={styles.section}>
-            <Text style={styles.sectionLabel}>CẢNH BÁO</Text>
-            {expiredMeds.slice(0, 2).map(med => (
-              <TouchableOpacity key={med.id} style={styles.alertCard} activeOpacity={0.85}>
-                <View style={styles.alertIconWrap}>
-                  <Icon name="warning" size={22} color={colors.onErrorContainer} />
-                </View>
-                <View style={styles.alertContent}>
-                  <Text style={styles.alertTitle}>
-                    {med.status === 'expired' ? 'Thuốc đã hết hạn' : 'Thuốc sắp hết hạn'}
-                  </Text>
-                  <Text style={styles.alertDesc} numberOfLines={1}>
-                    {med.name}{med.notes ? ` — ${med.notes}` : ''}
-                  </Text>
-                </View>
-                <Icon name="chevron_right" size={20} color={colors.onErrorContainer + '80'} />
-              </TouchableOpacity>
-            ))}
-          </View>
-        )}
-
-        {/* Today's tasks */}
+        {/* Actionable Tasks Section */}
         <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionLabel}>HÔM NAY CẦN LÀM</Text>
+          <View style={styles.sectionHeaderRow}>
+            <Text style={styles.sectionTitle}>HÔM NAY CẦN LÀM</Text>
             <TouchableOpacity>
               <Text style={styles.seeAllText}>Xem tất cả</Text>
             </TouchableOpacity>
           </View>
 
-          {todaySchedule.slice(0, 3).map(sched => (
-            <View key={sched.id} style={styles.taskCard}>
-              <View style={[styles.taskIconWrap, { backgroundColor: '#EFF6FF' }]}>
-                <Icon name="pill" size={26} color="#2563EB" />
-              </View>
-              <View style={styles.taskContent}>
-                <Text style={styles.taskTitle}>{sched.name}</Text>
-                <Text style={styles.taskSubtitle}>{sched.instruction} — {sched.times[0]}</Text>
-              </View>
-              {sched.taken ? (
-                <View style={styles.takenBadge}>
-                  <Text style={styles.takenBadgeText}>✓ Đã uống</Text>
-                </View>
-              ) : (
-                <View style={styles.notTakenBadge}>
-                  <Text style={styles.notTakenBadgeText}>Chưa uống</Text>
-                </View>
-              )}
+          <View style={styles.taskCard}>
+            <View style={[styles.taskIconWrap, { backgroundColor: '#EFF6FF' }]}>
+              <Icon name="pill" size={24} color="#2563EB" />
             </View>
-          ))}
+            <View style={styles.taskInfo}>
+              <Text style={styles.taskTitle}>Metformin 500mg</Text>
+              <Text style={styles.taskTime}>Uống lúc 8:00 SA</Text>
+            </View>
+            <View style={styles.tagChuaUong}>
+              <Text style={styles.tagText}>CHƯA UỐNG</Text>
+            </View>
+          </View>
 
-          {upcomingAppts.slice(0, 1).map(appt => (
-            <TouchableOpacity
-              key={appt.id}
-              style={styles.taskCard}
-              onPress={() => navigation.navigate('AppointmentList')}
-              activeOpacity={0.85}
-            >
-              <View style={[styles.taskIconWrap, { backgroundColor: colors.tertiaryFixed }]}>
-                <Icon name="calendar_month" size={26} color={colors.tertiary} />
-              </View>
-              <View style={styles.taskContent}>
-                <Text style={styles.taskTitle}>{appt.notes ?? 'Lịch tái khám'}</Text>
-                <Text style={styles.taskSubtitle} numberOfLines={1}>{appt.facility}</Text>
-              </View>
-              <Icon name="chevron_right" size={20} color={colors.outlineVariant} />
-            </TouchableOpacity>
-          ))}
+          <TouchableOpacity style={styles.taskCard}>
+            <View style={[styles.taskIconWrap, { backgroundColor: '#F0FDF4' }]}>
+              <Icon name="calendar_month" size={24} color="#16A34A" />
+            </View>
+            <View style={styles.taskInfo}>
+              <Text style={styles.taskTitle}>Tái khám tim mạch</Text>
+              <Text style={styles.taskTime}>14:00 - BV Tâm Đức</Text>
+            </View>
+            <Icon name="chevron_right" size={20} color="#94A3B8" />
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.taskCard}>
+            <View style={[styles.taskIconWrap, { backgroundColor: '#FFF7ED' }]}>
+              <Icon name="syringe" size={24} color="#EA580C" />
+            </View>
+            <View style={styles.taskInfo}>
+              <Text style={styles.taskTitle}>Tiêm Vaccine cho bé Nam</Text>
+              <Text style={styles.taskTime}>Lịch hẹn trong tuần này</Text>
+            </View>
+            <Icon name="chevron_right" size={20} color="#94A3B8" />
+          </TouchableOpacity>
         </View>
 
-        {/* AI insight */}
-        <View style={styles.aiCard}>
-          <View style={styles.aiAvatarWrap}>
-            <Icon name="smart_toy" size={20} color="#fff" />
-          </View>
-          <View style={styles.aiContent}>
+        {/* AI Advisor Card */}
+        <View style={[styles.aiAdvisorCard, { backgroundColor: AI_PASTEL }]}>
+          <View style={styles.aiHeader}>
+            <View style={styles.aiAvatar}>
+              <Icon name="smart_toy" size={20} color="#fff" />
+            </View>
             <Text style={styles.aiLabel}>AI CỐ VẤN</Text>
-            <Text style={styles.aiText}>
-              "Bà An có dấu hiệu mệt mỏi vào buổi chiều, bạn nên kiểm tra huyết áp cho bà nhé."
-            </Text>
           </View>
+          <Text style={styles.aiAdviceText}>
+            "Bà Lan có dấu hiệu mệt mỏi vào buổi chiều, bạn nên kiểm tra huyết áp cho bà nhé."
+          </Text>
         </View>
       </ScrollView>
+
+      {/* NO FAB HERE as per instructions */}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.surface },
-  scroll: { paddingHorizontal: 20, gap: 20 },
-  greeting: { gap: 4 },
-  greetingTitle: { fontSize: 22, fontFamily: 'Manrope', fontWeight: '800', color: colors.onSurface },
-  greetingSubtitle: { fontSize: 14, fontFamily: 'Inter', color: colors.onSurfaceVariant },
-
-  section: { gap: 12 },
-  sectionLabel: {
-    fontSize: 11,
+  container: {
+    flex: 1,
+    backgroundColor: '#fff',
+  },
+  header: {
+    paddingHorizontal: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingBottom: 15,
+  },
+  headerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  logoText: {
+    fontSize: 22,
+    fontFamily: 'Manrope',
+    fontWeight: '800',
+    color: '#0047AB',
+    letterSpacing: -0.5,
+  },
+  notificationBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#F3F4F6',
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+  },
+  notificationDot: {
+    position: 'absolute',
+    top: 12,
+    right: 13,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#EF4444',
+    borderWidth: 1.5,
+    borderColor: '#fff',
+  },
+  scroll: {
+    paddingHorizontal: 20,
+    paddingTop: 10,
+  },
+  greetingSection: {
+    marginBottom: 24,
+  },
+  greetingTitle: {
+    fontSize: 26,
+    fontFamily: 'Manrope',
+    fontWeight: '800',
+    color: '#1E293B',
+  },
+  greetingSubtitle: {
+    fontSize: 14,
+    fontFamily: 'Inter',
+    color: '#64748B',
+    marginTop: 4,
+  },
+  section: {
+    marginBottom: 24,
+  },
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  sectionTitle: {
+    fontSize: 12,
+    fontFamily: 'Inter',
+    fontWeight: '800',
+    color: '#94A3B8',
+    letterSpacing: 1.2,
+    marginBottom: 12,
+  },
+  seeAllText: {
+    fontSize: 12,
+    fontFamily: 'Inter',
+    fontWeight: '700',
+    color: '#0047AB',
+  },
+  memberList: {
+    paddingBottom: 5,
+    gap: 12,
+  },
+  memberPill: {
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 25,
+    backgroundColor: '#F1F5F9',
+  },
+  memberPillActive: {
+    backgroundColor: '#0047AB',
+    ...shadows.sm,
+  },
+  memberPillText: {
+    fontSize: 14,
     fontFamily: 'Inter',
     fontWeight: '600',
-    letterSpacing: 1.2,
-    textTransform: 'uppercase',
-    color: colors.onSurfaceVariant + 'AA',
+    color: '#475569',
   },
-  sectionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  seeAllText: { fontSize: 12, fontFamily: 'Inter', fontWeight: '700', color: colors.primary },
-
-  memberChipsRow: { flexDirection: 'row', gap: 10, paddingVertical: 2 },
-  memberChip: { paddingHorizontal: 18, paddingVertical: 10, backgroundColor: colors.surfaceContainerHigh, borderRadius: 999 },
-  memberChipActive: { backgroundColor: colors.primary },
-  memberChipText: { fontSize: 13, fontFamily: 'Inter', fontWeight: '600', color: colors.onSurface },
-  memberChipTextActive: { color: colors.onPrimary },
-  addMemberChip: {
-    width: 44, height: 44, borderRadius: 22,
-    backgroundColor: colors.surfaceContainerLow,
-    borderWidth: 1.5, borderColor: colors.outlineVariant,
+  memberPillTextActive: {
+    color: '#fff',
+  },
+  addMemberBtn: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    borderWidth: 1.5,
+    borderColor: '#CBD5E1',
     borderStyle: 'dashed',
-    alignItems: 'center', justifyContent: 'center',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-
+  shortcutGrid: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 24,
+  },
+  shortcutCard: {
+    flex: 1,
+    backgroundColor: '#fff',
+    borderRadius: 24,
+    padding: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#F1F5F9',
+    ...shadows.sm,
+  },
+  shortcutIconWrap: {
+    width: 54,
+    height: 54,
+    borderRadius: 27,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 10,
+  },
+  shortcutLabel: {
+    fontSize: 12,
+    fontFamily: 'Inter',
+    fontWeight: '700',
+    color: '#1E293B',
+  },
   heroCard: {
-    borderRadius: 20, backgroundColor: colors.primary, padding: 20, overflow: 'hidden', position: 'relative',
+    borderRadius: 28,
+    padding: 24,
+    height: 240,
+    justifyContent: 'space-between',
+    overflow: 'hidden',
+    marginBottom: 24,
   },
-  heroOverlayIcon: { position: 'absolute', top: 8, right: 8 },
-  heroContent: { gap: 20 },
-  heroDate: { fontSize: 13, fontFamily: 'Inter', color: 'rgba(255,255,255,0.85)', marginBottom: 2 },
-  heroTitle: { fontSize: 26, fontFamily: 'Manrope', fontWeight: '800', color: '#fff' },
-  heroStats: { flexDirection: 'row', gap: 10 },
-  heroStat: {
-    flex: 1, backgroundColor: 'rgba(255,255,255,0.2)',
-    borderRadius: 12, padding: 10, gap: 3, alignItems: 'flex-start',
+  heroHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
   },
-  heroStatLabel: { fontSize: 10, fontFamily: 'Inter', color: 'rgba(255,255,255,0.8)' },
-  heroStatValue: { fontSize: 14, fontFamily: 'Manrope', fontWeight: '700', color: '#fff' },
-
-  alertCard: {
-    flexDirection: 'row', alignItems: 'center',
-    backgroundColor: colors.errorContainer, borderRadius: 16, padding: 14, gap: 12,
+  heroDate: {
+    fontSize: 14,
+    fontFamily: 'Inter',
+    color: 'rgba(255,255,255,0.7)',
   },
-  alertIconWrap: {
-    width: 44, height: 44, borderRadius: 12,
-    backgroundColor: 'rgba(255,255,255,0.4)', alignItems: 'center', justifyContent: 'center',
+  heroStatus: {
+    fontSize: 28,
+    fontFamily: 'Manrope',
+    fontWeight: '800',
+    color: '#fff',
+    marginTop: 4,
   },
-  alertContent: { flex: 1 },
-  alertTitle: { fontSize: 14, fontFamily: 'Manrope', fontWeight: '700', color: colors.onErrorContainer },
-  alertDesc: { fontSize: 12, fontFamily: 'Inter', color: colors.onErrorContainer + 'CC' },
-
+  glassStatsRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  glassModule: {
+    flex: 1,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    padding: 12,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+    alignItems: 'center',
+    gap: 4,
+  },
+  moduleLabel: {
+    fontSize: 10,
+    fontFamily: 'Inter',
+    color: 'rgba(255,255,255,0.8)',
+    textTransform: 'uppercase',
+  },
+  moduleValue: {
+    fontSize: 14,
+    fontFamily: 'Manrope',
+    fontWeight: '700',
+    color: '#fff',
+  },
   taskCard: {
-    flexDirection: 'row', alignItems: 'center',
-    backgroundColor: colors.surfaceContainerLowest, borderRadius: 16, padding: 14, gap: 12, ...shadows.sm,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    borderRadius: 24,
+    padding: 16,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#F1F5F9',
+    ...shadows.sm,
   },
-  taskIconWrap: { width: 48, height: 48, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
-  taskContent: { flex: 1 },
-  taskTitle: { fontSize: 14, fontFamily: 'Manrope', fontWeight: '700', color: colors.onSurface },
-  taskSubtitle: { fontSize: 12, fontFamily: 'Inter', color: colors.onSurfaceVariant, marginTop: 2 },
-  takenBadge: { backgroundColor: '#DCFCE7', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4 },
-  takenBadgeText: { fontSize: 11, fontFamily: 'Inter', fontWeight: '600', color: '#15803D' },
-  notTakenBadge: { backgroundColor: '#DBEAFE', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4 },
-  notTakenBadgeText: { fontSize: 11, fontFamily: 'Inter', fontWeight: '600', color: '#1D4ED8' },
-
-  aiCard: {
-    flexDirection: 'row', alignItems: 'flex-start',
-    backgroundColor: colors.surfaceContainerLow, borderRadius: 16, padding: 16, gap: 12,
-    borderWidth: 1, borderColor: colors.outlineVariant + '20',
+  taskIconWrap: {
+    width: 52,
+    height: 52,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 15,
   },
-  aiAvatarWrap: {
-    width: 38, height: 38, borderRadius: 12,
-    backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center',
+  taskInfo: {
+    flex: 1,
   },
-  aiContent: { flex: 1, gap: 4 },
+  taskTitle: {
+    fontSize: 15,
+    fontFamily: 'Manrope',
+    fontWeight: '700',
+    color: '#1E293B',
+  },
+  taskTime: {
+    fontSize: 13,
+    fontFamily: 'Inter',
+    color: '#64748B',
+    marginTop: 2,
+  },
+  tagChuaUong: {
+    backgroundColor: '#EEF2FF',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 10,
+  },
+  tagText: {
+    fontSize: 10,
+    fontFamily: 'Inter',
+    fontWeight: '800',
+    color: '#4F46E5',
+  },
+  aiAdvisorCard: {
+    borderRadius: 24,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(0, 71, 171, 0.05)',
+  },
+  aiHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 12,
+  },
+  aiAvatar: {
+    width: 36,
+    height: 36,
+    borderRadius: 12,
+    backgroundColor: '#0047AB',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   aiLabel: {
-    fontSize: 10, fontFamily: 'Inter', fontWeight: '700',
-    color: colors.primary, letterSpacing: 1, textTransform: 'uppercase',
+    fontSize: 12,
+    fontFamily: 'Inter',
+    fontWeight: '800',
+    color: '#0047AB',
+    letterSpacing: 1,
   },
-  aiText: { fontSize: 13, fontFamily: 'Inter', color: colors.onSurface, lineHeight: 20, fontStyle: 'italic' },
+  aiAdviceText: {
+    fontSize: 14,
+    fontFamily: 'Inter',
+    color: '#1E293B',
+    fontStyle: 'italic',
+    lineHeight: 22,
+  },
 });

@@ -2,6 +2,7 @@ import React from 'react';
 import { TouchableOpacity, StyleSheet, ViewStyle } from 'react-native';
 import { colors } from '../../theme/colors';
 import { shadows } from '../../theme/spacing';
+import { BOTTOM_NAV_HEIGHT } from '../../utils/constants';
 import Icon from './Icon';
 
 interface FABProps {
@@ -21,7 +22,7 @@ export default function FAB({ iconName = 'add', onPress, style }: FABProps) {
 const styles = StyleSheet.create({
   fab: {
     position: 'absolute',
-    bottom: 96,
+    bottom: BOTTOM_NAV_HEIGHT + 12,
     right: 20,
     width: 56,
     height: 56,

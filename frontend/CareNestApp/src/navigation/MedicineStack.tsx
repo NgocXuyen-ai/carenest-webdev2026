@@ -15,8 +15,8 @@ const Stack = createNativeStackNavigator<MedicineStackParamList>();
 export default function MedicineStack() {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="MedicineSchedule" component={MedicineScheduleScreen} />
       <Stack.Screen name="MedicineCabinet" component={MedicineCabinetScreen} />
+      <Stack.Screen name="MedicineSchedule" component={MedicineScheduleScreen} />
       <Stack.Screen name="AddMedicineSchedule" component={AddMedicineScheduleScreen} />
       <Stack.Screen name="AddMedicineToCabinet" component={AddMedicineToCabinetScreen} />
       <Stack.Screen name="OcrScanner" component={OcrScannerScreen} />

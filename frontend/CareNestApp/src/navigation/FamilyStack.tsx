@@ -6,6 +6,8 @@ import FamilyManagementScreen from '../screens/family/FamilyManagementScreen';
 import HealthProfileDetailScreen from '../screens/family/HealthProfileDetailScreen';
 import VaccinationTrackerScreen from '../screens/health/VaccinationTrackerScreen';
 import GrowthTrackerScreen from '../screens/health/GrowthTrackerScreen';
+import UserMedicalScreen from '../screens/profile/UserMedicalScreen';
+import AddVaccinationScheduleScreen from '../screens/health/AddVaccinationScheduleScreen';
 
 const Stack = createNativeStackNavigator<FamilyStackParamList>();
 
@@ -16,6 +18,8 @@ export default function FamilyStack() {
       <Stack.Screen name="HealthProfileDetail" component={HealthProfileDetailScreen} />
       <Stack.Screen name="VaccinationTracker" component={VaccinationTrackerScreen} />
       <Stack.Screen name="GrowthTracker" component={GrowthTrackerScreen} />
+      <Stack.Screen name="UserMedical" component={UserMedicalScreen} />
+      <Stack.Screen name="AddVaccinationSchedule" component={AddVaccinationScheduleScreen} />
     </Stack.Navigator>
   );
 }

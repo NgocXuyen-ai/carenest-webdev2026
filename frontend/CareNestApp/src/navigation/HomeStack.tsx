@@ -8,6 +8,9 @@ import AppointmentListScreen from '../screens/appointment/AppointmentListScreen'
 import AddAppointmentScreen from '../screens/appointment/AddAppointmentScreen';
 import VaccinationTrackerScreen from '../screens/health/VaccinationTrackerScreen';
 import GrowthTrackerScreen from '../screens/health/GrowthTrackerScreen';
+import MedicineScheduleScreen from '../screens/medicine/MedicineScheduleScreen';
+import AddMedicineScheduleScreen from '../screens/medicine/AddMedicineScheduleScreen';
+import AddVaccinationScheduleScreen from '../screens/health/AddVaccinationScheduleScreen';
 
 const Stack = createNativeStackNavigator<HomeStackParamList>();
 
@@ -20,6 +23,9 @@ export default function HomeStack() {
       <Stack.Screen name="AddAppointment" component={AddAppointmentScreen} />
       <Stack.Screen name="VaccinationTracker" component={VaccinationTrackerScreen} />
       <Stack.Screen name="GrowthTracker" component={GrowthTrackerScreen} />
+      <Stack.Screen name="MedicineSchedule" component={MedicineScheduleScreen} />
+      <Stack.Screen name="AddMedicineSchedule" component={AddMedicineScheduleScreen} />
+      <Stack.Screen name="AddVaccinationSchedule" component={AddVaccinationScheduleScreen} />
     </Stack.Navigator>
   );
 }

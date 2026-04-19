@@ -1,175 +1,261 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
-  View, Text, TouchableOpacity, StyleSheet, Animated,
+  View, Text, TouchableOpacity, StyleSheet, Animated, Easing,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { colors } from '../../theme/colors';
-import { TOP_BAR_HEIGHT } from '../../utils/constants';
 import Icon from '../../components/common/Icon';
-import TopAppBar from '../../components/layout/TopAppBar';
 
-type VoiceState = 'idle' | 'listening' | 'processing' | 'speaking';
-
-const STATE_CONFIG: Record<VoiceState, { label: string; subLabel: string; iconColor: string; ringColor: string }> = {
-  idle:       { label: 'Nhấn để nói',     subLabel: 'Hỏi về sức khỏe gia đình',      iconColor: colors.primary,        ringColor: colors.primaryFixed },
-  listening:  { label: 'Đang nghe...',    subLabel: 'Đang ghi âm giọng nói của bạn', iconColor: '#fff',                 ringColor: colors.primary + '40' },
-  processing: { label: 'Đang xử lý...',   subLabel: 'AI đang phân tích câu hỏi',     iconColor: colors.primary,        ringColor: colors.primaryFixed },
-  speaking:   { label: 'Đang phát âm...', subLabel: 'Nhấn để dừng',                  iconColor: '#2E7D32',              ringColor: '#E8F5E9' },
-};
-
-const EXAMPLE_Q = 'Hôm nay bà Lan cần uống thuốc gì?';
-const EXAMPLE_A = 'Hôm nay bà Lan cần uống 3 loại thuốc: Aspirin lúc 8 giờ sáng, Insulin lúc 11 giờ 30 trưa, và Atorvastatin lúc 8 giờ tối. Aspirin và Insulin chưa uống, bạn có muốn tôi nhắc nhở không?';
+const EXAMPLE_Q = 'Nhắc tôi cho bà uống thuốc tim lúc 8 giờ tối nay...';
+const EXAMPLE_A = 'Đã hiểu. Tôi sẽ đặt lịch nhắc nhở cho bà uống thuốc tim vào lúc 20:00 tối nay. Bạn có muốn thêm ghi chú gì khác không?';
 
 export default function VoiceAssistantScreen() {
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
-  const [voiceState, setVoiceState] = useState<VoiceState>('idle');
-  const [transcript, setTranscript] = useState('');
+  const [voiceState, setVoiceState] = useState<'listening' | 'processing' | 'speaking'>('listening');
+  const [transcript, setTranscript] = useState(EXAMPLE_Q);
   const [response, setResponse] = useState('');
 
-  function handleMicPress() {
-    if (voiceState === 'idle') {
-      setTranscript('');
-      setResponse('');
-      setVoiceState('listening');
-      setTimeout(() => {
-        setTranscript(EXAMPLE_Q);
-        setVoiceState('processing');
-        setTimeout(() => {
-          setResponse(EXAMPLE_A);
-          setVoiceState('speaking');
-          setTimeout(() => setVoiceState('idle'), 4000);
-        }, 1500);
-      }, 2000);
-    } else if (voiceState === 'speaking') {
-      setVoiceState('idle');
-    }
-  }
+  // Animations
+  const pulse1 = useRef(new Animated.Value(1)).current;
+  const pulse2 = useRef(new Animated.Value(1)).current;
+  const pulse3 = useRef(new Animated.Value(1)).current;
 
-  const cfg = STATE_CONFIG[voiceState];
+  useEffect(() => {
+    // Start pulsing animations
+    const createPulse = (val: Animated.Value, delay: number) => {
+      Animated.loop(
+        Animated.sequence([
+          Animated.delay(delay),
+          Animated.timing(val, {
+            toValue: 2.2,
+            duration: 2000,
+            easing: Easing.out(Easing.quad),
+            useNativeDriver: true,
+          }),
+        ])
+      ).start();
+    };
+
+    createPulse(pulse1, 0);
+    createPulse(pulse2, 600);
+    createPulse(pulse3, 1200);
+
+    // Mock flow
+    const timer = setTimeout(() => {
+      setVoiceState('processing');
+      setTimeout(() => {
+        setResponse(EXAMPLE_A);
+        setVoiceState('speaking');
+      }, 1500);
+    }, 3000);
+
+    return () => clearTimeout(timer);
+  }, []);
+
+  const opacity1 = pulse1.interpolate({ inputRange: [1, 2.2], outputRange: [0.4, 0] });
+  const opacity2 = pulse2.interpolate({ inputRange: [1, 2.2], outputRange: [0.3, 0] });
+  const opacity3 = pulse3.interpolate({ inputRange: [1, 2.2], outputRange: [0.2, 0] });
 
   return (
-    <View style={styles.root}>
-      <TopAppBar variant="detail" title="Trợ lý giọng nói" />
-      <View style={[styles.content, { paddingTop: TOP_BAR_HEIGHT + insets.top, paddingBottom: insets.bottom + 32 }]}>
+    <View style={[styles.root, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
+      {/* Header - Close Button */}
+      <View style={styles.header}>
+        <TouchableOpacity 
+          style={styles.closeBtn} 
+          onPress={() => navigation.goBack()}
+        >
+          <Icon name="close" size={24} color="#fff" />
+        </TouchableOpacity>
+      </View>
 
-        {/* Transcript / response area */}
-        <View style={styles.dialogArea}>
-          {transcript ? (
-            <View style={styles.transcriptBox}>
-              <Icon name="mic" size={14} color={colors.onSurfaceVariant} />
-              <Text style={styles.transcriptText}>"{transcript}"</Text>
-            </View>
-          ) : (
-            <View style={styles.emptyDialog}>
-              <Icon name="mic" size={32} color={colors.outlineVariant} />
-              <Text style={styles.emptyDialogText}>Câu hỏi của bạn sẽ hiện ở đây</Text>
-            </View>
-          )}
-          {response ? (
-            <View style={styles.responseBox}>
-              <View style={styles.responseHeader}>
-                <Icon name="smart_toy" size={16} color={colors.primary} />
-                <Text style={styles.responseHeaderText}>AI CareNest</Text>
-                {voiceState === 'speaking' && (
-                  <View style={styles.speakingBadge}>
-                    <Text style={styles.speakingBadgeText}>Đang đọc</Text>
-                  </View>
-                )}
+      <View style={styles.content}>
+        {/* Animated Mic Section */}
+        <View style={styles.micContainer}>
+          <Animated.View style={[styles.ring, { transform: [{ scale: pulse1 }], opacity: opacity1 }]} />
+          <Animated.View style={[styles.ring, { transform: [{ scale: pulse2 }], opacity: opacity2 }]} />
+          <Animated.View style={[styles.ring, { transform: [{ scale: pulse3 }], opacity: opacity3 }]} />
+          <View style={styles.mainMic}>
+            <Icon name="mic" size={40} color="#fff" />
+          </View>
+        </View>
+
+        {/* Status Badge */}
+        <View style={styles.statusSection}>
+          <View style={styles.badge}>
+            <Text style={styles.badgeText}>
+              {voiceState === 'listening' ? 'ĐANG NGHE...' : voiceState === 'processing' ? 'ĐANG XỬ LÝ...' : 'ĐANG NÓI...'}
+            </Text>
+          </View>
+          
+          <Text style={styles.transcript}>{transcript}</Text>
+        </View>
+
+        {/* AI Response Card */}
+        {response ? (
+          <View style={styles.aiCard}>
+            <View style={styles.aiHeader}>
+              <View style={styles.aiAvatar}>
+                <Icon name="smart_toy" size={20} color="#fff" />
               </View>
-              <Text style={styles.responseText}>{response}</Text>
-            </View>
-          ) : null}
-        </View>
-
-        {/* Status label */}
-        <View style={styles.statusArea}>
-          <Text style={styles.statusLabel}>{cfg.label}</Text>
-          <Text style={styles.statusSubLabel}>{cfg.subLabel}</Text>
-        </View>
-
-        {/* Mic button */}
-        <View style={styles.micArea}>
-          <View style={[styles.micRing, { backgroundColor: cfg.ringColor }]}>
-            <TouchableOpacity
-              style={[
-                styles.micBtn,
-                voiceState === 'listening' && styles.micBtnListening,
-              ]}
-              onPress={handleMicPress}
-              activeOpacity={0.85}
-            >
-              <Icon
-                name={voiceState === 'speaking' ? 'stop' : 'mic'}
-                size={36}
-                color={voiceState === 'listening' ? '#fff' : cfg.iconColor}
-              />
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        {/* Example prompts */}
-        {voiceState === 'idle' && (
-          <View style={styles.examplesArea}>
-            <Text style={styles.examplesLabel}>Thử hỏi:</Text>
-            {['Hôm nay ai cần uống thuốc?', 'Thuốc nào sắp hết hạn?', 'Tái khám tuần này có lịch gì?'].map(q => (
-              <TouchableOpacity key={q} style={styles.exampleChip} onPress={() => {}} activeOpacity={0.75}>
-                <Icon name="mic_none" size={14} color={colors.primary} />
-                <Text style={styles.exampleText}>{q}</Text>
+              <Text style={styles.aiName}>AI Care Assistant</Text>
+              <TouchableOpacity>
+                <Icon name="volume_up" size={20} color="rgba(255,255,255,0.6)" />
               </TouchableOpacity>
-            ))}
+            </View>
+            <Text style={styles.aiText}>{response}</Text>
           </View>
-        )}
+        ) : <View style={{ height: 160 }} />}
+      </View>
+
+      {/* Footer */}
+      <View style={styles.footer}>
+        <View style={styles.waveBarContainer}>
+          <View style={styles.waveBarActive} />
+          <View style={styles.waveBarInactive} />
+        </View>
+        <Text style={styles.footerText}>GÕ PHÍM ĐỂ NHẬP VĂN BẢN</Text>
       </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: colors.surface },
-  content: { flex: 1, paddingHorizontal: 20 },
-
-  dialogArea: { flex: 1, justifyContent: 'flex-end', paddingBottom: 24, gap: 12 },
-  emptyDialog: { alignItems: 'center', gap: 8, paddingVertical: 40 },
-  emptyDialogText: { fontSize: 14, fontFamily: 'Inter', color: colors.onSurfaceVariant },
-  transcriptBox: {
-    flexDirection: 'row', alignItems: 'flex-start', gap: 8,
-    backgroundColor: colors.surfaceContainerHigh, borderRadius: 14, padding: 14,
+  root: { flex: 1, backgroundColor: '#0f131a' },
+  header: {
+    height: 60,
+    alignItems: 'flex-end',
+    paddingHorizontal: 24,
+    justifyContent: 'center',
   },
-  transcriptText: { flex: 1, fontSize: 14, fontFamily: 'Inter', color: colors.onSurfaceVariant, fontStyle: 'italic' },
-  responseBox: {
-    backgroundColor: colors.surfaceContainerLowest, borderRadius: 16, padding: 14,
-    borderLeftWidth: 3, borderLeftColor: colors.primary,
+  closeBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  responseHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 },
-  responseHeaderText: { flex: 1, fontSize: 12, fontFamily: 'Inter', fontWeight: '700', color: colors.primary },
-  speakingBadge: { backgroundColor: colors.primaryFixed, borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 },
-  speakingBadgeText: { fontSize: 10, fontFamily: 'Inter', fontWeight: '700', color: colors.primary },
-  responseText: { fontSize: 14, fontFamily: 'Inter', color: colors.onSurface, lineHeight: 22 },
-
-  statusArea: { alignItems: 'center', marginBottom: 24, gap: 4 },
-  statusLabel: { fontSize: 18, fontFamily: 'Manrope', fontWeight: '800', color: colors.onSurface },
-  statusSubLabel: { fontSize: 13, fontFamily: 'Inter', color: colors.onSurfaceVariant },
-
-  micArea: { alignItems: 'center', marginBottom: 32 },
-  micRing: {
-    width: 120, height: 120, borderRadius: 60,
-    alignItems: 'center', justifyContent: 'center',
+  content: {
+    flex: 1,
+    alignItems: 'center',
+    paddingHorizontal: 30,
   },
-  micBtn: {
-    width: 88, height: 88, borderRadius: 44,
-    backgroundColor: colors.surfaceContainerLowest,
-    alignItems: 'center', justifyContent: 'center',
-    shadowColor: colors.onSurface, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.12, shadowRadius: 12, elevation: 8,
+  micContainer: {
+    marginTop: 40,
+    width: 200,
+    height: 200,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  micBtnListening: { backgroundColor: colors.primary },
-
-  examplesArea: { gap: 8 },
-  examplesLabel: { fontSize: 12, fontFamily: 'Inter', fontWeight: '700', color: colors.onSurfaceVariant, textTransform: 'uppercase', letterSpacing: 0.8 },
-  exampleChip: {
-    flexDirection: 'row', alignItems: 'center', gap: 8,
-    backgroundColor: colors.primaryFixed, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10,
+  ring: {
+    position: 'absolute',
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: '#3498db',
   },
-  exampleText: { fontSize: 13, fontFamily: 'Inter', fontWeight: '500', color: colors.primary, flex: 1 },
+  mainMic: {
+    width: 110,
+    height: 110,
+    borderRadius: 55,
+    backgroundColor: '#3498db',
+    alignItems: 'center',
+    justifyContent: 'center',
+    elevation: 10,
+    shadowColor: '#3498db',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.5,
+    shadowRadius: 20,
+  },
+  statusSection: {
+    marginTop: 60,
+    alignItems: 'center',
+    width: '100%',
+  },
+  badge: {
+    backgroundColor: 'rgba(52, 152, 219, 0.2)',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    marginBottom: 20,
+  },
+  badgeText: {
+    color: '#fff',
+    fontSize: 13,
+    fontWeight: '800',
+    letterSpacing: 1.2,
+  },
+  transcript: {
+    color: 'rgba(255,255,255,0.6)',
+    fontSize: 18,
+    fontStyle: 'italic',
+    textAlign: 'center',
+    lineHeight: 28,
+  },
+  aiCard: {
+    marginTop: 40,
+    width: '100%',
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    borderRadius: 24,
+    padding: 24,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+  },
+  aiHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 16,
+  },
+  aiAvatar: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#1a73e8',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  aiName: {
+    flex: 1,
+    color: '#fff',
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  aiText: {
+    color: 'rgba(255,255,255,0.85)',
+    fontSize: 16,
+    lineHeight: 24,
+    fontFamily: 'Inter',
+  },
+  footer: {
+    alignItems: 'center',
+    paddingBottom: 20,
+  },
+  waveBarContainer: {
+    flexDirection: 'row',
+    width: 120,
+    height: 4,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    borderRadius: 2,
+    marginBottom: 16,
+    overflow: 'hidden',
+  },
+  waveBarActive: {
+    width: '60%',
+    height: '100%',
+    backgroundColor: '#3498db',
+    borderRadius: 2,
+  },
+  waveBarInactive: {
+    width: '40%',
+    height: '100%',
+  },
+  footerText: {
+    color: 'rgba(255,255,255,0.4)',
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 1,
+  },
 });
