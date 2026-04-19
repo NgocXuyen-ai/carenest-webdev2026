@@ -1,4 +1,4 @@
-﻿package com.carenest.backend.service;
+package com.carenest.backend.service;
 
 import com.carenest.backend.dto.ai.AiChatRequest;
 import com.carenest.backend.dto.ai.AiOcrRequest;

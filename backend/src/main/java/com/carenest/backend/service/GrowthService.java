@@ -1,4 +1,4 @@
-﻿package com.carenest.backend.service;
+package com.carenest.backend.service;
 
 import com.carenest.backend.dto.growth.ChartDataPoint;
 import com.carenest.backend.dto.growth.CreateGrowthLogRequest;

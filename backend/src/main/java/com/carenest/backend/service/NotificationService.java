@@ -1,4 +1,4 @@
-﻿package com.carenest.backend.service;
+package com.carenest.backend.service;
 
 import com.carenest.backend.dto.notification.NotificationResponse;
 import com.carenest.backend.model.Notification;

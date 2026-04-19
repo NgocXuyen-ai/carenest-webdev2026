@@ -1,4 +1,4 @@
-﻿package com.carenest.backend.controller;
+package com.carenest.backend.controller;
 
 import com.carenest.backend.dto.growth.CreateGrowthLogRequest;
 import com.carenest.backend.dto.growth.GrowthSummaryResponse;
