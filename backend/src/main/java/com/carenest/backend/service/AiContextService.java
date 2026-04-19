@@ -46,7 +46,7 @@ public class AiContextService {
         Map<String, Object> context = new LinkedHashMap<>();
         context.put("currentDate", LocalDate.now().toString());
 
-        HealthProfile ownProfile = healthProfileRepository.findByUser_UserId(userId)
+            HealthProfile ownProfile = healthProfileRepository.findFirstByUser_UserIdOrderByProfileAsc(userId)
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy hồ sơ sức khỏe của người dùng"));
 
         Set<Integer> accessibleProfileIds = new LinkedHashSet<>();

@@ -50,7 +50,7 @@ public class UserService {
         User user = userRepository.findById(currentUserId)
                 .orElseThrow(() -> new UsernameNotFoundException("Không tìm thấy user"));
 
-        HealthProfile profile = healthProfileRepository.findByUser_UserId(currentUserId)
+        HealthProfile profile = healthProfileRepository.findFirstByUser_UserIdOrderByProfileAsc(currentUserId)
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy hồ sơ sức khỏe"));
 
         return CurrentUserProfileResponse.builder()
@@ -80,7 +80,7 @@ public class UserService {
             throw new RuntimeException("Email đã tồn tại");
         }
 
-        HealthProfile profile = healthProfileRepository.findByUser_UserId(currentUserId)
+        HealthProfile profile = healthProfileRepository.findFirstByUser_UserIdOrderByProfileAsc(currentUserId)
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy hồ sơ sức khỏe"));
 
         user.setEmail(request.getEmail().trim().toLowerCase());

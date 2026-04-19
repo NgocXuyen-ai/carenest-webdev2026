@@ -62,7 +62,7 @@ public class FamilyService {
                 .orElseThrow(() -> new UsernameNotFoundException("Không tìm thấy user"));
 
         HealthProfile profile = healthProfileRepository
-                .findByUser_UserId(currentUser.getUserId())
+                .findFirstByUser_UserIdOrderByProfileAsc(currentUser.getUserId())
                 .orElseThrow(() -> new RuntimeException("Hãy nhập đầy đủ thông tin cá nhân trước khi tạo Family"));
 
         Family family = new Family();
@@ -91,7 +91,7 @@ public class FamilyService {
         User user = userRepository.findById(currentUserId)
                 .orElseThrow(() -> new UsernameNotFoundException("Không tìm thấy user"));
 
-        healthProfileRepository.findByUser_UserId(user.getUserId())
+                healthProfileRepository.findFirstByUser_UserIdOrderByProfileAsc(user.getUserId())
                 .ifPresent(existingProfile -> {
                     throw new RuntimeException("Bạn đã có hồ sơ sức khỏe rồi");
                 });
@@ -172,7 +172,7 @@ public class FamilyService {
                 .orElseThrow(() -> new UsernameNotFoundException("Không tìm thấy user"));
 
         HealthProfile myProfile = healthProfileRepository
-                .findByUser_UserId(currentUser.getUserId())
+                .findFirstByUser_UserIdOrderByProfileAsc(currentUser.getUserId())
                 .orElseThrow(() -> new RuntimeException("Bạn chưa có hồ sơ sức khỏe"));
 
         FamilyRelationship myRelationship = familyRelationshipRepository
@@ -219,7 +219,7 @@ public class FamilyService {
                 .orElseThrow(() -> new UsernameNotFoundException("Không tìm thấy user"));
     
         HealthProfile myProfile = healthProfileRepository
-                .findByUser_UserId(currentUser.getUserId())
+                .findFirstByUser_UserIdOrderByProfileAsc(currentUser.getUserId())
                 .orElseThrow(() -> new RuntimeException("Bạn chưa có hồ sơ sức khỏe"));
     
         FamilyRelationship myRelationship = familyRelationshipRepository
@@ -273,7 +273,7 @@ public class FamilyService {
         String receiverEmail = dto.getReceiverEmail().trim().toLowerCase();
 
         // 1. Lấy profile của sender
-        HealthProfile senderProfile = healthProfileRepository.findByUser_UserId(currentUser.getUserId())
+        HealthProfile senderProfile = healthProfileRepository.findFirstByUser_UserIdOrderByProfileAsc(currentUser.getUserId())
                 .orElseThrow(() -> new RuntimeException("Bạn chưa có health profile"));
 
         // 2. Lấy relationship
@@ -298,7 +298,7 @@ public class FamilyService {
 
         // 5. Check profile receiver
         HealthProfile receiverProfile = healthProfileRepository
-                .findByUser_UserId(receiver.getUserId())
+                .findFirstByUser_UserIdOrderByProfileAsc(receiver.getUserId())
                 .orElseThrow(() -> new RuntimeException("Người này chưa có profile"));
 
         // 6. Check đã là member chưa
@@ -409,7 +409,7 @@ public class FamilyService {
         User currentUser = userRepository.findById(currentUserId)
                 .orElseThrow(() -> new UsernameNotFoundException("Không tìm thấy user"));
 
-        HealthProfile senderProfile = healthProfileRepository.findByUser_UserId(currentUser.getUserId())
+        HealthProfile senderProfile = healthProfileRepository.findFirstByUser_UserIdOrderByProfileAsc(currentUser.getUserId())
                 .orElseThrow(() -> new RuntimeException("Bạn chưa có health profile"));
 
         FamilyRelationship relationship = familyRelationshipRepository
@@ -452,7 +452,7 @@ public class FamilyService {
                 throw new RuntimeException("Lời mời không còn hiệu lực");
         }
 
-        HealthProfile profile = healthProfileRepository.findByUser_UserId(currentUser.getUserId())
+        HealthProfile profile = healthProfileRepository.findFirstByUser_UserIdOrderByProfileAsc(currentUser.getUserId())
                 .orElseThrow(() -> new RuntimeException("Bạn chưa có health profile"));
 
         boolean alreadyMember = familyRelationshipRepository
@@ -501,7 +501,7 @@ public class FamilyService {
                 .orElseThrow(() -> new UsernameNotFoundException("Không tìm thấy user"));
     
         // 1. Lấy profile của người đang đăng nhập
-        HealthProfile currentProfile = healthProfileRepository.findByUser_UserId(currentUser.getUserId())
+        HealthProfile currentProfile = healthProfileRepository.findFirstByUser_UserIdOrderByProfileAsc(currentUser.getUserId())
                 .orElseThrow(() -> new RuntimeException("Bạn chưa có health profile"));
     
         // 2. Lấy relationship của người đang đăng nhập

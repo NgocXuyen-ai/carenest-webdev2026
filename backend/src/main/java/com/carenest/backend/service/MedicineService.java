@@ -184,7 +184,7 @@ public class MedicineService {
     }
 
     public FamilyMedicineCabinet getMyCabinet(Integer currentUserId) {
-        HealthProfile profile = healthProfileRepository.findByUser_UserId(currentUserId)
+        HealthProfile profile = healthProfileRepository.findFirstByUser_UserIdOrderByProfileAsc(currentUserId)
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy profile"));
 
         FamilyRelationship rel = familyRelationshipRepository
