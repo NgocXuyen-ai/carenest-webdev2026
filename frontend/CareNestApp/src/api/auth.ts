@@ -1,4 +1,4 @@
-import { apiGet, apiPatch, apiPost } from './client';
+import { apiGet, apiGetCached, apiPatch, apiPost, invalidateApiGetCache } from './client';
 import type { AuthSession } from './storage';
 
 export interface LoginPayload {
@@ -71,11 +71,13 @@ export async function forgotPassword(email: string): Promise<void> {
 }
 
 export async function getCurrentUserProfile(): Promise<CurrentUserProfile> {
-  return apiGet<CurrentUserProfile>('/users/me/profile');
+  return apiGetCached<CurrentUserProfile>('/users/me/profile', undefined, { ttlMs: 20000 });
 }
 
 export async function updateCurrentUserProfile(payload: UpdateCurrentUserProfilePayload): Promise<CurrentUserProfile> {
-  return apiPatch<CurrentUserProfile, UpdateCurrentUserProfilePayload>('/users/me/profile', payload);
+  const profile = await apiPatch<CurrentUserProfile, UpdateCurrentUserProfilePayload>('/users/me/profile', payload);
+  invalidateApiGetCache(['/users/me/profile', '/dashboard', '/family/profiles/']);
+  return profile;
 }
 
 export async function changePassword(oldPassword: string, newPassword: string): Promise<void> {

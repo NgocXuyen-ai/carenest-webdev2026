@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import {
   Alert,
   Modal,
@@ -10,7 +10,7 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useRoute } from '@react-navigation/native';
+import { useFocusEffect, useRoute } from '@react-navigation/native';
 import type { RouteProp } from '@react-navigation/native';
 import { colors } from '../../theme/colors';
 import { shadows } from '../../theme/spacing';
@@ -24,6 +24,33 @@ import { formatLocalDate } from '../../utils/dateTime';
 type RouteT = RouteProp<FamilyStackParamList, 'GrowthTracker'>;
 type MetricKey = 'weight' | 'height';
 
+const CHART_MESSAGE_FALLBACK = 'Chưa có đủ dữ liệu để hiển thị biểu đồ.';
+
+function normalizeGrowthChartMessage(message?: string | null): string {
+  if (!message?.trim()) {
+    return CHART_MESSAGE_FALLBACK;
+  }
+
+  const normalized = message
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/g, 'd')
+    .replace(/Đ/g, 'D')
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  if (normalized.startsWith('ban can nhap it nhat 5 chi so do (hien co ')) {
+    const count = message.match(/\(\s*h[ií]e?n\s+c[oó]\s*(\d+)\s*\)/i)?.[1];
+    if (count) {
+      return `Bạn cần nhập ít nhất 5 chỉ số đo (hiện có ${count}) để hệ thống vẽ biểu đồ tăng trưởng.`;
+    }
+    return 'Bạn cần nhập ít nhất 5 chỉ số đo để hệ thống vẽ biểu đồ tăng trưởng.';
+  }
+
+  return message;
+}
+
 export default function GrowthTrackerScreen() {
   const route = useRoute<RouteT>();
   const insets = useSafeAreaInsets();
@@ -35,17 +62,25 @@ export default function GrowthTrackerScreen() {
   const [heightInput, setHeightInput] = useState('');
   const [noteInput, setNoteInput] = useState('');
 
-  useEffect(() => {
-    void getGrowthSummary(Number(memberId))
+  const loadSummary = useCallback(async () => {
+    await getGrowthSummary(Number(memberId))
       .then(setSummary)
       .catch(() => setSummary(null));
   }, [memberId]);
+
+  useFocusEffect(
+    useCallback(() => {
+      void loadSummary();
+      return undefined;
+    }, [loadSummary]),
+  );
 
   const latest = summary?.history?.[0];
   const latestWeight = latest?.weight ?? 0;
   const latestHeight = latest?.height ?? 0;
   const chartValues = (metric === 'weight' ? summary?.weightChart : summary?.heightChart) || [];
   const maxValue = Math.max(...chartValues.map(item => item.value), 1);
+  const chartMessage = normalizeGrowthChartMessage(summary?.chartMessage);
 
   async function handleCreateGrowthLog() {
     try {
@@ -60,8 +95,7 @@ export default function GrowthTrackerScreen() {
       setWeightInput('');
       setHeightInput('');
       setNoteInput('');
-      const nextSummary = await getGrowthSummary(Number(memberId));
-      setSummary(nextSummary);
+      await loadSummary();
     } catch (error) {
       Alert.alert('Không thể ghi log', error instanceof Error ? error.message : 'Đã có lỗi xảy ra');
     }
@@ -110,7 +144,7 @@ export default function GrowthTrackerScreen() {
             <View style={styles.chartEmpty}>
               <Icon name="show_chart" size={36} color={colors.outlineVariant} />
               <Text style={styles.chartEmptyTitle}>Cần thêm dữ liệu</Text>
-              <Text style={styles.chartEmptyText}>{summary?.chartMessage || 'Chưa có đủ dữ liệu để hiển thị biểu đồ.'}</Text>
+              <Text style={styles.chartEmptyText}>{chartMessage}</Text>
             </View>
           ) : (
             <View style={styles.barChart}>

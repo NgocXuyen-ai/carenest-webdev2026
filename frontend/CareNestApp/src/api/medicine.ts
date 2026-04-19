@@ -1,4 +1,4 @@
-import { apiDelete, apiGet, apiPost } from './client';
+import { apiDelete, apiGetCached, apiPost, invalidateApiGetCache } from './client';
 
 export interface MedicineItem {
   medicineId: number;
@@ -43,7 +43,7 @@ export interface MedicineScheduleFormData {
 }
 
 export async function getCabinetMedicines(): Promise<MedicineItem[]> {
-  return apiGet<MedicineItem[]>('/medicine/cabinet');
+  return apiGetCached<MedicineItem[]>('/medicine/cabinet', undefined, { ttlMs: 20000 });
 }
 
 export async function createCabinetMedicine(payload: {
@@ -53,18 +53,27 @@ export async function createCabinetMedicine(payload: {
   expiryDate?: string;
 }): Promise<void> {
   await apiPost('/medicine/cabinet/create-medicine', payload);
+  invalidateApiGetCache(['/medicine/cabinet', '/medicine/schedules/form-data', '/dashboard']);
 }
 
 export async function getDailySchedule(profileId: number, date: string): Promise<DailyMedicineSchedule> {
-  return apiGet<DailyMedicineSchedule>(`/medicine/medicine-schedules/${profileId}/daily`, { date });
+  return apiGetCached<DailyMedicineSchedule>(
+    `/medicine/medicine-schedules/${profileId}/daily`,
+    { date },
+    { ttlMs: 15000 },
+  );
 }
 
 export async function getMedicineSchedules(profileId: number): Promise<MedicineScheduleItem[]> {
-  return apiGet<MedicineScheduleItem[]>(`/medicine/medicine-schedules/${profileId}`);
+  return apiGetCached<MedicineScheduleItem[]>(`/medicine/medicine-schedules/${profileId}`, undefined, {
+    ttlMs: 20000,
+  });
 }
 
 export async function getScheduleFormData(): Promise<MedicineScheduleFormData> {
-  return apiGet<MedicineScheduleFormData>('/medicine/schedules/form-data');
+  return apiGetCached<MedicineScheduleFormData>('/medicine/schedules/form-data', undefined, {
+    ttlMs: 30000,
+  });
 }
 
 export async function createMedicineSchedule(payload: {
@@ -78,12 +87,20 @@ export async function createMedicineSchedule(payload: {
   endDate: string;
 }): Promise<void> {
   await apiPost('/medicine/schedules', payload);
+  invalidateApiGetCache([
+    '/medicine/medicine-schedules/',
+    '/medicine/schedules/form-data',
+    '/dashboard',
+    '/notifications',
+  ]);
 }
 
 export async function takeDose(payload: { doseId: number; isTaken: boolean; note?: string }): Promise<void> {
   await apiPost('/medicine/medicine-schedules/take-dose', payload);
+  invalidateApiGetCache(['/medicine/medicine-schedules/', '/dashboard', '/notifications']);
 }
 
 export async function deleteMedicineSchedule(scheduleId: number): Promise<void> {
   await apiDelete(`/medicine/medicine-schedules/${scheduleId}`);
+  invalidateApiGetCache(['/medicine/medicine-schedules/', '/dashboard', '/notifications']);
 }

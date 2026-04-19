@@ -1,4 +1,4 @@
-import { apiGet, apiPost } from './client';
+import { apiGetCached, apiPost, invalidateApiGetCache } from './client';
 
 export interface VaccinationTrackerGroup {
   stageLabel: string;
@@ -17,7 +17,9 @@ export interface VaccinationTrackerGroup {
 }
 
 export async function getVaccinationTracker(profileId: number): Promise<VaccinationTrackerGroup[]> {
-  return apiGet<VaccinationTrackerGroup[]>(`/vaccinations/${profileId}`);
+  return apiGetCached<VaccinationTrackerGroup[]>(`/vaccinations/${profileId}`, undefined, {
+    ttlMs: 20000,
+  });
 }
 
 export async function createVaccination(profileId: number, payload: {
@@ -28,4 +30,5 @@ export async function createVaccination(profileId: number, payload: {
   clinicName?: string;
 }): Promise<void> {
   await apiPost(`/vaccinations/${profileId}`, payload);
+  invalidateApiGetCache(['/vaccinations/', '/dashboard', '/notifications']);
 }

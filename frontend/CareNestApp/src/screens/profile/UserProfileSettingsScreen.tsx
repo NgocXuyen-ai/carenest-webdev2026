@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Alert,
   Image,
@@ -34,6 +34,7 @@ interface InputFieldProps {
   onChangeText: (text: string) => void;
   placeholder?: string;
   keyboardType?: 'default' | 'email-address' | 'phone-pad';
+  editable?: boolean;
 }
 
 function InputField({
@@ -43,6 +44,7 @@ function InputField({
   onChangeText,
   placeholder,
   keyboardType = 'default',
+  editable = true,
 }: InputFieldProps) {
   return (
     <View style={styles.inputContainer}>
@@ -52,12 +54,13 @@ function InputField({
       <View style={styles.inputContent}>
         <Text style={styles.inputLabel}>{label}</Text>
         <TextInput
-          style={styles.textInput}
+          style={[styles.textInput, !editable && styles.textInputReadonly]}
           value={value}
           onChangeText={onChangeText}
           placeholder={placeholder}
           keyboardType={keyboardType}
           placeholderTextColor="#94A3B8"
+          editable={editable}
         />
       </View>
     </View>
@@ -127,14 +130,15 @@ export default function UserProfileSettingsScreen() {
   const [weight, setWeight] = useState(55);
   const [emergencyContactPhone, setEmergencyContactPhone] = useState('');
   const [isSaving, setIsSaving] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
 
   const memberRole = useMemo(() => {
     const currentMember = members.find(member => String(member.profileId) === user?.profileId);
     return formatMemberRole(currentMember?.role);
   }, [members, user?.profileId]);
 
-  useEffect(() => {
-    void getCurrentUserProfile()
+  const loadProfile = useCallback(async () => {
+    await getCurrentUserProfile()
       .then(profile => {
         setFullName(profile.fullName);
         setEmail(profile.email);
@@ -152,7 +156,29 @@ export default function UserProfileSettingsScreen() {
       .catch(() => {});
   }, []);
 
+  useEffect(() => {
+    void loadProfile();
+  }, [loadProfile]);
+
+  const handlePrimaryAction = () => {
+    if (isSaving) {
+      return;
+    }
+
+    if (!isEditing) {
+      setIsEditing(true);
+      return;
+    }
+
+    void handleSave();
+  };
+
   const handleChoosePhoto = () => {
+    if (!isEditing) {
+      Alert.alert('Chế độ xem', 'Bấm Sửa để bật chỉnh sửa thông tin tài khoản.');
+      return;
+    }
+
     Alert.alert(
       'Chưa hỗ trợ',
       'Tính năng đổi ảnh đại diện sẽ được kết nối khi backend upload ảnh sẵn sàng.',
@@ -185,6 +211,7 @@ export default function UserProfileSettingsScreen() {
         emergencyContactPhone,
       });
       await Promise.all([refreshUser(), refreshFamily()]);
+      setIsEditing(false);
       Alert.alert(
         'Thành công',
         'Thông tin của bạn đã được cập nhật.',
@@ -206,9 +233,9 @@ export default function UserProfileSettingsScreen() {
           <Icon name="arrow_back" size={26} color="#1E293B" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Thông tin tài khoản</Text>
-        <TouchableOpacity style={styles.saveBtn} onPress={() => void handleSave()} disabled={isSaving}>
+        <TouchableOpacity style={styles.saveBtn} onPress={handlePrimaryAction} disabled={isSaving}>
           <Text style={styles.saveBtnText}>
-            {isSaving ? 'Đang lưu' : 'Lưu'}
+            {isSaving ? 'Đang lưu' : isEditing ? 'Lưu' : 'Sửa'}
           </Text>
         </TouchableOpacity>
       </View>
@@ -223,7 +250,7 @@ export default function UserProfileSettingsScreen() {
               source={{ uri: avatarUri || `https://i.pravatar.cc/150?u=${user?.id || '1'}` }}
               style={styles.avatar}
             />
-            <TouchableOpacity style={styles.cameraBtn} onPress={handleChoosePhoto}>
+            <TouchableOpacity style={[styles.cameraBtn, !isEditing && styles.cameraBtnDisabled]} onPress={handleChoosePhoto}>
               <Icon name="photo_camera" size={20} color="#fff" />
             </TouchableOpacity>
           </View>
@@ -234,6 +261,9 @@ export default function UserProfileSettingsScreen() {
         <View style={styles.section}>
           <TouchableOpacity
             style={[styles.medicalRecordBtn, shadows.sm]}
+            onPressIn={() => {
+              void getCurrentUserProfile();
+            }}
             onPress={() => navigation.navigate('UserMedical', { memberId: user?.profileId })}
           >
             <View style={styles.medicalIconWrap}>
@@ -257,6 +287,7 @@ export default function UserProfileSettingsScreen() {
               label="Họ và tên"
               value={fullName}
               onChangeText={setFullName}
+              editable={isEditing}
             />
             <InputField
               icon="mail"
@@ -264,6 +295,7 @@ export default function UserProfileSettingsScreen() {
               value={email}
               onChangeText={setEmail}
               keyboardType="email-address"
+              editable={isEditing}
             />
             <InputField
               icon="phone"
@@ -271,6 +303,7 @@ export default function UserProfileSettingsScreen() {
               value={phone}
               onChangeText={setPhone}
               keyboardType="phone-pad"
+              editable={isEditing}
             />
             <InputField
               icon="calendar_today"
@@ -278,6 +311,7 @@ export default function UserProfileSettingsScreen() {
               value={birthday}
               onChangeText={setBirthday}
               placeholder="dd/mm/yyyy"
+              editable={isEditing}
             />
             <SelectField
               icon="wc"
@@ -286,6 +320,7 @@ export default function UserProfileSettingsScreen() {
               displayValue={formatGender(gender)}
               options={GENDER_OPTIONS}
               onChange={setGender}
+              disabled={!isEditing}
             />
             <SelectField
               icon="bloodtype"
@@ -294,6 +329,7 @@ export default function UserProfileSettingsScreen() {
               displayValue={formatBloodType(bloodType)}
               options={BLOOD_TYPE_OPTIONS}
               onChange={setBloodType}
+              disabled={!isEditing}
             />
           </View>
         </View>
@@ -426,6 +462,9 @@ const styles = StyleSheet.create({
     borderWidth: 3,
     borderColor: '#fff',
   },
+  cameraBtnDisabled: {
+    opacity: 0.7,
+  },
   userNameText: {
     fontSize: 22,
     fontFamily: 'Manrope',
@@ -477,6 +516,9 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#1E293B',
     padding: 0,
+  },
+  textInputReadonly: {
+    color: '#1E293B',
   },
   settingsRow: {
     flexDirection: 'row',

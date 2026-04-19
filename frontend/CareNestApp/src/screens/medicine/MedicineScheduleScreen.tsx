@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -7,7 +7,7 @@ import {
   StyleSheet,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useNavigation } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { colors } from '../../theme/colors';
 import { shadows } from '../../theme/spacing';
@@ -15,7 +15,7 @@ import { TOP_BAR_HEIGHT, BOTTOM_NAV_HEIGHT } from '../../utils/constants';
 import Icon from '../../components/common/Icon';
 import TopAppBar from '../../components/layout/TopAppBar';
 import FAB from '../../components/common/FAB';
-import { getDailySchedule, takeDose, type DailyMedicineSchedule } from '../../api/medicine';
+import { getDailySchedule, getScheduleFormData, takeDose, type DailyMedicineSchedule } from '../../api/medicine';
 import { useFamily } from '../../context/FamilyContext';
 import { useAuth } from '../../context/AuthContext';
 import { formatLocalDate } from '../../utils/dateTime';
@@ -37,16 +37,27 @@ export default function MedicineScheduleScreen() {
 
   const activeProfileId = selectedProfileId || (user?.profileId ? Number(user.profileId) : null);
 
-  useEffect(() => {
+  const loadSchedule = useCallback(async () => {
     if (!activeProfileId) {
+      setSchedule(null);
       return;
     }
 
     const today = formatLocalDate(new Date());
-    void getDailySchedule(activeProfileId, today)
+    await getDailySchedule(activeProfileId, today)
       .then(setSchedule)
       .catch(() => setSchedule(null));
+
+    // Warm up AddMedicineSchedule data before navigation.
+    void getScheduleFormData();
   }, [activeProfileId]);
+
+  useFocusEffect(
+    useCallback(() => {
+      void loadSchedule();
+      return undefined;
+    }, [loadSchedule]),
+  );
 
   const scheduleItems = useMemo(() => schedule?.sections || [], [schedule]);
   const allDoses = scheduleItems.flatMap(section => section.items);
@@ -54,6 +65,10 @@ export default function MedicineScheduleScreen() {
   const totalCount = allDoses.length;
 
   async function toggleTaken(doseId: number, currentValue: boolean) {
+    if (!activeProfileId) {
+      return;
+    }
+
     setSchedule(prev => prev ? {
       ...prev,
       sections: prev.sections.map(section => ({
@@ -63,6 +78,7 @@ export default function MedicineScheduleScreen() {
     } : prev);
 
     await takeDose({ doseId, isTaken: !currentValue }).catch(() => {});
+    await loadSchedule();
   }
 
   return (

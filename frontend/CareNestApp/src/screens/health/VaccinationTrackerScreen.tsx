@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import {
   View,
   Text,
@@ -8,7 +8,7 @@ import {
   StatusBar,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useRoute, useNavigation } from '@react-navigation/native';
+import { useFocusEffect, useRoute, useNavigation } from '@react-navigation/native';
 import type { RouteProp } from '@react-navigation/native';
 import { colors } from '../../theme/colors';
 import { shadows } from '../../theme/spacing';
@@ -31,11 +31,18 @@ export default function VaccinationTrackerScreen() {
   const { memberId } = route.params;
   const [groups, setGroups] = useState<VaccinationTrackerGroup[]>([]);
 
-  useEffect(() => {
-    void getVaccinationTracker(Number(memberId))
+  const loadTracker = useCallback(async () => {
+    await getVaccinationTracker(Number(memberId))
       .then(setGroups)
       .catch(() => setGroups([]));
   }, [memberId]);
+
+  useFocusEffect(
+    useCallback(() => {
+      void loadTracker();
+      return undefined;
+    }, [loadTracker]),
+  );
 
   return (
     <View style={styles.root}>

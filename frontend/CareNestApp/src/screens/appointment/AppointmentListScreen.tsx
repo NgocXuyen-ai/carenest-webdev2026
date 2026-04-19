@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -7,7 +7,7 @@ import {
   StyleSheet,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useNavigation } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { colors } from '../../theme/colors';
 import { shadows } from '../../theme/spacing';
@@ -39,12 +39,23 @@ export default function AppointmentListScreen() {
 
   const activeProfileId = selectedProfileId || (user?.profileId ? Number(user.profileId) : null);
 
-  useEffect(() => {
-    if (!activeProfileId) return;
-    void getAppointmentOverview(activeProfileId)
+  const loadOverview = useCallback(async () => {
+    if (!activeProfileId) {
+      setOverview(null);
+      return;
+    }
+
+    await getAppointmentOverview(activeProfileId)
       .then(setOverview)
       .catch(() => setOverview(null));
   }, [activeProfileId]);
+
+  useFocusEffect(
+    useCallback(() => {
+      void loadOverview();
+      return undefined;
+    }, [loadOverview]),
+  );
 
   const appointments = useMemo(() => {
     const upcoming = (overview?.upcomingAppointments || []).map(item => ({ ...item, kind: 'upcoming' as const }));

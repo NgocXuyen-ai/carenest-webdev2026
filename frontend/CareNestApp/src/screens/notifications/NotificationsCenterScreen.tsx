@@ -1,6 +1,7 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useFocusEffect } from '@react-navigation/native';
 import { colors } from '../../theme/colors';
 import { shadows } from '../../theme/spacing';
 import { TOP_BAR_HEIGHT, BOTTOM_NAV_HEIGHT } from '../../utils/constants';
@@ -54,27 +55,34 @@ export default function NotificationsCenterScreen() {
   const { user } = useAuth();
   const [notifications, setNotifications] = useState<Notification[]>([]);
 
-  useEffect(() => {
-    const profileId =
-      selectedProfileId !== null
-        ? selectedProfileId
-        : hasFamily
-          ? undefined
-          : user?.profileId
-            ? Number(user.profileId)
-            : undefined;
+  const profileIdForFetch =
+    selectedProfileId !== null
+      ? selectedProfileId
+      : hasFamily
+        ? undefined
+        : user?.profileId
+          ? Number(user.profileId)
+          : undefined;
 
-    void getNotifications(profileId)
+  const loadNotifications = useCallback(async () => {
+    await getNotifications(profileIdForFetch)
       .then(items => setNotifications(items.map(mapNotification)))
       .catch(() => setNotifications([]));
-  }, [hasFamily, selectedProfileId, user?.profileId]);
+  }, [profileIdForFetch]);
+
+  useFocusEffect(
+    useCallback(() => {
+      void loadNotifications();
+      return undefined;
+    }, [loadNotifications]),
+  );
 
   const unreadCount = notifications.filter(n => !n.isRead).length;
 
   async function handleMarkAllRead() {
     const unread = notifications.filter(item => !item.isRead);
     await Promise.all(unread.map(item => markNotificationRead(Number(item.id)).catch(() => {})));
-    setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
+    await loadNotifications();
   }
 
   const grouped = useMemo(

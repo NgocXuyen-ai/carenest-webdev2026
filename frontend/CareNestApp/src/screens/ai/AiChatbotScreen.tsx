@@ -1,6 +1,7 @@
-import React, { useRef, useState } from 'react';
+import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
+  FlatList,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -36,10 +37,33 @@ function normalizeMarkdown(content: string): string {
   return content.replace(/\r\n/g, '\n').replace(/\\n/g, '\n').trim();
 }
 
+const MessageBubble = memo(function MessageBubble({ message }: { message: Message }) {
+  const normalizedContent = useMemo(() => normalizeMarkdown(message.content), [message.content]);
+  const isAssistant = message.role === 'assistant';
+
+  return (
+    <View style={[styles.messageRow, isAssistant ? styles.rowAI : styles.rowUser]}>
+      {isAssistant ? (
+        <View style={styles.aiAvatarSmall}>
+          <MaterialCommunityIcons name="robot" size={16} color="#fff" />
+        </View>
+      ) : null}
+      <View style={[styles.bubble, isAssistant ? styles.bubbleAI : styles.bubbleUser]}>
+        {isAssistant ? (
+          <Markdown style={markdownStyles}>{normalizedContent}</Markdown>
+        ) : (
+          <Text style={[styles.bubbleText, styles.textUser]}>{message.content}</Text>
+        )}
+      </View>
+      <Text style={styles.timestamp}>{message.timestamp}</Text>
+    </View>
+  );
+});
+
 export default function AiChatbotScreen() {
   const navigation = useNavigation<any>();
   const insets = useSafeAreaInsets();
-  const scrollRef = useRef<ScrollView>(null);
+  const listRef = useRef<FlatList<Message>>(null);
   const { selectedProfileId } = useFamily();
   const { user } = useAuth();
   const [messages, setMessages] = useState<Message[]>([]);
@@ -50,8 +74,17 @@ export default function AiChatbotScreen() {
 
   const activeProfileId = selectedProfileId || (user?.profileId ? Number(user.profileId) : null);
 
-  const sendMessage = async (text: string) => {
-    if (!text.trim() || isTyping) {
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => {
+      listRef.current?.scrollToEnd({ animated: true });
+    });
+
+    return () => cancelAnimationFrame(frame);
+  }, [messages.length, isTyping]);
+
+  const sendMessage = useCallback(async (rawText: string) => {
+    const text = rawText.trim();
+    if (!text || isTyping) {
       return;
     }
 
@@ -65,7 +98,6 @@ export default function AiChatbotScreen() {
     setMessages(prev => [...prev, userMsg]);
     setInput('');
     setIsTyping(true);
-    setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 100);
 
     try {
       const response = await chatAi({
@@ -91,9 +123,13 @@ export default function AiChatbotScreen() {
       );
     } finally {
       setIsTyping(false);
-      setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 120);
     }
-  };
+  }, [activeProfileId, conversationId, isTyping]);
+
+  const renderMessage = useCallback(
+    ({ item }: { item: Message }) => <MessageBubble message={item} />,
+    [],
+  );
 
   return (
     <View style={[styles.root, { backgroundColor: '#fff' }]}>
@@ -118,13 +154,21 @@ export default function AiChatbotScreen() {
         style={{ flex: 1 }}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
-        <ScrollView
-          ref={scrollRef}
+        <FlatList
+          ref={listRef}
           style={styles.chatArea}
+          data={messages}
+          keyExtractor={item => item.id}
+          renderItem={renderMessage}
           contentContainerStyle={styles.chatContent}
           showsVerticalScrollIndicator={false}
-        >
-          {messages.length === 0 ? (
+          keyboardShouldPersistTaps="handled"
+          initialNumToRender={8}
+          maxToRenderPerBatch={8}
+          updateCellsBatchingPeriod={16}
+          windowSize={7}
+          removeClippedSubviews={Platform.OS === 'android'}
+          ListEmptyComponent={
             <View style={styles.emptyState}>
               <MaterialCommunityIcons name="robot-outline" size={54} color="#94a3b8" />
               <Text style={styles.emptyTitle}>Hỏi CareNest AI</Text>
@@ -133,42 +177,20 @@ export default function AiChatbotScreen() {
                 sức khỏe của gia đình.
               </Text>
             </View>
-          ) : null}
-
-          {messages.map(msg => (
-            <View
-              key={msg.id}
-              style={[styles.messageRow, msg.role === 'user' ? styles.rowUser : styles.rowAI]}
-            >
-              {msg.role === 'assistant' ? (
+          }
+          ListFooterComponent={
+            isTyping ? (
+              <View style={[styles.messageRow, styles.rowAI]}>
                 <View style={styles.aiAvatarSmall}>
                   <MaterialCommunityIcons name="robot" size={16} color="#fff" />
                 </View>
-              ) : null}
-              <View
-                style={[styles.bubble, msg.role === 'user' ? styles.bubbleUser : styles.bubbleAI]}
-              >
-                {msg.role === 'assistant' ? (
-                  <Markdown style={markdownStyles}>{normalizeMarkdown(msg.content)}</Markdown>
-                ) : (
-                  <Text style={[styles.bubbleText, styles.textUser]}>{msg.content}</Text>
-                )}
+                <View style={[styles.bubble, styles.bubbleAI]}>
+                  <Text style={styles.typingDots}>• • •</Text>
+                </View>
               </View>
-              <Text style={styles.timestamp}>{msg.timestamp}</Text>
-            </View>
-          ))}
-
-          {isTyping ? (
-            <View style={[styles.messageRow, styles.rowAI]}>
-              <View style={styles.aiAvatarSmall}>
-                <MaterialCommunityIcons name="robot" size={16} color="#fff" />
-              </View>
-              <View style={[styles.bubble, styles.bubbleAI]}>
-                <Text style={styles.typingDots}>• • •</Text>
-              </View>
-            </View>
-          ) : null}
-        </ScrollView>
+            ) : null
+          }
+        />
 
         {shouldShowSuggestions ? (
           <View style={styles.suggestionSection}>

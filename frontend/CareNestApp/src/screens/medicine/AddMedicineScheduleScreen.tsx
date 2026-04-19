@@ -47,7 +47,7 @@ export default function AddMedicineScheduleScreen() {
         }
       })
       .catch(() => setFormData(null));
-  }, [selectedMember]);
+  }, []);
 
   const selectedMedicine = useMemo(
     () => formData?.medicines.find(item => item.medicineId === selectedMedicineId) || null,

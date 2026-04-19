@@ -14,6 +14,8 @@ import type { FamilyStackParamList } from '../../navigation/navigationTypes';
 import { getFamilyProfile, type ProfileDetails } from '../../api/family';
 import { formatBloodType, formatGender } from '../../utils/healthOptions';
 import { useFamily } from '../../context/FamilyContext';
+import { getGrowthSummary } from '../../api/growth';
+import { getVaccinationTracker } from '../../api/vaccinations';
 
 type NavProp = NativeStackNavigationProp<FamilyStackParamList, 'HealthProfileDetail'>;
 
@@ -172,6 +174,9 @@ export default function HealthProfileDetailScreen() {
           <TouchableOpacity
             style={[styles.actionBtn, styles.actionBtnPrimary]}
             activeOpacity={0.8}
+            onPressIn={() => {
+              void getVaccinationTracker(Number(route.params.memberId));
+            }}
             onPress={() =>
               navigation.navigate('VaccinationTracker', {
                 memberId: String(route.params.memberId),
@@ -184,6 +189,9 @@ export default function HealthProfileDetailScreen() {
           <TouchableOpacity
             style={[styles.actionBtn, styles.actionBtnSecondary]}
             activeOpacity={0.8}
+            onPressIn={() => {
+              void getGrowthSummary(Number(route.params.memberId));
+            }}
             onPress={() =>
               navigation.navigate('GrowthTracker', {
                 memberId: String(route.params.memberId),

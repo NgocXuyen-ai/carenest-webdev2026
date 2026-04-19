@@ -1,4 +1,4 @@
-import { apiGet } from './client';
+import { apiGetCached } from './client';
 
 export interface DashboardPayload {
   generatedAt: string;
@@ -27,5 +27,7 @@ export interface DashboardPayload {
 }
 
 export async function getDashboard(profileId?: number): Promise<DashboardPayload> {
-  return apiGet<DashboardPayload>('/dashboard', profileId ? { profileId } : undefined);
+  return apiGetCached<DashboardPayload>('/dashboard', profileId ? { profileId } : undefined, {
+    ttlMs: 20000,
+  });
 }

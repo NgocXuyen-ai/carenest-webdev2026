@@ -1,4 +1,4 @@
-import { apiGet, apiPost } from './client';
+import { apiGetCached, apiPost, invalidateApiGetCache } from './client';
 
 export interface GrowthSummary {
   childName: string;
@@ -17,7 +17,7 @@ export interface GrowthSummary {
 }
 
 export async function getGrowthSummary(profileId: number): Promise<GrowthSummary> {
-  return apiGet<GrowthSummary>(`/growth/${profileId}`);
+  return apiGetCached<GrowthSummary>(`/growth/${profileId}`, undefined, { ttlMs: 20000 });
 }
 
 export async function createGrowthLog(payload: {
@@ -28,4 +28,5 @@ export async function createGrowthLog(payload: {
   note?: string;
 }): Promise<void> {
   await apiPost('/growth/log', payload);
+  invalidateApiGetCache(['/growth/', '/dashboard']);
 }

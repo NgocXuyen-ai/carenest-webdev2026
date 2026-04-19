@@ -22,6 +22,7 @@ interface SelectFieldProps {
   displayValue: string;
   options: readonly Option[];
   onChange: (nextValue: string) => void;
+  disabled?: boolean;
 }
 
 export default function SelectField({
@@ -31,12 +32,18 @@ export default function SelectField({
   displayValue,
   options,
   onChange,
+  disabled = false,
 }: SelectFieldProps) {
   const [visible, setVisible] = useState(false);
 
   return (
     <>
-      <TouchableOpacity style={styles.inputContainer} onPress={() => setVisible(true)} activeOpacity={0.85}>
+      <TouchableOpacity
+        style={[styles.inputContainer, disabled && styles.inputContainerDisabled]}
+        onPress={() => setVisible(true)}
+        activeOpacity={disabled ? 1 : 0.85}
+        disabled={disabled}
+      >
         <View style={styles.inputIconWrap}>
           <Icon name={icon} size={20} color="#3B82F6" />
         </View>
@@ -44,7 +51,7 @@ export default function SelectField({
           <Text style={styles.inputLabel}>{label}</Text>
           <Text style={styles.inputValue}>{displayValue}</Text>
         </View>
-        <Icon name="expand_more" size={24} color="#94A3B8" />
+        <Icon name="expand_more" size={24} color={disabled ? '#CBD5E1' : '#94A3B8'} />
       </TouchableOpacity>
 
       <Modal visible={visible} transparent animationType="fade" onRequestClose={() => setVisible(false)}>
@@ -84,6 +91,9 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#F1F5F9',
     gap: 16,
+  },
+  inputContainerDisabled: {
+    opacity: 0.8,
   },
   inputIconWrap: {
     width: 40,

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import {
   ScrollView,
   StatusBar,
@@ -8,7 +8,7 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useNavigation, CompositeNavigationProp } from '@react-navigation/native';
+import { useFocusEffect, useNavigation, CompositeNavigationProp } from '@react-navigation/native';
 import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
@@ -20,6 +20,10 @@ import type { HomeStackParamList, MainTabParamList } from '../../navigation/navi
 import { useAuth } from '../../context/AuthContext';
 import { useFamily } from '../../context/FamilyContext';
 import { getDashboard, type DashboardPayload } from '../../api/dashboard';
+import { getAppointmentOverview } from '../../api/appointments';
+import { getDailySchedule } from '../../api/medicine';
+import { getVaccinationTracker } from '../../api/vaccinations';
+import { formatLocalDate } from '../../utils/dateTime';
 
 type Nav = CompositeNavigationProp<
   NativeStackNavigationProp<HomeStackParamList, 'HomeDashboard'>,
@@ -168,11 +172,18 @@ export default function HomeDashboardScreen() {
   const { members, selectedProfileId, setSelectedProfileId } = useFamily();
   const [dashboard, setDashboard] = useState<DashboardPayload | null>(null);
 
-  useEffect(() => {
-    void getDashboard(selectedProfileId || undefined)
+  const loadDashboard = useCallback(async () => {
+    await getDashboard(selectedProfileId || undefined)
       .then(setDashboard)
       .catch(() => setDashboard(null));
   }, [selectedProfileId]);
+
+  useFocusEffect(
+    useCallback(() => {
+      void loadDashboard();
+      return undefined;
+    }, [loadDashboard]),
+  );
 
   const profileContexts = useMemo(
     () => (dashboard?.profileContexts || []) as ProfileContext[],
@@ -205,6 +216,32 @@ export default function HomeDashboardScreen() {
   const selectedProfileRouteId = String(
     selectedProfileId || user?.profileId || members[0]?.profileId || '',
   );
+  const activeShortcutProfileId = Number(selectedProfileRouteId);
+
+  const prefetchMedicineSchedule = useCallback(() => {
+    if (!Number.isFinite(activeShortcutProfileId) || activeShortcutProfileId <= 0) {
+      return;
+    }
+
+    const today = formatLocalDate(new Date());
+    void getDailySchedule(activeShortcutProfileId, today);
+  }, [activeShortcutProfileId]);
+
+  const prefetchAppointments = useCallback(() => {
+    if (!Number.isFinite(activeShortcutProfileId) || activeShortcutProfileId <= 0) {
+      return;
+    }
+
+    void getAppointmentOverview(activeShortcutProfileId);
+  }, [activeShortcutProfileId]);
+
+  const prefetchVaccinations = useCallback(() => {
+    if (!Number.isFinite(activeShortcutProfileId) || activeShortcutProfileId <= 0) {
+      return;
+    }
+
+    void getVaccinationTracker(activeShortcutProfileId);
+  }, [activeShortcutProfileId]);
 
   return (
     <View style={styles.container}>
@@ -278,6 +315,7 @@ export default function HomeDashboardScreen() {
         <View style={styles.shortcutGrid}>
           <TouchableOpacity
             style={styles.shortcutCard}
+            onPressIn={prefetchMedicineSchedule}
             onPress={() => navigation.navigate('MedicineSchedule')}
           >
             <View style={[styles.shortcutIconWrap, { backgroundColor: '#E0F2FE' }]}>
@@ -287,6 +325,7 @@ export default function HomeDashboardScreen() {
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.shortcutCard}
+            onPressIn={prefetchAppointments}
             onPress={() => navigation.navigate('AppointmentList')}
           >
             <View style={[styles.shortcutIconWrap, { backgroundColor: '#F3E8FF' }]}>
@@ -296,6 +335,7 @@ export default function HomeDashboardScreen() {
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.shortcutCard}
+            onPressIn={prefetchVaccinations}
             onPress={() =>
               navigation.navigate('VaccinationTracker', { memberId: selectedProfileRouteId })
             }

@@ -136,12 +136,6 @@ export default function Emergency({
         </View>
       )}
 
-      <View style={styles.footerNote}>
-        <Icon name="info" size={16} color="#94A3B8" />
-        <Text style={styles.footerText}>
-          Dữ liệu đang hiển thị từ hồ sơ sức khỏe hiện tại, không còn dùng mock data.
-        </Text>
-      </View>
     </ScrollView>
   );
 }
@@ -333,22 +327,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 20,
     color: '#64748B',
-    fontWeight: '500',
-  },
-  footerNote: {
-    paddingHorizontal: 32,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    marginTop: 30,
-  },
-  footerText: {
-    flex: 1,
-    fontSize: 12,
-    color: '#94A3B8',
-    textAlign: 'center',
-    lineHeight: 18,
     fontWeight: '500',
   },
 });

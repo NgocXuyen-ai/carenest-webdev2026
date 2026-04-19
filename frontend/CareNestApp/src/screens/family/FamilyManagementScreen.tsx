@@ -31,9 +31,11 @@ import {
   joinFamilyByQr,
   rejectInvitation,
   rotateFamilyJoinCode,
+  getFamilyProfile,
   type FamilyInvitationItem,
   type FamilyJoinCodeResponse,
 } from '../../api/family';
+import { getGrowthSummary } from '../../api/growth';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -116,6 +118,14 @@ export default function FamilyManagementScreen() {
     [members, user?.profileId],
   );
   const isOwner = myMember?.role === 'OWNER';
+
+  const prefetchMemberMedical = (profileId: number) => {
+    void getFamilyProfile(profileId);
+  };
+
+  const prefetchMemberGrowth = (profileId: number) => {
+    void Promise.allSettled([getFamilyProfile(profileId), getGrowthSummary(profileId)]);
+  };
 
   useEffect(() => {
     async function loadFamilyExtras() {
@@ -286,11 +296,15 @@ export default function FamilyManagementScreen() {
       setIsBusy(true);
       if (action === 'accept') {
         await acceptInvitation(inviteId);
-        await refreshFamily();
+        const [nextInvitations] = await Promise.all([
+          getReceivedInvitations(),
+          refreshFamily(),
+        ]);
+        setReceivedInvitations(nextInvitations);
       } else {
         await rejectInvitation(inviteId);
+        setReceivedInvitations(await getReceivedInvitations());
       }
-      setReceivedInvitations(await getReceivedInvitations());
     } catch (error) {
       Alert.alert(
         'Không thể cập nhật lời mời',
@@ -753,6 +767,7 @@ export default function FamilyManagementScreen() {
 
                   <TouchableOpacity
                     style={styles.memberInfo}
+                    onPressIn={() => prefetchMemberMedical(member.profileId)}
                     onPress={() =>
                       navigation.navigate('UserMedical', {
                         memberId: String(member.profileId),
@@ -772,6 +787,7 @@ export default function FamilyManagementScreen() {
                 {isChild ? (
                   <TouchableOpacity
                     style={styles.growthBar}
+                    onPressIn={() => prefetchMemberGrowth(member.profileId)}
                     onPress={() =>
                       navigation.navigate('GrowthTracker', {
                         memberId: String(member.profileId),

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -7,7 +7,7 @@ import {
   StyleSheet,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useNavigation } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { colors } from '../../theme/colors';
 import { shadows } from '../../theme/spacing';
@@ -19,14 +19,13 @@ import type { MedicineStackParamList } from '../../navigation/navigationTypes';
 import { getCabinetMedicines, type MedicineItem } from '../../api/medicine';
 
 type Nav = NativeStackNavigationProp<MedicineStackParamList, 'MedicineCabinet'>;
-type FilterKey = 'all' | 'expiring' | 'expired' | 'out_of_stock';
+type FilterKey = 'all' | 'expiring' | 'expired';
 type CabinetStatus = 'stable' | 'expiring' | 'expired' | 'out_of_stock';
 
 const FILTERS: { key: FilterKey; label: string }[] = [
   { key: 'all', label: 'Tất cả' },
   { key: 'expiring', label: 'Sắp hết hạn' },
   { key: 'expired', label: 'Hết hạn' },
-  { key: 'out_of_stock', label: 'Hết hàng' },
 ];
 
 export default function MedicineCabinetScreen() {
@@ -35,11 +34,18 @@ export default function MedicineCabinetScreen() {
   const [filter, setFilter] = useState<FilterKey>('all');
   const [medicines, setMedicines] = useState<MedicineItem[]>([]);
 
-  useEffect(() => {
-    void getCabinetMedicines()
+  const loadMedicines = useCallback(async () => {
+    await getCabinetMedicines()
       .then(setMedicines)
       .catch(() => setMedicines([]));
   }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      void loadMedicines();
+      return undefined;
+    }, [loadMedicines]),
+  );
 
   const filteredMedicines = useMemo(() => {
     if (filter === 'all') {

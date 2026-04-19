@@ -1,4 +1,4 @@
-import { apiDelete, apiGet, apiPost, apiPut } from './client';
+import { apiDelete, apiGet, apiGetCached, apiPost, apiPut, invalidateApiGetCache } from './client';
 
 export interface FamilyMemberSummary {
   profileId: number;
@@ -51,23 +51,26 @@ export interface ProfileDetails {
 }
 
 export async function getMyFamily(): Promise<FamilyResponse> {
-  return apiGet<FamilyResponse>('/family/family');
+  return apiGetCached<FamilyResponse>('/family/family', undefined, { ttlMs: 20000 });
 }
 
 export async function createFamily(name: string): Promise<void> {
   await apiPost('/family/create-family', { name });
+  invalidateApiGetCache(['/family/family', '/family/profiles/', '/dashboard']);
 }
 
 export async function getFamilyProfile(profileId: number): Promise<ProfileDetails> {
-  return apiGet<ProfileDetails>(`/family/profiles/${profileId}`);
+  return apiGetCached<ProfileDetails>(`/family/profiles/${profileId}`, undefined, { ttlMs: 20000 });
 }
 
 export async function updateProfile(profileId: number, payload: Record<string, unknown>): Promise<void> {
   await apiPut(`/family/update-healthprofile/${profileId}`, payload);
+  invalidateApiGetCache([`/family/profiles/${profileId}`, '/family/family', '/dashboard']);
 }
 
 export async function inviteMember(receiverEmail: string, role: string): Promise<void> {
   await apiPost('/family/family/invitations', { receiverEmail, role });
+  invalidateApiGetCache(['/family/invitations/']);
 }
 
 export async function getReceivedInvitations(): Promise<FamilyInvitationItem[]> {
@@ -80,10 +83,12 @@ export async function getSentInvitations(): Promise<FamilyInvitationItem[]> {
 
 export async function acceptInvitation(inviteId: number): Promise<void> {
   await apiPost(`/family/${inviteId}/accept`);
+  invalidateApiGetCache(['/family/family', '/family/invitations/', '/family/profiles/', '/dashboard']);
 }
 
 export async function rejectInvitation(inviteId: number): Promise<void> {
   await apiPost(`/family/${inviteId}/reject`);
+  invalidateApiGetCache(['/family/invitations/']);
 }
 
 export async function getFamilyJoinCode(): Promise<FamilyJoinCodeResponse> {
@@ -95,17 +100,24 @@ export async function rotateFamilyJoinCode(): Promise<FamilyJoinCodeResponse> {
 }
 
 export async function joinFamilyByCode(joinCode: string): Promise<FamilyResponse> {
-  return apiPost<FamilyResponse, { joinCode: string }>('/family/join-by-code', { joinCode });
+  const response = await apiPost<FamilyResponse, { joinCode: string }>('/family/join-by-code', {
+    joinCode,
+  });
+  invalidateApiGetCache(['/family/family', '/family/invitations/', '/dashboard']);
+  return response;
 }
 
 export async function joinFamilyByQr(formData: FormData): Promise<FamilyResponse> {
-  return apiPost<FamilyResponse, FormData>('/family/join-by-qr', formData, {
+  const response = await apiPost<FamilyResponse, FormData>('/family/join-by-qr', formData, {
     headers: {
       'Content-Type': 'multipart/form-data',
     },
   });
+  invalidateApiGetCache(['/family/family', '/family/invitations/', '/dashboard']);
+  return response;
 }
 
 export async function removeMember(profileId: number): Promise<void> {
   await apiDelete(`/family/members/${profileId}`);
+  invalidateApiGetCache(['/family/family', '/family/profiles/', '/dashboard']);
 }
