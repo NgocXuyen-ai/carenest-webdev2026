@@ -17,10 +17,45 @@ if grep -q $'\r' "$ENV_FILE"; then
   exit 1
 fi
 
-set -a
-# shellcheck disable=SC1090
-source "$ENV_FILE"
-set +a
+read_env_value() {
+  local key="$1"
+  local value
+
+  value="$(awk -v target="$key" '
+    /^[[:space:]]*#/ { next }
+    /^[[:space:]]*$/ { next }
+    {
+      line = $0
+      sub(/\r$/, "", line)
+      pos = index(line, "=")
+      if (pos == 0) next
+
+      name = substr(line, 1, pos - 1)
+      gsub(/^[[:space:]]+|[[:space:]]+$/, "", name)
+
+      if (name == target) {
+        value = substr(line, pos + 1)
+      }
+    }
+    END {
+      if (value != "") print value
+    }
+  ' "$ENV_FILE")"
+
+  if [[ "$value" =~ ^\".*\"$ ]]; then
+    value="${value:1:${#value}-2}"
+  fi
+  if [[ "$value" =~ ^\'.*\'$ ]]; then
+    value="${value:1:${#value}-2}"
+  fi
+
+  printf '%s' "$value"
+}
+
+SERVER_NAME="$(read_env_value SERVER_NAME)"
+SPRING_DATASOURCE_URL="$(read_env_value SPRING_DATASOURCE_URL)"
+SSL_CERT_PATH="$(read_env_value SSL_CERT_PATH)"
+SSL_KEY_PATH="$(read_env_value SSL_KEY_PATH)"
 
 if [ -z "${SERVER_NAME:-}" ]; then
   echo "SERVER_NAME is required in .env.prod"
