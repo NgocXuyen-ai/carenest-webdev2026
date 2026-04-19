@@ -17,9 +17,4 @@ public interface VaccinationRepository extends JpaRepository<Vaccination, Intege
 
     // Lấy danh sách tiêm chủng của bé, sắp xếp theo ngày tiêm/ngày hẹn tăng dần
     List<Vaccination> findByProfileOrderByDateGivenAscPlannedDateAsc(HealthProfile profile);
-    List<Vaccination> findByPlannedDateBetweenAndStatus(
-            LocalDate start,
-            LocalDate end,
-            String status
-    );
 }

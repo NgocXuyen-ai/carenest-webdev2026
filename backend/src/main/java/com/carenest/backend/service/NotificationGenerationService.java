@@ -5,6 +5,7 @@ import com.carenest.backend.model.MedicineDoseStatus;
 import com.carenest.backend.model.MedicineSchedule;
 import com.carenest.backend.model.Notification;
 import com.carenest.backend.model.Vaccination;
+import com.carenest.backend.model.enums.VaccinationStatus;
 import com.carenest.backend.model.enums.MedicineSession;
 import com.carenest.backend.model.enums.NotificationType;
 import com.carenest.backend.repository.AppointmentRepository;
@@ -117,7 +118,7 @@ public class NotificationGenerationService {
                 .findByPlannedDateBetweenAndStatus(
                         today,
                         next3Days,
-                "PLANNED"
+                VaccinationStatus.PLANNED
                 );
 
         for (Vaccination vaccination : vaccinations) {
