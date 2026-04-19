@@ -38,6 +38,7 @@ public class NotificationService {
                 .orElseThrow(() -> new EntityNotFoundException("Không tìm thấy notification với id = " + notificationId));
 
         notification.setIsRead(true);
+        notificationRepository.save(notification);
     }
 
     private com.carenest.backend.dto.notification.NotificationResponse mapToResponse(Notification notification) {

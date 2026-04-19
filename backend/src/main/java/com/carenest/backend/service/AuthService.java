@@ -11,9 +11,11 @@ import com.carenest.backend.dto.auth.ForgotPasswordRequest;
 import com.carenest.backend.dto.auth.RegisterRequest;
 import com.carenest.backend.dto.auth.ResetPasswordRequest;
 import com.carenest.backend.dto.auth.VerifyEmailRequest;
+import com.carenest.backend.model.HealthProfile;
 import com.carenest.backend.model.OtpToken;
 import com.carenest.backend.model.User;
 import com.carenest.backend.model.enums.OtpType;
+import com.carenest.backend.repository.HealthProfileRepository;
 import com.carenest.backend.repository.OtpTokenRepository;
 import com.carenest.backend.repository.UserRepository;
 
@@ -24,15 +26,18 @@ public class AuthService {
     private final MailService mailService;
     private final OtpTokenRepository otpTokenRepository;
     private final OtpService otpService;
+    private final HealthProfileRepository healthProfileRepository;
 
 
     public AuthService(UserRepository userRepository, PasswordEncoder passwordEncoder, 
-        MailService mailService, OtpTokenRepository otpTokenRepository, OtpService otpService){
+        MailService mailService, OtpTokenRepository otpTokenRepository, OtpService otpService,
+        HealthProfileRepository healthProfileRepository){
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.mailService = mailService;
         this.otpTokenRepository = otpTokenRepository;
         this.otpService = otpService;
+        this.healthProfileRepository = healthProfileRepository;
 
     }
 
@@ -56,7 +61,12 @@ public class AuthService {
         user.setUpdatedAt(LocalDateTime.now());
         user.setIsActive(true);
 
-        userRepository.save(user);
+        User savedUser = userRepository.save(user);
+
+        HealthProfile profile = new HealthProfile();
+        profile.setUser(savedUser);
+        profile.setFullName(request.getFullName().trim());
+        healthProfileRepository.save(profile);
 
         String otp = otpService.createOtp(email, OtpType.VERIFY_EMAIL);
         mailService.sendOtpEmail(email, otp);

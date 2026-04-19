@@ -84,7 +84,7 @@ def process_ocr(request: OcrRequest) -> OcrResponse:
         request_id = conversation_service.save_request_log(
             feature_type="ocr",
             output_raw="",
-            status="error",
+            status="FAILED",
             provider=settings.OCR_MODEL,
             execution_time=execution_time,
             error_message=str(e),
@@ -95,7 +95,7 @@ def process_ocr(request: OcrRequest) -> OcrResponse:
             raw_text="",
             structure_data=None,
             prompt_request=OCR_SYSTEM_PROMPT,
-            status="error",
+            status="FAILED",
         )
         raise RuntimeError("Không thể phân tích hình ảnh. Vui lòng thử lại.")
 
@@ -105,7 +105,7 @@ def process_ocr(request: OcrRequest) -> OcrResponse:
     request_id = conversation_service.save_request_log(
         feature_type="ocr",
         output_raw=raw_text,
-        status="success",
+        status="SUCCESS",
         provider=settings.OCR_MODEL,
         execution_time=execution_time,
     )
@@ -116,7 +116,7 @@ def process_ocr(request: OcrRequest) -> OcrResponse:
         raw_text=raw_text,
         structure_data=structured.model_dump(),
         prompt_request=OCR_SYSTEM_PROMPT,
-        status="success",
+        status="COMPLETED",
     )
 
     return OcrResponse(

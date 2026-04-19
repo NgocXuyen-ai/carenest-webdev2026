@@ -1,0 +1,76 @@
+services:
+  db:
+    image: postgres:16
+    container_name: carenest-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: carenest_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - carenest-postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d carenest_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    image: maven:3.9.9-eclipse-temurin-21
+    container_name: carenest-backend
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    working_dir: /workspace/backend
+    volumes:
+      - ./backend:/workspace/backend
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/carenest_db
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgres
+      SPRING_JPA_HIBERNATE_DDL_AUTO: update
+      SPRING_JPA_HIBERNATE_DIALECT: org.hibernate.dialect.PostgreSQLDialect
+      SPRING_MAIL_HOST: smtp.gmail.com
+      SPRING_MAIL_PORT: "587"
+      SPRING_MAIL_USERNAME: demo@example.com
+      SPRING_MAIL_PASSWORD: demo-password
+      SPRING_MAIL_SMTP_AUTH: "true"
+      SPRING_MAIL_SMTP_STARTTLS_ENABLE: "true"
+      JWT_SECRET: c2VjcmV0c2VjcmV0c2VjcmV0c2VjcmV0c2VjcmV0c2VjcmV0c2VjcmV0c2VjcmV0
+      JWT_EXPIRATION: "86400000"
+      AI_SERVICE_BASE_URL: http://ai:8000
+      AI_INTERNAL_TOKEN: carenest-internal-token
+    command: ["sh", "-c", "./mvnw spring-boot:run"]
+    ports:
+      - "8080:8080"
+
+  ai:
+    image: python:3.13-slim
+    container_name: carenest-ai
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    working_dir: /workspace/ai
+    volumes:
+      - ./ai:/workspace/ai
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@db:5432/carenest_db
+      PROXY_API_KEY: ${PROXY_API_KEY:-}
+      PROXY_BASE_URL: ${PROXY_BASE_URL:-https://pg.ebebot.click/api/proxy}
+      SQL_MODEL: ${SQL_MODEL:-claude-haiku-4-5-20251001}
+      OCR_MODEL: ${OCR_MODEL:-gpt-5.4-mini}
+      INTERNAL_SHARED_TOKEN: carenest-internal-token
+    command: >
+      sh -c "apt-get update &&
+             apt-get install -y ffmpeg build-essential &&
+             pip install --no-cache-dir -r requirements.txt &&
+             uvicorn main:app --host 0.0.0.0 --port 8000"
+    ports:
+      - "8000:8000"
+
+volumes:
+  carenest-postgres:

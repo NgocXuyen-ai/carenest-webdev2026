@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
@@ -10,8 +10,8 @@ import { TOP_BAR_HEIGHT, BOTTOM_NAV_HEIGHT } from '../../utils/constants';
 import Icon from '../../components/common/Icon';
 import Avatar from '../../components/common/Avatar';
 import TopAppBar from '../../components/layout/TopAppBar';
-import { mockFamilyMembers } from '../../data/mockFamilyMembers';
 import type { FamilyStackParamList } from '../../navigation/navigationTypes';
+import { getFamilyProfile, type ProfileDetails } from '../../api/family';
 
 type NavProp = NativeStackNavigationProp<FamilyStackParamList, 'HealthProfileDetail'>;
 
@@ -19,10 +19,15 @@ export default function HealthProfileDetailScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<NavProp>();
   const route = useRoute<RouteProp<FamilyStackParamList, 'HealthProfileDetail'>>();
-  const member = mockFamilyMembers.find(m => m.id === route.params.memberId) ?? mockFamilyMembers[0];
+  const [member, setMember] = useState<ProfileDetails | null>(null);
 
-  const statusColor = member.healthStatus === 'good' ? '#2E7D32' : member.healthStatus === 'warning' ? '#E65100' : '#B71C1C';
-  const statusLabel = member.healthStatus === 'good' ? 'Suc khoe tot' : member.healthStatus === 'warning' ? 'Can theo doi' : 'Nguy hiem';
+  useEffect(() => {
+    const profileId = Number(route.params.memberId);
+    void getFamilyProfile(profileId).then(setMember).catch(() => setMember(null));
+  }, [route.params.memberId]);
+
+  const statusColor = member?.healthStatus?.includes('THEO') ? '#E65100' : '#2E7D32';
+  const statusLabel = member?.healthStatus || 'Sức khỏe tốt';
 
   function formatBirthday(d?: string) {
     if (!d) return 'Chua cap nhat';
@@ -32,18 +37,18 @@ export default function HealthProfileDetailScreen() {
 
   return (
     <View style={styles.root}>
-      <TopAppBar variant='detail' title={member.fullName} />
+      <TopAppBar variant='detail' title={member?.fullName || 'Chi tiết hồ sơ'} />
       <ScrollView
         contentContainerStyle={{ paddingTop: TOP_BAR_HEIGHT + insets.top + 16, paddingBottom: BOTTOM_NAV_HEIGHT + 16 }}
         showsVerticalScrollIndicator={false}
       >
         {/* Hero Section */}
         <View style={styles.heroSection}>
-          <Avatar name={member.fullName} size='xl' />
-          <Text style={styles.heroName}>{member.fullName}</Text>
+          <Avatar name={member?.fullName || 'Thành viên'} size='xl' />
+          <Text style={styles.heroName}>{member?.fullName || 'Đang tải...'}</Text>
           <View style={styles.heroBadgeRow}>
             <View style={styles.roleBadge}>
-              <Text style={styles.roleText}>{member.role}</Text>
+              <Text style={styles.roleText}>Thành viên</Text>
             </View>
             <View style={[styles.statusBadge, { backgroundColor: statusColor + '22' }]}>
               <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
@@ -59,28 +64,28 @@ export default function HealthProfileDetailScreen() {
               <Icon name='healing' size={16} color={colors.primary} />
               <View>
                 <Text style={styles.infoLabel}>Nhom mau</Text>
-                <Text style={styles.infoValue}>{member.bloodType ?? 'Chua ro'}</Text>
+                <Text style={styles.infoValue}>{member?.bloodType ?? 'Chua ro'}</Text>
               </View>
             </View>
             <View style={styles.infoItem}>
               <Icon name='cake' size={16} color={colors.primary} />
               <View>
                 <Text style={styles.infoLabel}>Ngay sinh</Text>
-                <Text style={styles.infoValue}>{formatBirthday(member.birthday)}</Text>
+                <Text style={styles.infoValue}>{formatBirthday(member?.birthday || undefined)}</Text>
               </View>
             </View>
             <View style={styles.infoItem}>
               <Icon name='person' size={16} color={colors.primary} />
               <View>
                 <Text style={styles.infoLabel}>Gioi tinh</Text>
-                <Text style={styles.infoValue}>{member.gender ?? 'Chua ro'}</Text>
+                <Text style={styles.infoValue}>{member?.gender ?? 'Chua ro'}</Text>
               </View>
             </View>
             <View style={styles.infoItem}>
               <Icon name='height' size={16} color={colors.primary} />
               <View>
                 <Text style={styles.infoLabel}>Chieu cao / Can nang</Text>
-                <Text style={styles.infoValue}>{member.height ?? '--'} cm / {member.weight ?? '--'} kg</Text>
+                <Text style={styles.infoValue}>{member?.height ?? '--'} cm / {member?.weight ?? '--'} kg</Text>
               </View>
             </View>
           </View>
@@ -89,32 +94,30 @@ export default function HealthProfileDetailScreen() {
         {/* Medical History */}
         <View style={[styles.card, shadows.sm]}>
           <Text style={styles.cardTitle}>Tien su benh</Text>
-          {(!member.medicalHistory || member.medicalHistory.length === 0) && (
-            <Text style={styles.emptyText}>Chua co thong tin</Text>
-          )}
-          {member.medicalHistory?.map((item, i) => (
-            <View key={i} style={styles.historyItem}>
+          {member?.medicalHistory ? (
+            <View style={styles.historyItem}>
               <View style={styles.historyDot} />
               <View style={styles.historyContent}>
-                <Text style={styles.historyName}>{item.name}</Text>
-                <Text style={styles.historyDesc}>{item.description}</Text>
+                <Text style={styles.historyName}>Ghi chú bệnh lý</Text>
+                <Text style={styles.historyDesc}>{member.medicalHistory}</Text>
               </View>
             </View>
-          ))}
+          ) : (
+            <Text style={styles.emptyText}>Chua co thong tin</Text>
+          )}
         </View>
 
         {/* Allergies */}
         <View style={[styles.card, shadows.sm]}>
           <Text style={styles.cardTitle}>Di ung</Text>
-          {(!member.allergies || member.allergies.length === 0) && (
-            <Text style={styles.emptyText}>Khong co di ung</Text>
-          )}
           <View style={styles.chipRow}>
-            {member.allergies?.map((allergy, i) => (
-              <View key={i} style={styles.chip}>
-                <Text style={styles.chipText}>{allergy}</Text>
+            {member?.allergy ? (
+              <View style={styles.chip}>
+                <Text style={styles.chipText}>{member.allergy}</Text>
               </View>
-            ))}
+            ) : (
+              <Text style={styles.emptyText}>Khong co di ung</Text>
+            )}
           </View>
         </View>
 
@@ -126,32 +129,12 @@ export default function HealthProfileDetailScreen() {
             <Text style={styles.qrHint}>Ma QR chua nhan thong tin y te khi can cap cuu</Text>
           </View>
         </View>
-
-        {/* Emergency Contact */}
-        {member.emergencyContact && (
-          <View style={[styles.card, shadows.sm]}>
-            <Text style={styles.cardTitle}>Lien he khan cap</Text>
-            <View style={styles.emergencyRow}>
-              <View style={styles.emergencyAvatar}>
-                <Icon name='person' size={22} color={colors.primary} />
-              </View>
-              <View style={styles.emergencyInfo}>
-                <Text style={styles.emergencyName}>{member.emergencyContact.name}</Text>
-                <Text style={styles.emergencyRelation}>{member.emergencyContact.relationship}</Text>
-              </View>
-              <TouchableOpacity style={styles.callBtn}>
-                <Icon name='phone' size={18} color={colors.onPrimary} />
-              </TouchableOpacity>
-            </View>
-          </View>
-        )}
-
         {/* Action Buttons */}
         <View style={styles.actionRow}>
           <TouchableOpacity
             style={[styles.actionBtn, styles.actionBtnPrimary]}
             activeOpacity={0.8}
-            onPress={() => navigation.navigate('VaccinationTracker', { memberId: member.id })}
+            onPress={() => navigation.navigate('VaccinationTracker', { memberId: String(route.params.memberId) })}
           >
             <Icon name='syringe' size={18} color={colors.onPrimary} />
             <Text style={styles.actionBtnPrimaryText}>Lich tiem chung</Text>
@@ -159,7 +142,7 @@ export default function HealthProfileDetailScreen() {
           <TouchableOpacity
             style={[styles.actionBtn, styles.actionBtnSecondary]}
             activeOpacity={0.8}
-            onPress={() => navigation.navigate('GrowthTracker', { memberId: member.id })}
+            onPress={() => navigation.navigate('GrowthTracker', { memberId: String(route.params.memberId) })}
           >
             <Icon name='trending_up' size={18} color={colors.primary} />
             <Text style={styles.actionBtnSecondaryText}>Theo doi phat trien</Text>

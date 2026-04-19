@@ -12,6 +12,7 @@ import Icon from '../../components/common/Icon';
 import NotificationBell from '../../components/common/NotificationBell';
 import { useAuth } from '../../context/AuthContext';
 import { mockFamilyMembers } from '../../data/mockFamilyMembers';
+import { getCurrentUserProfile, updateCurrentUserProfile } from '../../api/auth';
 
 interface InputFieldProps {
   icon: string;
@@ -59,9 +60,36 @@ export default function UserProfileSettingsScreen() {
   const [birthday, setBirthday] = useState('15/03/1990');
   const [bloodType, setBloodType] = useState('A+');
   const [avatarUri, setAvatarUri] = useState<string | null>(null);
+  const [gender, setGender] = useState('OTHER');
+  const [medicalHistory, setMedicalHistory] = useState('');
+  const [allergy, setAllergy] = useState('');
+  const [height, setHeight] = useState(160);
+  const [weight, setWeight] = useState(55);
+  const [emergencyContactPhone, setEmergencyContactPhone] = useState('');
 
   // Find corresponding member for medical record
   const member = mockFamilyMembers.find(m => m.isCurrentUser || m.fullName === fullName);
+
+  React.useEffect(() => {
+    void getCurrentUserProfile()
+      .then(profile => {
+        setFullName(profile.fullName);
+        setEmail(profile.email);
+        setPhone(profile.phoneNumber || '');
+        setBirthday(profile.birthday ? new Date(profile.birthday).toLocaleDateString('vi-VN') : '');
+        setBloodType(profile.bloodType || 'O_POSITIVE');
+        setGender(profile.gender || 'OTHER');
+        setMedicalHistory(profile.medicalHistory || '');
+        setAllergy(profile.allergy || '');
+        setHeight(profile.height || 160);
+        setWeight(profile.weight || 55);
+        setEmergencyContactPhone(profile.emergencyContactPhone || '');
+        if (profile.avatarUrl) {
+          setAvatarUri(profile.avatarUrl);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   const handleChoosePhoto = () => {
     launchImageLibrary({ mediaType: 'photo', quality: 0.8 }, (response) => {
@@ -71,8 +99,28 @@ export default function UserProfileSettingsScreen() {
     });
   };
 
-  const handleSave = () => {
-    Alert.alert('Thành công', 'Thông tin của bạn đã được cập nhật.');
+  const handleSave = async () => {
+    try {
+      const [day, month, year] = birthday.split('/');
+      const isoBirthday = day && month && year ? `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}` : '1990-01-01';
+
+      await updateCurrentUserProfile({
+        fullName,
+        email,
+        phoneNumber: phone,
+        birthday: isoBirthday,
+        gender,
+        bloodType,
+        medicalHistory,
+        allergy,
+        height,
+        weight,
+        emergencyContactPhone,
+      });
+      Alert.alert('Thành công', 'Thông tin của bạn đã được cập nhật.');
+    } catch (error) {
+      Alert.alert('Không thể lưu', error instanceof Error ? error.message : 'Đã có lỗi xảy ra');
+    }
   };
 
   return (
@@ -114,7 +162,7 @@ export default function UserProfileSettingsScreen() {
         <View style={styles.section}>
           <TouchableOpacity 
             style={[styles.medicalRecordBtn, shadows.sm]}
-            onPress={() => navigation.navigate('UserMedical')}
+            onPress={() => navigation.navigate('UserMedical', { memberId: user?.profileId })}
           >
             <View style={styles.medicalIconWrap}>
               <Icon name="description" size={22} color="#fff" />

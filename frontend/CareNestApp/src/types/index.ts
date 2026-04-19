@@ -1,9 +1,13 @@
 export interface User {
   id: string;
+  userId?: number;
+  profileId?: string;
   email: string;
   fullName: string;
   avatarUrl?: string;
   createdAt: string;
+  phoneNumber?: string;
+  token?: string;
 }
 
 export interface FamilyMember {

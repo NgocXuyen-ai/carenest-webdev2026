@@ -9,6 +9,7 @@ import { launchImageLibrary } from 'react-native-image-picker';
 import { useNavigation } from '@react-navigation/native';
 import { colors } from '../../theme/colors';
 import { useFamily } from '../../context/FamilyContext';
+import { useAuth } from '../../context/AuthContext';
 import { BOTTOM_NAV_HEIGHT } from '../../utils/constants';
 import { mockFamilyMembers } from '../../data/mockFamilyMembers';
 
@@ -23,7 +24,8 @@ const HEALTH_CONFIG = {
 export default function FamilyManagementScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<any>();
-  const { hasFamily, familyName, familyImage, createFamily } = useFamily();
+  const { hasFamily, familyName, familyImage, createFamily, members } = useFamily();
+  const { user } = useAuth();
 
   const calculateAge = (birthday?: string) => {
     if (!birthday) return 0;
@@ -50,8 +52,8 @@ export default function FamilyManagementScreen() {
     }
   };
 
-  const handleFinishSetup = () => {
-    createFamily(tempName, tempImage);
+  const handleFinishSetup = async () => {
+    await createFamily(tempName, tempImage);
   };
 
   // ── INVITE / ADD MEMBER CONTENT ─────────────────────────────────────────────
@@ -336,7 +338,7 @@ export default function FamilyManagementScreen() {
           <View style={styles.titleRow}>
             <Text style={styles.managementTitle}>{familyName}</Text>
             <View style={styles.memberPill}>
-              <Text style={styles.memberPillText}>{mockFamilyMembers.length} Thành viên</Text>
+              <Text style={styles.memberPillText}>{members.length} Thành viên</Text>
             </View>
           </View>
           <Text style={styles.managementSub}>
@@ -345,21 +347,17 @@ export default function FamilyManagementScreen() {
         </View>
 
         <View style={styles.memberList}>
-          {mockFamilyMembers.map((member) => {
-            const age = calculateAge(member.birthday);
+          {members.map((member) => {
+            const age = member.age ?? 0;
             const isChild = age < 20;
 
             return (
-              <View key={member.id} style={styles.memberCard}>
+              <View key={member.profileId} style={styles.memberCard}>
                 <View style={styles.memberCardMain}>
                   <View style={styles.avatarWrapper}>
                     <Image
                       source={{
-                        uri: `https://ui-avatars.com/api/?name=${encodeURIComponent(
-                          member.fullName
-                        )}&background=${member.gender === 'Nữ' ? 'fdf2f8' : 'eff6ff'}&color=${
-                          member.gender === 'Nữ' ? 'db2777' : '2563eb'
-                        }&bold=true`,
+                        uri: member.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(member.fullName)}&background=eff6ff&color=2563eb&bold=true`,
                       }}
                       style={styles.memberImage}
                     />
@@ -368,7 +366,7 @@ export default function FamilyManagementScreen() {
 
                   <TouchableOpacity 
                     style={styles.memberInfo}
-                    onPress={() => navigation.navigate('UserMedical', { memberId: member.profileId || member.id })}
+                    onPress={() => navigation.navigate('UserMedical', { memberId: String(member.profileId) })}
                   >
                     <View style={styles.nameRow}>
                       <Text style={styles.memberName}>{member.fullName}</Text>
@@ -383,7 +381,7 @@ export default function FamilyManagementScreen() {
                 {isChild && (
                   <TouchableOpacity 
                     style={styles.growthBar}
-                    onPress={() => navigation.navigate('GrowthTracker', { memberId: member.id })}
+                    onPress={() => navigation.navigate('GrowthTracker', { memberId: String(member.profileId) })}
                   >
                     <MaterialCommunityIcons name="human-male-female-child" size={18} color="#0369a1" />
                     <Text style={styles.growthBarText}>THEO DÕI PHÁT TRIỂN</Text>
@@ -415,7 +413,7 @@ export default function FamilyManagementScreen() {
         <View style={styles.topBarLeft}>
           <TouchableOpacity style={styles.profileBtn}>
             <Image
-              source={{ uri: 'https://ui-avatars.com/api/?name=User&background=1a73e8&color=fff' }}
+              source={{ uri: user?.avatarUrl || 'https://ui-avatars.com/api/?name=User&background=1a73e8&color=fff' }}
               style={styles.smallAvatar}
             />
           </TouchableOpacity>

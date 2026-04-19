@@ -3,6 +3,7 @@ package com.carenest.backend.service;
 import com.carenest.backend.dto.vaccination.*;
 import com.carenest.backend.model.HealthProfile;
 import com.carenest.backend.model.Vaccination;
+import com.carenest.backend.model.enums.VaccinationStatus;
 import com.carenest.backend.repository.HealthProfileRepository;
 import com.carenest.backend.repository.VaccinationRepository;
 import org.springframework.stereotype.Service;
@@ -18,9 +19,6 @@ public class VaccinationService {
 
     private final VaccinationRepository vaccinationRepository;
     private final HealthProfileRepository healthProfileRepository;
-
-    private static final String STATUS_DONE = "DONE";
-    private static final String STATUS_PLANNED = "PLANNED";
 
     public VaccinationService(VaccinationRepository vaccinationRepository, HealthProfileRepository healthProfileRepository) {
         this.vaccinationRepository = vaccinationRepository;
@@ -79,9 +77,9 @@ public class VaccinationService {
         v.setClinicName(request.getClinicName());
         
         if (request.getDateGiven() != null) {
-            v.setStatus(STATUS_DONE);
+            v.setStatus(VaccinationStatus.DONE);
         } else {
-            v.setStatus(STATUS_PLANNED);
+            v.setStatus(VaccinationStatus.PLANNED);
         }
 
         vaccinationRepository.save(v);

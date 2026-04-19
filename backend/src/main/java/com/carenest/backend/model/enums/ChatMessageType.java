@@ -4,7 +4,9 @@ public enum ChatMessageType {
     TEXT("Văn bản"),
     IMAGE("Hình ảnh"),
     OCR("OCR"),
-    SUGGESTION("Gợi ý");
+    SUGGESTION("Gợi ý"),
+    SQL_QUERY("Truy vấn SQL"),
+    ERROR("Lỗi");
 
     private final String displayName;
 

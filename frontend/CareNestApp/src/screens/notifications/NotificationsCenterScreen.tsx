@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors } from '../../theme/colors';
@@ -6,8 +6,10 @@ import { shadows } from '../../theme/spacing';
 import { TOP_BAR_HEIGHT, BOTTOM_NAV_HEIGHT } from '../../utils/constants';
 import Icon from '../../components/common/Icon';
 import TopAppBar from '../../components/layout/TopAppBar';
-import { mockNotifications } from '../../data/mockNotifications';
 import type { Notification } from '../../types';
+import { getNotifications, markNotificationRead, type NotificationItem } from '../../api/notifications';
+import { useFamily } from '../../context/FamilyContext';
+import { useAuth } from '../../context/AuthContext';
 
 type NotifType = Notification['type'];
 
@@ -41,16 +43,29 @@ function formatTime(timestamp: string): string {
 
 export default function NotificationsCenterScreen() {
   const insets = useSafeAreaInsets();
-  const [notifications, setNotifications] = useState<Notification[]>(mockNotifications);
+  const { selectedProfileId } = useFamily();
+  const { user } = useAuth();
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+
+  useEffect(() => {
+    const profileId = selectedProfileId || (user?.profileId ? Number(user.profileId) : null);
+    if (!profileId) return;
+
+    void getNotifications(profileId)
+      .then(items => setNotifications(items.map(mapNotification)))
+      .catch(() => setNotifications([]));
+  }, [selectedProfileId, user?.profileId]);
   const unreadCount = notifications.filter(n => !n.isRead).length;
-  function handleMarkAllRead() {
+  async function handleMarkAllRead() {
+    const unread = notifications.filter(item => !item.isRead);
+    await Promise.all(unread.map(item => markNotificationRead(Number(item.id)).catch(() => {})));
     setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
   }
-  const grouped = dateGroupOrder.reduce<Record<string, Notification[]>>((acc, group) => {
+  const grouped = useMemo(() => dateGroupOrder.reduce<Record<string, Notification[]>>((acc, group) => {
     const items = notifications.filter(n => n.dateGroup === group);
     if (items.length > 0) acc[group] = items;
     return acc;
-  }, {});
+  }, {}), [notifications]);
   const markAllBtn = (
     <TouchableOpacity onPress={handleMarkAllRead} style={styles.markAllBtn} activeOpacity={0.75}>
       <Text style={styles.markAllText}>Đánh dấu tất cả đã đọc</Text>
@@ -84,7 +99,10 @@ export default function NotificationsCenterScreen() {
                   <TouchableOpacity key={notif.id}
                     style={[styles.row, !notif.isRead && styles.rowUnread, !isLast && styles.rowDivider]}
                     activeOpacity={0.7}
-                    onPress={() => setNotifications(prev => prev.map(n => n.id === notif.id ? { ...n, isRead: true } : n))}
+                    onPress={async () => {
+                      setNotifications(prev => prev.map(n => n.id === notif.id ? { ...n, isRead: true } : n));
+                      await markNotificationRead(Number(notif.id)).catch(() => {});
+                    }}
                   >
                     <View style={[styles.iconWrap, { backgroundColor: cfg.bg }]}>
                       <Icon name={cfg.iconName} size={20} color={cfg.iconColor} />
@@ -154,3 +172,38 @@ const styles = StyleSheet.create({
   emptyTitle: { fontSize: 16, fontFamily: 'Manrope', fontWeight: '700', color: colors.onSurface, marginTop: 8 },
   emptySubtitle: { fontSize: 14, fontFamily: 'Inter', color: colors.onSurfaceVariant, textAlign: 'center', lineHeight: 20 },
 });
+
+function mapNotification(item: NotificationItem): Notification {
+  const timestamp = item.scheduledTime || new Date().toISOString();
+  return {
+    id: String(item.notificationId),
+    type: mapNotificationType(item.type),
+    title: item.title,
+    description: item.content,
+    timestamp,
+    isRead: item.isRead,
+    dateGroup: getDateGroup(timestamp),
+    referenceId: item.referenceId ? String(item.referenceId) : undefined,
+  };
+}
+
+function mapNotificationType(type: string): Notification['type'] {
+  const normalized = type.toUpperCase();
+  if (normalized.includes('MEDICINE')) return 'medicine';
+  if (normalized.includes('APPOINT')) return 'appointment';
+  if (normalized.includes('VACC')) return 'vaccine';
+  if (normalized.includes('WARN')) return 'warning';
+  return 'system';
+}
+
+function getDateGroup(timestamp: string): Notification['dateGroup'] {
+  const date = new Date(timestamp);
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+  if (diffDays <= 0) return 'today';
+  if (diffDays === 1) return 'yesterday';
+  if (diffDays <= 7) return 'this_week';
+  return 'older';
+}

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import {
+  Alert,
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
   KeyboardAvoidingView, Platform,
 } from 'react-native';
@@ -11,6 +12,7 @@ import { TOP_BAR_HEIGHT, BOTTOM_NAV_HEIGHT } from '../../utils/constants';
 import Icon from '../../components/common/Icon';
 import TopAppBar from '../../components/layout/TopAppBar';
 import Input from '../../components/common/Input';
+import { createCabinetMedicine } from '../../api/medicine';
 
 export default function AddMedicineToCabinetScreen() {
   const navigation = useNavigation();
@@ -19,10 +21,27 @@ export default function AddMedicineToCabinetScreen() {
   const [quantity, setQuantity] = useState('');
   const [unit, setUnit] = useState('viên');
   const [expiryDate, setExpiryDate] = useState('');
-  const [note, setNote] = useState('');
 
   const UNITS = ['viên', 'gói', 'chai', 'tuýp', 'hộp'];
   const canSubmit = name.trim().length > 0 && expiryDate.trim().length > 0;
+
+  async function handleSubmit() {
+    if (!canSubmit) return;
+
+    try {
+      await createCabinetMedicine({
+        name,
+        quantity: Number(quantity) || 0,
+        unit,
+        expiryDate,
+      });
+      Alert.alert('Đã thêm thuốc', 'Thuốc mới đã được thêm vào tủ thuốc gia đình.', [
+        { text: 'OK', onPress: () => navigation.goBack() },
+      ]);
+    } catch (error) {
+      Alert.alert('Không thể thêm thuốc', error instanceof Error ? error.message : 'Đã có lỗi xảy ra');
+    }
+  }
 
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
@@ -94,20 +113,13 @@ export default function AddMedicineToCabinetScreen() {
               placeholder="YYYY-MM-DD"
               leftIcon={<Icon name="calendar_today" size={18} color={colors.outline} />}
             />
-            <Input
-              label="Ghi chú"
-              value={note}
-              onChangeText={setNote}
-              placeholder="Ghi chú thêm..."
-              leftIcon={<Icon name="edit_note" size={18} color={colors.outline} />}
-            />
           </View>
 
           {/* Submit */}
           <TouchableOpacity
             style={[styles.submitBtn, !canSubmit && styles.submitBtnDisabled]}
             disabled={!canSubmit}
-            onPress={() => navigation.goBack()}
+            onPress={() => void handleSubmit()}
             activeOpacity={0.85}
           >
             <Icon name="add" size={20} color={colors.onPrimary} />

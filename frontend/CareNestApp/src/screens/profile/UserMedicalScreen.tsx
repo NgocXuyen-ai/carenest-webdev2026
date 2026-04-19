@@ -17,7 +17,8 @@ import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { ProfileStackParamList } from '../../navigation/navigationTypes';
 import Icon from '../../components/common/Icon';
 import { colors } from '../../theme/colors';
-import { mockFamilyMembers } from '../../data/mockFamilyMembers';
+import { getCurrentUserProfile } from '../../api/auth';
+import { getFamilyProfile } from '../../api/family';
 
 import Emergency from './Emergency';
 
@@ -106,25 +107,29 @@ export default function UserMedicalScreen() {
 
   // Load member data if memberId is provided
   React.useEffect(() => {
-    if (memberId) {
-      const member = mockFamilyMembers.find(m => m.profileId === memberId || m.id === memberId);
-      if (member) {
-        setFullName(member.fullName);
-        setRole(member.role.toUpperCase());
-        setBloodType(member.bloodType || 'O+');
-        setHeight(String(member.height || '158'));
-        setWeight(String(member.weight || '54'));
-        
-        // Allergies
-        if (member.allergies && member.allergies.length > 0) {
-          setAllergies(member.allergies.join(', ').toUpperCase());
-        } else {
-          setAllergies('KHÔNG');
+    const loadProfile = async () => {
+      try {
+        if (memberId) {
+          const profile = await getFamilyProfile(Number(memberId));
+          setFullName(profile.fullName);
+          setRole('THÀNH VIÊN');
+          setBloodType(profile.bloodType || 'O+');
+          setHeight(String(profile.height || '158'));
+          setWeight(String(profile.weight || '54'));
+          setAllergies((profile.allergy || 'KHÔNG').toUpperCase());
+          setAge(String(profile.age || ''));
+          return;
         }
 
-        // Calculate age
-        if (member.birthday) {
-          const birthDate = new Date(member.birthday);
+        const profile = await getCurrentUserProfile();
+        setFullName(profile.fullName);
+        setRole('TÀI KHOẢN CỦA BẠN');
+        setBloodType(profile.bloodType || 'O+');
+        setHeight(String(profile.height || '158'));
+        setWeight(String(profile.weight || '54'));
+        setAllergies((profile.allergy || 'KHÔNG').toUpperCase());
+        if (profile.birthday) {
+          const birthDate = new Date(profile.birthday);
           const today = new Date();
           let ageVal = today.getFullYear() - birthDate.getFullYear();
           const m = today.getMonth() - birthDate.getMonth();
@@ -133,8 +138,12 @@ export default function UserMedicalScreen() {
           }
           setAge(String(ageVal));
         }
+      } catch {
+        // keep fallback UI state
       }
-    }
+    };
+
+    void loadProfile();
   }, [memberId]);
 
   // Dynamic BMI Calculation

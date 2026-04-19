@@ -10,6 +10,7 @@ class Settings(BaseSettings):
     SQL_MODEL: str = "claude-haiku-4-5-20251001"
     OCR_MODEL: str = "gpt-5.4-mini"
     DATABASE_URL: str = "postgresql://postgres:123456@localhost:5432/carenest_db"
+    INTERNAL_SHARED_TOKEN: str = ""
 
     # LLM
     LLM_TIMEOUT: int = 30

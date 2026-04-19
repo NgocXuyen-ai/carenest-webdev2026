@@ -89,6 +89,44 @@ def build_answer_context(
     return "\n".join(parts)
 
 
+def build_structured_context_prompt(
+    context: dict,
+    history: list[dict],
+    current_message: str,
+) -> str:
+    history_lines = []
+    for msg in history[-6:]:
+        sender = msg.get("sender", "")
+        message_type = msg.get("message_type", "")
+        if message_type != "TEXT":
+            continue
+        history_lines.append(f"{sender}: {msg.get('content', '')}")
+
+    prompt_parts = [
+        "Bạn là trợ lý sức khỏe gia đình CareNest.",
+        "Chỉ sử dụng dữ liệu trong CONTEXT dưới đây để trả lời.",
+        "Nếu dữ liệu chưa có hoặc không đủ, hãy nói rõ là chưa có thông tin thay vì suy đoán.",
+        "Không nhắc đến SQL, database hay kỹ thuật nội bộ.",
+        "",
+        "## CONTEXT",
+        json.dumps(context, ensure_ascii=False, indent=2),
+    ]
+
+    if history_lines:
+        prompt_parts.extend([
+            "",
+            "## LỊCH SỬ HỘI THOẠI GẦN ĐÂY",
+            "\n".join(history_lines),
+        ])
+
+    prompt_parts.extend([
+        "",
+        "## CÂU HỎI HIỆN TẠI",
+        current_message,
+    ])
+    return "\n".join(prompt_parts)
+
+
 # ─── Internal helpers ─────────────────────────────────────────────────────────
 
 def _group_into_pairs(history: list[dict]) -> list[dict]:
@@ -107,7 +145,7 @@ def _group_into_pairs(history: list[dict]) -> list[dict]:
         mtype = msg["message_type"]
         content = msg["content"]
 
-        if sender == "user":
+        if sender == "USER":
             # Start a new pair
             if current_pair:
                 pairs.append(current_pair)
@@ -118,10 +156,10 @@ def _group_into_pairs(history: list[dict]) -> list[dict]:
                 "result_summary": None,
             }
 
-        elif sender == "assistant" and current_pair is not None:
-            if mtype == "sql_query":
+        elif sender == "AI" and current_pair is not None:
+            if mtype == "SQL_QUERY":
                 current_pair["sql_query"] = content
-            elif mtype == "text":
+            elif mtype == "TEXT":
                 current_pair["assistant_reply"] = content
                 # Build a short summary: first 80 chars of reply
                 current_pair["result_summary"] = content[:80].strip()

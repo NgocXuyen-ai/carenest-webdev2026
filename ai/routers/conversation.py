@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
 from config import settings
 from rate_limiter import limiter
@@ -10,8 +10,13 @@ from schemas.conversation_schemas import (
     MessageItem,
 )
 from services import conversation_service
+from utils.internal_auth import verify_internal_request
 
-router = APIRouter(prefix="/conversations", tags=["conversations"])
+router = APIRouter(
+    prefix="/internal/conversations",
+    tags=["conversations"],
+    dependencies=[Depends(verify_internal_request)],
+)
 
 
 @router.get("", response_model=ConversationListResponse)

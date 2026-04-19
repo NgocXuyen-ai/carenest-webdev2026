@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -6,62 +6,152 @@ import {
   TouchableOpacity,
   StyleSheet,
   StatusBar,
-  Image,
-  Dimensions,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, CompositeNavigationProp } from '@react-navigation/native';
 import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import Svg, { Defs, LinearGradient, Stop, Rect } from 'react-native-svg';
-import { colors } from '../../theme/colors';
+import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 import { shadows } from '../../theme/spacing';
 import { BOTTOM_NAV_HEIGHT } from '../../utils/constants';
 import Icon from '../../components/common/Icon';
 import Avatar from '../../components/common/Avatar';
-import { mockFamilyMembers } from '../../data/mockFamilyMembers';
 import type { HomeStackParamList, MainTabParamList } from '../../navigation/navigationTypes';
-
-const { width } = Dimensions.get('window');
+import { useAuth } from '../../context/AuthContext';
+import { useFamily } from '../../context/FamilyContext';
+import { getDashboard, type DashboardPayload } from '../../api/dashboard';
 
 type Nav = CompositeNavigationProp<
   NativeStackNavigationProp<HomeStackParamList, 'HomeDashboard'>,
   BottomTabNavigationProp<MainTabParamList>
 >;
 
+type TaskCard = {
+  id: string;
+  icon: string;
+  iconBg: string;
+  iconColor: string;
+  title: string;
+  subtitle: string;
+  badge?: string;
+};
+
 export default function HomeDashboardScreen() {
   const navigation = useNavigation<Nav>();
   const insets = useSafeAreaInsets();
-  const [selectedMemberId, setSelectedMemberId] = useState<string | null>(null);
+  const { user } = useAuth();
+  const { members, selectedProfileId, setSelectedProfileId } = useFamily();
+  const [dashboard, setDashboard] = useState<DashboardPayload | null>(null);
 
-  // Constants based on request
-  const PRIMARY_BLUE = '#0047AB';
-  const LIGHT_BLUE_BG = '#E0F7FA';
-  const GRADIENT_START = '#007BFF';
-  const GRADIENT_END = '#0047AB';
-  const AI_PASTEL = '#E1F5FE';
+  useEffect(() => {
+    void getDashboard(selectedProfileId || undefined)
+      .then(setDashboard)
+      .catch(() => setDashboard(null));
+  }, [selectedProfileId]);
+
+  const selectedProfileContext = useMemo(() => {
+    return dashboard?.profileContexts?.find(item => {
+      const profile = item.profile as { profileId?: number } | undefined;
+      return profile?.profileId === dashboard.selectedProfileId;
+    }) as
+      | {
+          profile?: { profileId?: number; fullName?: string };
+          dailyMedicine?: {
+            sections?: Array<{
+              session: string;
+              items: Array<{
+                doseId: number;
+                medicineName: string;
+                dosage: string;
+                isTaken: boolean;
+              }>;
+            }>;
+          };
+          appointments?: {
+            upcomingAppointments?: Array<{
+              appointmentId: number;
+              title: string;
+              appointmentDate: string;
+              location?: string | null;
+              doctorName?: string | null;
+            }>;
+          };
+          vaccinations?: Array<{
+            stageLabel: string;
+            vaccinations: Array<{
+              vaccineLogId: number;
+              vaccineName: string;
+              plannedDate?: string | null;
+              dateGiven?: string | null;
+              status: string;
+            }>;
+          }>;
+        }
+      | undefined;
+  }, [dashboard]);
+
+  const tasks = useMemo<TaskCard[]>(() => {
+    const nextTasks: TaskCard[] = [];
+    const medicineSections = selectedProfileContext?.dailyMedicine?.sections || [];
+    const firstDose = medicineSections.flatMap(section =>
+      section.items.map(item => ({
+        id: `dose-${item.doseId}`,
+        icon: 'pill',
+        iconBg: '#EFF6FF',
+        iconColor: '#2563EB',
+        title: item.medicineName,
+        subtitle: `${section.session} · ${item.dosage}`,
+        badge: item.isTaken ? 'ĐÃ UỐNG' : 'CHƯA UỐNG',
+      })),
+    )[0];
+    if (firstDose) {
+      nextTasks.push(firstDose);
+    }
+
+    const nextAppointment = selectedProfileContext?.appointments?.upcomingAppointments?.[0];
+    if (nextAppointment) {
+      nextTasks.push({
+        id: `appt-${nextAppointment.appointmentId}`,
+        icon: 'calendar_month',
+        iconBg: '#F0FDF4',
+        iconColor: '#16A34A',
+        title: nextAppointment.title,
+        subtitle: new Date(nextAppointment.appointmentDate).toLocaleString('vi-VN'),
+      });
+    }
+
+    const nextVaccination = selectedProfileContext?.vaccinations
+      ?.flatMap(group => group.vaccinations)
+      .find(item => item.status !== 'DONE');
+    if (nextVaccination) {
+      nextTasks.push({
+        id: `vac-${nextVaccination.vaccineLogId}`,
+        icon: 'syringe',
+        iconBg: '#FFF7ED',
+        iconColor: '#EA580C',
+        title: nextVaccination.vaccineName,
+        subtitle: nextVaccination.plannedDate || nextVaccination.dateGiven || 'Theo dõi lịch tiêm',
+      });
+    }
+
+    return nextTasks;
+  }, [selectedProfileContext]);
+
+  const unreadCount = dashboard?.unreadNotificationCount ?? 0;
+  const selectedProfileRouteId = String(selectedProfileId || members[0]?.profileId || user?.profileId || '');
 
   return (
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#fff" />
-      
-      {/* Custom Header Bar */}
+
       <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
         <View style={styles.headerLeft}>
-          <Avatar 
-            uri="https://i.pravatar.cc/150?u=lananh" 
-            name="Lan Anh" 
-            size="sm" 
-            bordered 
-          />
+          <Avatar uri={user?.avatarUrl} name={user?.fullName || 'CareNest'} size="sm" bordered />
           <Text style={styles.logoText}>CareNest</Text>
         </View>
-        <TouchableOpacity 
-          style={styles.notificationBtn}
-          onPress={() => navigation.navigate('NotificationsCenter')}
-        >
-          <Icon name="notifications" size={24} color={PRIMARY_BLUE} />
-          <View style={styles.notificationDot} />
+        <TouchableOpacity style={styles.notificationBtn} onPress={() => navigation.navigate('NotificationsCenter')}>
+          <Icon name="notifications" size={24} color="#0047AB" />
+          {unreadCount > 0 ? <View style={styles.notificationDot} /> : null}
         </TouchableOpacity>
       </View>
 
@@ -72,172 +162,143 @@ export default function HomeDashboardScreen() {
         ]}
         showsVerticalScrollIndicator={false}
       >
-        {/* Greeting Section */}
         <View style={styles.greetingSection}>
-          <Text style={styles.greetingTitle}>Xin chào, Lan Anh!</Text>
+          <Text style={styles.greetingTitle}>Xin chào, {user?.fullName || 'bạn'}!</Text>
           <Text style={styles.greetingSubtitle}>Hy vọng gia đình mình có một ngày khỏe mạnh.</Text>
         </View>
 
-        {/* Members Pill Section */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>THÀNH VIÊN</Text>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.memberList}
-          >
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.memberList}>
             <TouchableOpacity
-              style={[styles.memberPill, selectedMemberId === null && styles.memberPillActive]}
-              onPress={() => setSelectedMemberId(null)}
+              style={[styles.memberPill, selectedProfileId === null && styles.memberPillActive]}
+              onPress={() => setSelectedProfileId(null)}
             >
-              <Text style={[styles.memberPillText, selectedMemberId === null && styles.memberPillTextActive]}>
+              <Text style={[styles.memberPillText, selectedProfileId === null && styles.memberPillTextActive]}>
                 Cả nhà
               </Text>
             </TouchableOpacity>
-            {mockFamilyMembers.map((member) => (
+            {members.map(member => (
               <TouchableOpacity
-                key={member.id}
-                style={[
-                  styles.memberPill,
-                  selectedMemberId === member.profileId && styles.memberPillActive,
-                ]}
-                onPress={() => setSelectedMemberId(member.profileId)}
+                key={member.profileId}
+                style={[styles.memberPill, selectedProfileId === member.profileId && styles.memberPillActive]}
+                onPress={() => setSelectedProfileId(member.profileId)}
               >
-                <Text style={[
-                  styles.memberPillText,
-                  selectedMemberId === member.profileId && styles.memberPillTextActive,
-                ]}>
+                <Text
+                  style={[
+                    styles.memberPillText,
+                    selectedProfileId === member.profileId && styles.memberPillTextActive,
+                  ]}
+                >
                   {member.fullName.split(' ').pop()}
                 </Text>
               </TouchableOpacity>
             ))}
-            <TouchableOpacity style={styles.addMemberBtn}>
-              <Icon name="add" size={20} color={PRIMARY_BLUE} />
-            </TouchableOpacity>
           </ScrollView>
         </View>
 
-        {/* Shortcut Grid */}
         <View style={styles.shortcutGrid}>
-          <TouchableOpacity 
-            style={styles.shortcutCard}
-            onPress={() => navigation.navigate('MedicineSchedule')}
-          >
+          <TouchableOpacity style={styles.shortcutCard} onPress={() => navigation.navigate('MedicineSchedule')}>
             <View style={[styles.shortcutIconWrap, { backgroundColor: '#E0F2FE' }]}>
               <Icon name="pill" size={26} color="#0EA5E9" />
             </View>
             <Text style={styles.shortcutLabel}>Lịch thuốc</Text>
           </TouchableOpacity>
-          <TouchableOpacity 
-            style={styles.shortcutCard}
-            onPress={() => navigation.navigate('AppointmentList')}
-          >
+          <TouchableOpacity style={styles.shortcutCard} onPress={() => navigation.navigate('AppointmentList')}>
             <View style={[styles.shortcutIconWrap, { backgroundColor: '#F3E8FF' }]}>
               <Icon name="calendar_month" size={26} color="#A855F7" />
             </View>
             <Text style={styles.shortcutLabel}>Lịch hẹn</Text>
           </TouchableOpacity>
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.shortcutCard}
-            onPress={() => navigation.navigate('VaccinationTracker', { 
-              memberId: selectedMemberId || mockFamilyMembers[0].profileId 
-            })}
+            onPress={() => navigation.navigate('VaccinationTracker', { memberId: selectedProfileRouteId })}
           >
-            <View style={[styles.shortcutIconWrap, { backgroundColor: LIGHT_BLUE_BG }]}>
+            <View style={[styles.shortcutIconWrap, { backgroundColor: '#E0F7FA' }]}>
               <Icon name="syringe" size={26} color="#0097A7" />
             </View>
             <Text style={styles.shortcutLabel}>Tiêm chủng</Text>
           </TouchableOpacity>
         </View>
 
-        {/* Health Summary Hero Card */}
         <View style={[styles.heroCard, shadows.lg]}>
           <View style={StyleSheet.absoluteFill}>
             <Svg height="100%" width="100%">
               <Defs>
                 <LinearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
-                  <Stop offset="0%" stopColor={GRADIENT_START} />
-                  <Stop offset="100%" stopColor={GRADIENT_END} />
+                  <Stop offset="0%" stopColor="#007BFF" />
+                  <Stop offset="100%" stopColor="#0047AB" />
                 </LinearGradient>
               </Defs>
               <Rect width="100%" height="100%" fill="url(#grad)" />
             </Svg>
           </View>
-          
+
           <View style={styles.heroHeader}>
             <View>
-              <Text style={styles.heroDate}>Thứ Ba, 24 Tháng 10</Text>
-              <Text style={styles.heroStatus}>Mọi thứ đều ổn</Text>
+              <Text style={styles.heroDate}>{dashboard?.generatedAt || new Date().toLocaleDateString('vi-VN')}</Text>
+              <Text style={styles.heroStatus}>{unreadCount > 0 ? 'Có việc cần chú ý' : 'Mọi thứ đều ổn'}</Text>
             </View>
             <Icon name="sunny" size={40} color="rgba(255,255,255,0.8)" />
           </View>
 
           <View style={styles.glassStatsRow}>
             <View style={styles.glassModule}>
-              <Icon name="thermometer" size={18} color="#fff" />
-              <Text style={styles.moduleLabel}>Nhiệt độ</Text>
-              <Text style={styles.moduleValue}>36.5°C</Text>
+              <Icon name="group" size={18} color="#fff" />
+              <Text style={styles.moduleLabel}>Thành viên</Text>
+              <Text style={styles.moduleValue}>{members.length}</Text>
             </View>
             <View style={styles.glassModule}>
-              <Icon name="favorite" size={18} color="#fff" />
-              <Text style={styles.moduleLabel}>Nhịp tim</Text>
-              <Text style={styles.moduleValue}>72 bpm</Text>
+              <Icon name="notifications" size={18} color="#fff" />
+              <Text style={styles.moduleLabel}>Nhắc nhở</Text>
+              <Text style={styles.moduleValue}>{unreadCount}</Text>
             </View>
             <View style={styles.glassModule}>
-              <Icon name="steps" size={18} color="#fff" />
-              <Text style={styles.moduleLabel}>Vận động</Text>
-              <Text style={styles.moduleValue}>4.2k b</Text>
+              <Icon name="pill" size={18} color="#fff" />
+              <Text style={styles.moduleLabel}>Thuốc hôm nay</Text>
+              <Text style={styles.moduleValue}>{tasks.filter(task => task.icon === 'pill').length}</Text>
             </View>
           </View>
         </View>
 
-        {/* Actionable Tasks Section */}
         <View style={styles.section}>
           <View style={styles.sectionHeaderRow}>
             <Text style={styles.sectionTitle}>HÔM NAY CẦN LÀM</Text>
-            <TouchableOpacity>
-              <Text style={styles.seeAllText}>Xem tất cả</Text>
-            </TouchableOpacity>
           </View>
 
-          <View style={styles.taskCard}>
-            <View style={[styles.taskIconWrap, { backgroundColor: '#EFF6FF' }]}>
-              <Icon name="pill" size={24} color="#2563EB" />
+          {tasks.length === 0 ? (
+            <View style={styles.taskCard}>
+              <View style={[styles.taskIconWrap, { backgroundColor: '#EFF6FF' }]}>
+                <Icon name="check_circle" size={24} color="#2563EB" />
+              </View>
+              <View style={styles.taskInfo}>
+                <Text style={styles.taskTitle}>Chưa có việc nào cần xử lý</Text>
+                <Text style={styles.taskTime}>Dashboard sẽ tự cập nhật khi có lịch thuốc, khám hoặc tiêm chủng.</Text>
+              </View>
             </View>
-            <View style={styles.taskInfo}>
-              <Text style={styles.taskTitle}>Metformin 500mg</Text>
-              <Text style={styles.taskTime}>Uống lúc 8:00 SA</Text>
-            </View>
-            <View style={styles.tagChuaUong}>
-              <Text style={styles.tagText}>CHƯA UỐNG</Text>
-            </View>
-          </View>
-
-          <TouchableOpacity style={styles.taskCard}>
-            <View style={[styles.taskIconWrap, { backgroundColor: '#F0FDF4' }]}>
-              <Icon name="calendar_month" size={24} color="#16A34A" />
-            </View>
-            <View style={styles.taskInfo}>
-              <Text style={styles.taskTitle}>Tái khám tim mạch</Text>
-              <Text style={styles.taskTime}>14:00 - BV Tâm Đức</Text>
-            </View>
-            <Icon name="chevron_right" size={20} color="#94A3B8" />
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.taskCard}>
-            <View style={[styles.taskIconWrap, { backgroundColor: '#FFF7ED' }]}>
-              <Icon name="syringe" size={24} color="#EA580C" />
-            </View>
-            <View style={styles.taskInfo}>
-              <Text style={styles.taskTitle}>Tiêm Vaccine cho bé Nam</Text>
-              <Text style={styles.taskTime}>Lịch hẹn trong tuần này</Text>
-            </View>
-            <Icon name="chevron_right" size={20} color="#94A3B8" />
-          </TouchableOpacity>
+          ) : (
+            tasks.map(task => (
+              <View key={task.id} style={styles.taskCard}>
+                <View style={[styles.taskIconWrap, { backgroundColor: task.iconBg }]}>
+                  <Icon name={task.icon} size={24} color={task.iconColor} />
+                </View>
+                <View style={styles.taskInfo}>
+                  <Text style={styles.taskTitle}>{task.title}</Text>
+                  <Text style={styles.taskTime}>{task.subtitle}</Text>
+                </View>
+                {task.badge ? (
+                  <View style={styles.tagChuaUong}>
+                    <Text style={styles.tagText}>{task.badge}</Text>
+                  </View>
+                ) : (
+                  <Icon name="chevron_right" size={20} color="#94A3B8" />
+                )}
+              </View>
+            ))
+          )}
         </View>
 
-        {/* AI Advisor Card */}
-        <View style={[styles.aiAdvisorCard, { backgroundColor: AI_PASTEL }]}>
+        <View style={[styles.aiAdvisorCard, { backgroundColor: '#E1F5FE' }]}>
           <View style={styles.aiHeader}>
             <View style={styles.aiAvatar}>
               <Icon name="smart_toy" size={20} color="#fff" />
@@ -245,12 +306,10 @@ export default function HomeDashboardScreen() {
             <Text style={styles.aiLabel}>AI CỐ VẤN</Text>
           </View>
           <Text style={styles.aiAdviceText}>
-            "Bà Lan có dấu hiệu mệt mỏi vào buổi chiều, bạn nên kiểm tra huyết áp cho bà nhé."
+            "{dashboard?.aiSummary || 'CareNest AI sẽ tóm tắt nhanh các việc cần chú ý trong ngày của gia đình bạn.'}"
           </Text>
         </View>
       </ScrollView>
-
-      {/* NO FAB HERE as per instructions */}
     </View>
   );
 }
@@ -335,12 +394,6 @@ const styles = StyleSheet.create({
     letterSpacing: 1.2,
     marginBottom: 12,
   },
-  seeAllText: {
-    fontSize: 12,
-    fontFamily: 'Inter',
-    fontWeight: '700',
-    color: '#0047AB',
-  },
   memberList: {
     paddingBottom: 5,
     gap: 12,
@@ -363,16 +416,6 @@ const styles = StyleSheet.create({
   },
   memberPillTextActive: {
     color: '#fff',
-  },
-  addMemberBtn: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    borderWidth: 1.5,
-    borderColor: '#CBD5E1',
-    borderStyle: 'dashed',
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   shortcutGrid: {
     flexDirection: 'row',

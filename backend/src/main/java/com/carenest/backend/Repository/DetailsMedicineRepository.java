@@ -14,6 +14,7 @@ public interface DetailsMedicineRepository extends JpaRepository<DetailsMedicine
     List<DetailsMedicine> findByCabinet_CabinetIdOrderByExpiryDateAsc(Integer cabinetId);
 
     Optional<DetailsMedicine> findByMedicineIdAndCabinet_CabinetId(Integer medicineId, Integer cabinetId);
+    Optional<DetailsMedicine> findByCabinet_CabinetIdAndNameIgnoreCase(Integer cabinetId, String name);
 
     boolean existsByCabinet_CabinetIdAndName(Integer cabinetId, String name);
 }

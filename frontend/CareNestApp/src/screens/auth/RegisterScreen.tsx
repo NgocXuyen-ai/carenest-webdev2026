@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import {
+  Alert,
   View,
   Text,
   TouchableOpacity,
@@ -15,6 +16,7 @@ import { colors } from '../../theme/colors';
 import Input from '../../components/common/Input';
 import Icon from '../../components/common/Icon';
 import type { AuthStackParamList } from '../../navigation/navigationTypes';
+import { register as registerRequest } from '../../api/auth';
 
 type Nav = NativeStackNavigationProp<AuthStackParamList, 'Register'>;
 
@@ -23,9 +25,31 @@ export default function RegisterScreen() {
   const insets = useSafeAreaInsets();
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
+  const [phoneNumber, setPhoneNumber] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [agreed, setAgreed] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  async function handleRegister() {
+    if (!agreed || loading) return;
+    if (!fullName || !email || !phoneNumber || !password) {
+      Alert.alert('Thiếu thông tin', 'Vui lòng nhập đầy đủ họ tên, email, số điện thoại và mật khẩu.');
+      return;
+    }
+
+    try {
+      setLoading(true);
+      await registerRequest({ fullName, email, phoneNumber, password });
+      Alert.alert('Đăng ký thành công', 'Tài khoản đã được tạo. Bạn có thể đăng nhập ngay bây giờ.', [
+        { text: 'OK', onPress: () => navigation.navigate('Login') },
+      ]);
+    } catch (error) {
+      Alert.alert('Không thể đăng ký', error instanceof Error ? error.message : 'Đã có lỗi xảy ra');
+    } finally {
+      setLoading(false);
+    }
+  }
 
   return (
     <KeyboardAvoidingView
@@ -72,6 +96,14 @@ export default function RegisterScreen() {
             leftIcon={<Icon name="mail" size={20} color={colors.outline} />}
           />
           <Input
+            label="Số điện thoại"
+            value={phoneNumber}
+            onChangeText={setPhoneNumber}
+            placeholder="0901234567"
+            keyboardType="phone-pad"
+            leftIcon={<Icon name="phone" size={20} color={colors.outline} />}
+          />
+          <Input
             label="Mật khẩu"
             value={password}
             onChangeText={setPassword}
@@ -99,10 +131,11 @@ export default function RegisterScreen() {
 
           <TouchableOpacity
             style={[styles.registerBtn, !agreed && styles.registerBtnDisabled]}
-            disabled={!agreed}
+            disabled={!agreed || loading}
+            onPress={handleRegister}
             activeOpacity={0.85}
           >
-            <Text style={styles.registerBtnText}>Đăng ký</Text>
+            <Text style={styles.registerBtnText}>{loading ? 'Đang đăng ký...' : 'Đăng ký'}</Text>
           </TouchableOpacity>
 
           {/* Divider */}

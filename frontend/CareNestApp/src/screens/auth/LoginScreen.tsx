@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import {
+  Alert,
   View,
   Text,
   TouchableOpacity,
@@ -33,6 +34,8 @@ export default function LoginScreen() {
     setLoading(true);
     try {
       await login(email, password);
+    } catch (error) {
+      Alert.alert('Không thể đăng nhập', error instanceof Error ? error.message : 'Đã có lỗi xảy ra');
     } finally {
       setLoading(false);
     }

@@ -3,6 +3,7 @@ package com.carenest.backend.service;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -184,7 +185,7 @@ public class MedicineService {
     }
 
     public FamilyMedicineCabinet getMyCabinet(Integer currentUserId) {
-        HealthProfile profile = healthProfileRepository.findByUser_UserId(currentUserId)
+        HealthProfile profile = healthProfileRepository.findFirstByUser_UserIdOrderByProfileAsc(currentUserId)
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy profile"));
 
         FamilyRelationship rel = familyRelationshipRepository
@@ -245,14 +246,16 @@ public class MedicineService {
     }
 
     private String getStatus(DetailsMedicine medicine) {
+        LocalDate today = LocalDate.now();
+
         if (medicine.getQuantity() != null && medicine.getQuantity() == 0) {
             return "OUT_OF_STOCK";
         }
         if (medicine.getExpiryDate() != null) {
-            if (medicine.getExpiryDate().isBefore(LocalDate.now())) {
+            if (medicine.getExpiryDate().isBefore(today)) {
                 return "EXPIRED";
             }
-            long days = LocalDate.now().until(medicine.getExpiryDate()).getDays();
+            long days = ChronoUnit.DAYS.between(today, medicine.getExpiryDate());
             if (days <= 30) {
                 return "LOW_STOCK";
             }

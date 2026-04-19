@@ -11,6 +11,10 @@ import lombok.Setter;
 @Setter
 public class RegisterRequest {
 
+    @NotBlank(message = "Họ và tên không được để trống")
+    @Size(max = 255, message = "Họ và tên tối đa 255 ký tự")
+    private String fullName;
+
     @Email(message = "Email không hợp lệ")
     @NotBlank(message = "Email không được để trống")
     @Pattern(
