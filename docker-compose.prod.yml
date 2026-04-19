@@ -38,9 +38,6 @@ services:
       AI_SERVICE_BASE_URL: http://ai:8000
     expose:
       - "8080"
-    dns:
-      - 1.1.1.1
-      - 8.8.8.8
     networks:
       - app-internal
     healthcheck:
@@ -63,9 +60,6 @@ services:
       - ./.env.prod
     expose:
       - "8000"
-    dns:
-      - 1.1.1.1
-      - 8.8.8.8
     networks:
       - app-internal
     healthcheck:
@@ -88,4 +82,3 @@ networks:
     driver: bridge
   app-internal:
     driver: bridge
-    internal: true
