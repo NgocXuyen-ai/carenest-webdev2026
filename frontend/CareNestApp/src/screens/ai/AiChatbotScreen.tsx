@@ -13,6 +13,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
+import Markdown from 'react-native-markdown-display';
 import { colors } from '../../theme/colors';
 import { chatAi } from '../../api/ai';
 import { useFamily } from '../../context/FamilyContext';
@@ -30,6 +31,10 @@ const QUICK_PROMPTS = [
   'Thuốc nào sắp hết hạn?',
   'Tóm tắt sức khỏe của gia đình',
 ];
+
+function normalizeMarkdown(content: string): string {
+  return content.replace(/\r\n/g, '\n').replace(/\\n/g, '\n').trim();
+}
 
 export default function AiChatbotScreen() {
   const navigation = useNavigation<any>();
@@ -137,9 +142,11 @@ export default function AiChatbotScreen() {
                 </View>
               ) : null}
               <View style={[styles.bubble, msg.role === 'user' ? styles.bubbleUser : styles.bubbleAI]}>
-                <Text style={[styles.bubbleText, msg.role === 'user' ? styles.textUser : styles.textAI]}>
-                  {msg.content}
-                </Text>
+                {msg.role === 'assistant' ? (
+                  <Markdown style={markdownStyles}>{normalizeMarkdown(msg.content)}</Markdown>
+                ) : (
+                  <Text style={[styles.bubbleText, styles.textUser]}>{msg.content}</Text>
+                )}
               </View>
               <Text style={styles.timestamp}>{msg.timestamp}</Text>
             </View>
@@ -341,4 +348,80 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   sendBtnDisabled: { opacity: 0.5 },
+});
+
+const markdownStyles = StyleSheet.create({
+  body: {
+    color: '#334155',
+    fontSize: 15,
+    lineHeight: 22,
+    fontFamily: 'Inter',
+    marginTop: 0,
+    marginBottom: 0,
+  },
+  paragraph: {
+    marginTop: 0,
+    marginBottom: 10,
+  },
+  heading1: {
+    fontSize: 20,
+    lineHeight: 28,
+    fontWeight: '800',
+    color: '#0f172a',
+    marginTop: 0,
+    marginBottom: 10,
+  },
+  heading2: {
+    fontSize: 17,
+    lineHeight: 24,
+    fontWeight: '700',
+    color: '#1e293b',
+    marginTop: 2,
+    marginBottom: 8,
+  },
+  bullet_list: {
+    marginTop: 0,
+    marginBottom: 10,
+  },
+  ordered_list: {
+    marginTop: 0,
+    marginBottom: 10,
+  },
+  list_item: {
+    marginBottom: 4,
+  },
+  code_inline: {
+    backgroundColor: '#e2e8f0',
+    color: '#0f172a',
+    borderRadius: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    fontFamily: 'Inter',
+  },
+  fence: {
+    backgroundColor: '#e2e8f0',
+    color: '#0f172a',
+    borderRadius: 10,
+    padding: 10,
+    fontFamily: 'Inter',
+    marginBottom: 10,
+  },
+  blockquote: {
+    borderLeftWidth: 3,
+    borderLeftColor: '#94a3b8',
+    paddingLeft: 10,
+    marginTop: 0,
+    marginBottom: 10,
+  },
+  strong: {
+    fontWeight: '800',
+    color: '#0f172a',
+  },
+  em: {
+    fontStyle: 'italic',
+  },
+  link: {
+    color: '#1a73e8',
+    textDecorationLine: 'underline',
+  },
 });
