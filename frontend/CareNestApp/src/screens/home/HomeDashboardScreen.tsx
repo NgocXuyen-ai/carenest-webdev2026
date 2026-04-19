@@ -1,11 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
-  View,
-  Text,
   ScrollView,
-  TouchableOpacity,
-  StyleSheet,
   StatusBar,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, CompositeNavigationProp } from '@react-navigation/native';
@@ -25,6 +25,16 @@ type Nav = CompositeNavigationProp<
   NativeStackNavigationProp<HomeStackParamList, 'HomeDashboard'>,
   BottomTabNavigationProp<MainTabParamList>
 >;
+
+type TaskCard = {
+  id: string;
+  icon: string;
+  iconBg: string;
+  iconColor: string;
+  title: string;
+  subtitle: string;
+  badge?: string;
+};
 
 type ProfileContext = {
   profile?: { profileId?: number; fullName?: string };
@@ -60,15 +70,56 @@ type ProfileContext = {
   }>;
 };
 
-type TaskCard = {
-  id: string;
-  icon: string;
-  iconBg: string;
-  iconColor: string;
-  title: string;
-  subtitle: string;
-  badge?: string;
-};
+function buildTasks(context?: ProfileContext): TaskCard[] {
+  if (!context) {
+    return [];
+  }
+
+  const nextTasks: TaskCard[] = [];
+  const medicineSections = context.dailyMedicine?.sections || [];
+  const firstDose = medicineSections.flatMap(section =>
+    section.items.map(item => ({
+      id: `dose-${item.doseId}`,
+      icon: 'pill',
+      iconBg: '#EFF6FF',
+      iconColor: '#2563EB',
+      title: item.medicineName,
+      subtitle: `${section.session} · ${item.dosage}`,
+      badge: item.isTaken ? 'ĐÃ UỐNG' : 'CHƯA UỐNG',
+    })),
+  )[0];
+  if (firstDose) {
+    nextTasks.push(firstDose);
+  }
+
+  const nextAppointment = context.appointments?.upcomingAppointments?.[0];
+  if (nextAppointment) {
+    nextTasks.push({
+      id: `appt-${nextAppointment.appointmentId}`,
+      icon: 'calendar_month',
+      iconBg: '#F0FDF4',
+      iconColor: '#16A34A',
+      title: nextAppointment.title,
+      subtitle: new Date(nextAppointment.appointmentDate).toLocaleString('vi-VN'),
+    });
+  }
+
+  const nextVaccination = context.vaccinations
+    ?.flatMap(group => group.vaccinations)
+    .find(item => item.status !== 'DONE');
+  if (nextVaccination) {
+    nextTasks.push({
+      id: `vac-${nextVaccination.vaccineLogId}`,
+      icon: 'syringe',
+      iconBg: '#FFF7ED',
+      iconColor: '#EA580C',
+      title: nextVaccination.vaccineName,
+      subtitle: nextVaccination.plannedDate || nextVaccination.dateGiven || 'Theo dõi lịch tiêm',
+    });
+  }
+
+  return nextTasks;
+}
 
 export default function HomeDashboardScreen() {
   const navigation = useNavigation<Nav>();
@@ -83,82 +134,31 @@ export default function HomeDashboardScreen() {
       .catch(() => setDashboard(null));
   }, [selectedProfileId]);
 
-  const selectedProfileContext = useMemo(() => {
-    if (!dashboard || dashboard.scopeType === 'FAMILY') {
-      return undefined;
-    }
+  const profileContexts = useMemo(() => (dashboard?.profileContexts || []) as ProfileContext[], [dashboard]);
 
-    return dashboard.profileContexts.find(item => {
-      const profile = item.profile as { profileId?: number } | undefined;
-      return profile?.profileId === dashboard.selectedProfileId;
-    }) as ProfileContext | undefined;
-  }, [dashboard]);
+  const selectedProfileContext = useMemo(
+    () =>
+      profileContexts.find(item => {
+        const profile = item.profile as { profileId?: number } | undefined;
+        return profile?.profileId === dashboard?.selectedProfileId;
+      }),
+    [dashboard?.selectedProfileId, profileContexts],
+  );
 
-  const taskSourceContexts = useMemo<ProfileContext[]>(() => {
+  const tasks = useMemo(() => {
     if (!dashboard) {
       return [];
     }
 
     if (dashboard.scopeType === 'FAMILY') {
-      return dashboard.profileContexts as ProfileContext[];
+      return profileContexts.flatMap(context => buildTasks(context)).slice(0, 4);
     }
 
-    return selectedProfileContext ? [selectedProfileContext] : [];
-  }, [dashboard, selectedProfileContext]);
-
-  const tasks = useMemo<TaskCard[]>(() => {
-    const nextTasks: TaskCard[] = [];
-
-    const medicineSections = taskSourceContexts.flatMap(context => context.dailyMedicine?.sections || []);
-    const firstDose = medicineSections.flatMap(section =>
-      section.items.map(item => ({
-        id: `dose-${item.doseId}`,
-        icon: 'pill',
-        iconBg: '#EFF6FF',
-        iconColor: '#2563EB',
-        title: item.medicineName,
-        subtitle: `${section.session} · ${item.dosage}`,
-        badge: item.isTaken ? 'DA UONG' : 'CHUA UONG',
-      })),
-    )[0];
-    if (firstDose) {
-      nextTasks.push(firstDose);
-    }
-
-    const nextAppointment = taskSourceContexts
-      .flatMap(context => context.appointments?.upcomingAppointments || [])
-      .sort((left, right) => new Date(left.appointmentDate).getTime() - new Date(right.appointmentDate).getTime())[0];
-    if (nextAppointment) {
-      nextTasks.push({
-        id: `appt-${nextAppointment.appointmentId}`,
-        icon: 'calendar_month',
-        iconBg: '#F0FDF4',
-        iconColor: '#16A34A',
-        title: nextAppointment.title,
-        subtitle: new Date(nextAppointment.appointmentDate).toLocaleString('vi-VN'),
-      });
-    }
-
-    const nextVaccination = taskSourceContexts
-      .flatMap(context => context.vaccinations || [])
-      .flatMap(group => group.vaccinations)
-      .find(item => item.status !== 'DONE');
-    if (nextVaccination) {
-      nextTasks.push({
-        id: `vac-${nextVaccination.vaccineLogId}`,
-        icon: 'syringe',
-        iconBg: '#FFF7ED',
-        iconColor: '#EA580C',
-        title: nextVaccination.vaccineName,
-        subtitle: nextVaccination.plannedDate || nextVaccination.dateGiven || 'Theo doi lich tiem',
-      });
-    }
-
-    return nextTasks;
-  }, [taskSourceContexts]);
+    return buildTasks(selectedProfileContext);
+  }, [dashboard, profileContexts, selectedProfileContext]);
 
   const unreadCount = dashboard?.unreadNotificationCount ?? 0;
-  const selectedProfileRouteId = String(selectedProfileId || members[0]?.profileId || user?.profileId || '');
+  const selectedProfileRouteId = String(selectedProfileId || user?.profileId || members[0]?.profileId || '');
 
   return (
     <View style={styles.container}>
@@ -183,19 +183,19 @@ export default function HomeDashboardScreen() {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.greetingSection}>
-          <Text style={styles.greetingTitle}>Xin chao, {user?.fullName || 'ban'}!</Text>
-          <Text style={styles.greetingSubtitle}>Hy vong gia dinh minh co mot ngay khoe manh.</Text>
+          <Text style={styles.greetingTitle}>Xin chào, {user?.fullName || 'bạn'}!</Text>
+          <Text style={styles.greetingSubtitle}>Hy vọng gia đình mình có một ngày khỏe mạnh.</Text>
         </View>
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>THANH VIEN</Text>
+          <Text style={styles.sectionTitle}>THÀNH VIÊN</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.memberList}>
             <TouchableOpacity
               style={[styles.memberPill, selectedProfileId === null && styles.memberPillActive]}
               onPress={() => setSelectedProfileId(null)}
             >
               <Text style={[styles.memberPillText, selectedProfileId === null && styles.memberPillTextActive]}>
-                Ca nha
+                Cả nhà
               </Text>
             </TouchableOpacity>
             {members.map(member => (
@@ -222,13 +222,13 @@ export default function HomeDashboardScreen() {
             <View style={[styles.shortcutIconWrap, { backgroundColor: '#E0F2FE' }]}>
               <Icon name="pill" size={26} color="#0EA5E9" />
             </View>
-            <Text style={styles.shortcutLabel}>Lich thuoc</Text>
+            <Text style={styles.shortcutLabel}>Lịch thuốc</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.shortcutCard} onPress={() => navigation.navigate('AppointmentList')}>
             <View style={[styles.shortcutIconWrap, { backgroundColor: '#F3E8FF' }]}>
               <Icon name="calendar_month" size={26} color="#A855F7" />
             </View>
-            <Text style={styles.shortcutLabel}>Lich hen</Text>
+            <Text style={styles.shortcutLabel}>Lịch hẹn</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.shortcutCard}
@@ -237,7 +237,7 @@ export default function HomeDashboardScreen() {
             <View style={[styles.shortcutIconWrap, { backgroundColor: '#E0F7FA' }]}>
               <Icon name="syringe" size={26} color="#0097A7" />
             </View>
-            <Text style={styles.shortcutLabel}>Tiem chung</Text>
+            <Text style={styles.shortcutLabel}>Tiêm chủng</Text>
           </TouchableOpacity>
         </View>
 
@@ -257,7 +257,7 @@ export default function HomeDashboardScreen() {
           <View style={styles.heroHeader}>
             <View>
               <Text style={styles.heroDate}>{dashboard?.generatedAt || new Date().toLocaleDateString('vi-VN')}</Text>
-              <Text style={styles.heroStatus}>{unreadCount > 0 ? 'Co viec can chu y' : 'Moi thu deu on'}</Text>
+              <Text style={styles.heroStatus}>{unreadCount > 0 ? 'Có việc cần chú ý' : 'Mọi thứ đều ổn'}</Text>
             </View>
             <Icon name="sunny" size={40} color="rgba(255,255,255,0.8)" />
           </View>
@@ -265,17 +265,17 @@ export default function HomeDashboardScreen() {
           <View style={styles.glassStatsRow}>
             <View style={styles.glassModule}>
               <Icon name="group" size={18} color="#fff" />
-              <Text style={styles.moduleLabel}>Thanh vien</Text>
-              <Text style={styles.moduleValue}>{dashboard?.scopeType === 'FAMILY' ? members.length : 1}</Text>
+              <Text style={styles.moduleLabel}>Thành viên</Text>
+              <Text style={styles.moduleValue}>{members.length}</Text>
             </View>
             <View style={styles.glassModule}>
               <Icon name="notifications" size={18} color="#fff" />
-              <Text style={styles.moduleLabel}>Nhac nho</Text>
+              <Text style={styles.moduleLabel}>Nhắc nhở</Text>
               <Text style={styles.moduleValue}>{unreadCount}</Text>
             </View>
             <View style={styles.glassModule}>
               <Icon name="pill" size={18} color="#fff" />
-              <Text style={styles.moduleLabel}>Thuoc hom nay</Text>
+              <Text style={styles.moduleLabel}>Thuốc hôm nay</Text>
               <Text style={styles.moduleValue}>{tasks.filter(task => task.icon === 'pill').length}</Text>
             </View>
           </View>
@@ -283,7 +283,7 @@ export default function HomeDashboardScreen() {
 
         <View style={styles.section}>
           <View style={styles.sectionHeaderRow}>
-            <Text style={styles.sectionTitle}>HOM NAY CAN LAM</Text>
+            <Text style={styles.sectionTitle}>HÔM NAY CẦN LÀM</Text>
           </View>
 
           {tasks.length === 0 ? (
@@ -292,8 +292,8 @@ export default function HomeDashboardScreen() {
                 <Icon name="check_circle" size={24} color="#2563EB" />
               </View>
               <View style={styles.taskInfo}>
-                <Text style={styles.taskTitle}>Chua co viec nao can xu ly</Text>
-                <Text style={styles.taskTime}>Dashboard se tu cap nhat khi co lich thuoc, kham hoac tiem chung.</Text>
+                <Text style={styles.taskTitle}>Chưa có việc nào cần xử lý</Text>
+                <Text style={styles.taskTime}>Dashboard sẽ tự cập nhật khi có lịch thuốc, khám hoặc tiêm chủng.</Text>
               </View>
             </View>
           ) : (
@@ -323,10 +323,10 @@ export default function HomeDashboardScreen() {
             <View style={styles.aiAvatar}>
               <Icon name="smart_toy" size={20} color="#fff" />
             </View>
-            <Text style={styles.aiLabel}>AI CO VAN</Text>
+            <Text style={styles.aiLabel}>AI CỐ VẤN</Text>
           </View>
           <Text style={styles.aiAdviceText}>
-            "{dashboard?.aiSummary || 'CareNest AI se tom tat nhanh cac viec can chu y trong ngay cua gia dinh ban.'}"
+            "{dashboard?.aiSummary || 'CareNest AI sẽ tóm tắt nhanh các việc cần chú ý trong ngày của gia đình bạn.'}"
           </Text>
         </View>
       </ScrollView>
@@ -344,7 +344,13 @@ const styles = StyleSheet.create({
     paddingBottom: 15,
   },
   headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  logoText: { fontSize: 22, fontFamily: 'Manrope', fontWeight: '800', color: '#0047AB', letterSpacing: -0.5 },
+  logoText: {
+    fontSize: 22,
+    fontFamily: 'Manrope',
+    fontWeight: '800',
+    color: '#0047AB',
+    letterSpacing: -0.5,
+  },
   notificationBtn: {
     width: 44,
     height: 44,
@@ -367,11 +373,33 @@ const styles = StyleSheet.create({
   },
   scroll: { paddingHorizontal: 20, paddingTop: 10 },
   greetingSection: { marginBottom: 24 },
-  greetingTitle: { fontSize: 26, fontFamily: 'Manrope', fontWeight: '800', color: '#1E293B' },
-  greetingSubtitle: { fontSize: 14, fontFamily: 'Inter', color: '#64748B', marginTop: 4 },
+  greetingTitle: {
+    fontSize: 26,
+    fontFamily: 'Manrope',
+    fontWeight: '800',
+    color: '#1E293B',
+  },
+  greetingSubtitle: {
+    fontSize: 14,
+    fontFamily: 'Inter',
+    color: '#64748B',
+    marginTop: 4,
+  },
   section: { marginBottom: 24 },
-  sectionHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
-  sectionTitle: { fontSize: 12, fontFamily: 'Inter', fontWeight: '800', color: '#94A3B8', letterSpacing: 1.2, marginBottom: 12 },
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  sectionTitle: {
+    fontSize: 12,
+    fontFamily: 'Inter',
+    fontWeight: '800',
+    color: '#94A3B8',
+    letterSpacing: 1.2,
+    marginBottom: 12,
+  },
   memberList: { paddingBottom: 5, gap: 12 },
   memberPill: {
     paddingHorizontal: 20,
@@ -379,8 +407,16 @@ const styles = StyleSheet.create({
     borderRadius: 25,
     backgroundColor: '#F1F5F9',
   },
-  memberPillActive: { backgroundColor: '#0047AB', ...shadows.sm },
-  memberPillText: { fontSize: 14, fontFamily: 'Inter', fontWeight: '600', color: '#475569' },
+  memberPillActive: {
+    backgroundColor: '#0047AB',
+    ...shadows.sm,
+  },
+  memberPillText: {
+    fontSize: 14,
+    fontFamily: 'Inter',
+    fontWeight: '600',
+    color: '#475569',
+  },
   memberPillTextActive: { color: '#fff' },
   shortcutGrid: { flexDirection: 'row', gap: 12, marginBottom: 24 },
   shortcutCard: {
@@ -402,7 +438,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginBottom: 10,
   },
-  shortcutLabel: { fontSize: 12, fontFamily: 'Inter', fontWeight: '700', color: '#1E293B' },
+  shortcutLabel: {
+    fontSize: 12,
+    fontFamily: 'Inter',
+    fontWeight: '700',
+    color: '#1E293B',
+  },
   heroCard: {
     borderRadius: 28,
     padding: 24,
@@ -411,9 +452,23 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     marginBottom: 24,
   },
-  heroHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
-  heroDate: { fontSize: 14, fontFamily: 'Inter', color: 'rgba(255,255,255,0.7)' },
-  heroStatus: { fontSize: 28, fontFamily: 'Manrope', fontWeight: '800', color: '#fff', marginTop: 4 },
+  heroHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+  },
+  heroDate: {
+    fontSize: 14,
+    fontFamily: 'Inter',
+    color: 'rgba(255,255,255,0.7)',
+  },
+  heroStatus: {
+    fontSize: 28,
+    fontFamily: 'Manrope',
+    fontWeight: '800',
+    color: '#fff',
+    marginTop: 4,
+  },
   glassStatsRow: { flexDirection: 'row', gap: 10 },
   glassModule: {
     flex: 1,
@@ -425,8 +480,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 4,
   },
-  moduleLabel: { fontSize: 10, fontFamily: 'Inter', color: 'rgba(255,255,255,0.8)', textTransform: 'uppercase' },
-  moduleValue: { fontSize: 14, fontFamily: 'Manrope', fontWeight: '700', color: '#fff' },
+  moduleLabel: {
+    fontSize: 10,
+    fontFamily: 'Inter',
+    color: 'rgba(255,255,255,0.8)',
+    textTransform: 'uppercase',
+  },
+  moduleValue: {
+    fontSize: 14,
+    fontFamily: 'Manrope',
+    fontWeight: '700',
+    color: '#fff',
+  },
   taskCard: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -447,12 +512,42 @@ const styles = StyleSheet.create({
     marginRight: 15,
   },
   taskInfo: { flex: 1 },
-  taskTitle: { fontSize: 15, fontFamily: 'Manrope', fontWeight: '700', color: '#1E293B' },
-  taskTime: { fontSize: 13, fontFamily: 'Inter', color: '#64748B', marginTop: 2 },
-  tagChuaUong: { backgroundColor: '#EEF2FF', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 10 },
-  tagText: { fontSize: 10, fontFamily: 'Inter', fontWeight: '800', color: '#4F46E5' },
-  aiAdvisorCard: { borderRadius: 24, padding: 20, borderWidth: 1, borderColor: 'rgba(0, 71, 171, 0.05)' },
-  aiHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 12 },
+  taskTitle: {
+    fontSize: 15,
+    fontFamily: 'Manrope',
+    fontWeight: '700',
+    color: '#1E293B',
+  },
+  taskTime: {
+    fontSize: 13,
+    fontFamily: 'Inter',
+    color: '#64748B',
+    marginTop: 2,
+  },
+  tagChuaUong: {
+    backgroundColor: '#EEF2FF',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 10,
+  },
+  tagText: {
+    fontSize: 10,
+    fontFamily: 'Inter',
+    fontWeight: '800',
+    color: '#4F46E5',
+  },
+  aiAdvisorCard: {
+    borderRadius: 24,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(0, 71, 171, 0.05)',
+  },
+  aiHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 12,
+  },
   aiAvatar: {
     width: 36,
     height: 36,
@@ -461,6 +556,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  aiLabel: { fontSize: 12, fontFamily: 'Inter', fontWeight: '800', color: '#0047AB', letterSpacing: 1 },
-  aiAdviceText: { fontSize: 14, fontFamily: 'Inter', color: '#1E293B', fontStyle: 'italic', lineHeight: 22 },
+  aiLabel: {
+    fontSize: 12,
+    fontFamily: 'Inter',
+    fontWeight: '800',
+    color: '#0047AB',
+    letterSpacing: 1,
+  },
+  aiAdviceText: {
+    fontSize: 14,
+    fontFamily: 'Inter',
+    color: '#1E293B',
+    fontStyle: 'italic',
+    lineHeight: 22,
+  },
 });

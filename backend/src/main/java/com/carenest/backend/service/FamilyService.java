@@ -27,14 +27,31 @@ import com.carenest.backend.repository.FamilyRelationshipRepository;
 import com.carenest.backend.repository.FamilyRepository;
 import com.carenest.backend.repository.HealthProfileRepository;
 import com.carenest.backend.repository.UserRepository;
+import com.google.zxing.BinaryBitmap;
+import com.google.zxing.EncodeHintType;
+import com.google.zxing.MultiFormatReader;
+import com.google.zxing.NotFoundException;
+import com.google.zxing.client.j2se.BufferedImageLuminanceSource;
+import com.google.zxing.client.j2se.MatrixToImageWriter;
+import com.google.zxing.common.BitMatrix;
+import com.google.zxing.common.HybridBinarizer;
+import com.google.zxing.qrcode.QRCodeWriter;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
 
+import javax.imageio.ImageIO;
+import java.awt.image.BufferedImage;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.Period;
+import java.util.Base64;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.UUID;
 
 @Service
@@ -405,26 +422,22 @@ public class FamilyService {
             throw new RuntimeException("Ban da thuoc mot family khac");
         });
 
-        String normalizedCode = request.getJoinCode().trim().toUpperCase(Locale.ROOT);
-        Family family = familyRepository.findByJoinCode(normalizedCode)
-                .orElseThrow(() -> new RuntimeException("Ma tham gia khong hop le"));
-
-        if (family.getJoinCodeExpiresAt() == null || family.getJoinCodeExpiresAt().isBefore(LocalDateTime.now())) {
-            throw new RuntimeException("Ma tham gia da het han");
-        }
-
-        if (family.getOwner().getUserId().equals(currentUserId)) {
-            throw new RuntimeException("Ban da la chu family nay");
-        }
-
-        FamilyRelationship relationship = new FamilyRelationship();
-        relationship.setProfile(profile);
-        relationship.setFamily(family);
-        relationship.setRole(FamilyRole.MEMBER);
-        relationship.setJoinAt(LocalDate.now());
+        Family family = getJoinableFamily(currentUserId, request.getJoinCode());
+        FamilyRelationship relationship = buildJoinRelationship(profile, family);
         familyRelationshipRepository.save(relationship);
-
         return getMyFamily(currentUserId);
+    }
+
+    public MyFamilyResponse joinByQr(Integer currentUserId, MultipartFile image) {
+        if (image == null || image.isEmpty()) {
+            throw new RuntimeException("Khong tim thay anh QR");
+        }
+
+        String qrPayload = decodeQrPayload(image);
+        String joinCode = extractJoinCode(qrPayload);
+        JoinFamilyByCodeRequest request = new JoinFamilyByCodeRequest();
+        request.setJoinCode(joinCode);
+        return joinByCode(currentUserId, request);
     }
 
     private User getRequiredUser(Integer currentUserId) {
@@ -452,13 +465,40 @@ public class FamilyService {
     }
 
     private FamilyJoinCodeResponse buildJoinCodeResponse(Family family) {
+        String joinLink = JOIN_LINK_BASE + family.getJoinCode();
         return FamilyJoinCodeResponse.builder()
                 .joinCode(family.getJoinCode())
-                .joinLink(JOIN_LINK_BASE + family.getJoinCode())
+                .joinLink(joinLink)
+                .qrCodeBase64(generateQrCodeBase64(joinLink))
                 .expiresAt(family.getJoinCodeExpiresAt())
                 .familyId(family.getFamilyId())
                 .familyName(family.getName())
                 .build();
+    }
+
+    private Family getJoinableFamily(Integer currentUserId, String rawJoinCode) {
+        String normalizedCode = extractJoinCode(rawJoinCode);
+        Family family = familyRepository.findByJoinCode(normalizedCode)
+                .orElseThrow(() -> new RuntimeException("Ma tham gia khong hop le"));
+
+        if (family.getJoinCodeExpiresAt() == null || family.getJoinCodeExpiresAt().isBefore(LocalDateTime.now())) {
+            throw new RuntimeException("Ma tham gia da het han");
+        }
+
+        if (family.getOwner().getUserId().equals(currentUserId)) {
+            throw new RuntimeException("Ban da la chu family nay");
+        }
+
+        return family;
+    }
+
+    private FamilyRelationship buildJoinRelationship(HealthProfile profile, Family family) {
+        FamilyRelationship relationship = new FamilyRelationship();
+        relationship.setProfile(profile);
+        relationship.setFamily(family);
+        relationship.setRole(FamilyRole.MEMBER);
+        relationship.setJoinAt(LocalDate.now());
+        return relationship;
     }
 
     private void ensureActiveJoinCode(Family family) {
@@ -482,6 +522,54 @@ public class FamilyService {
                     .toUpperCase(Locale.ROOT);
         } while (familyRepository.findByJoinCode(joinCode).isPresent());
         return joinCode;
+    }
+
+    private String generateQrCodeBase64(String payload) {
+        try {
+            Map<EncodeHintType, Object> hints = new HashMap<>();
+            hints.put(EncodeHintType.MARGIN, 1);
+            BitMatrix matrix = new QRCodeWriter().encode(payload, com.google.zxing.BarcodeFormat.QR_CODE, 320, 320, hints);
+            ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+            MatrixToImageWriter.writeToStream(matrix, "PNG", outputStream);
+            return Base64.getEncoder().encodeToString(outputStream.toByteArray());
+        } catch (Exception exception) {
+            throw new RuntimeException("Khong the tao QR code", exception);
+        }
+    }
+
+    private String decodeQrPayload(MultipartFile image) {
+        try {
+            BufferedImage bufferedImage = ImageIO.read(image.getInputStream());
+            if (bufferedImage == null) {
+                throw new RuntimeException("Anh QR khong hop le");
+            }
+
+            BinaryBitmap bitmap = new BinaryBitmap(
+                    new HybridBinarizer(new BufferedImageLuminanceSource(bufferedImage))
+            );
+            return new MultiFormatReader().decode(bitmap).getText();
+        } catch (NotFoundException exception) {
+            throw new RuntimeException("Khong doc duoc ma QR trong anh");
+        } catch (IOException exception) {
+            throw new RuntimeException("Khong the doc anh QR", exception);
+        }
+    }
+
+    private String extractJoinCode(String rawValue) {
+        if (rawValue == null || rawValue.isBlank()) {
+            throw new RuntimeException("Ma tham gia khong hop le");
+        }
+
+        String normalizedValue = rawValue.trim();
+        int codeIndex = normalizedValue.indexOf("code=");
+        if (codeIndex >= 0) {
+            String queryValue = normalizedValue.substring(codeIndex + 5);
+            int nextSeparator = queryValue.indexOf('&');
+            String code = nextSeparator >= 0 ? queryValue.substring(0, nextSeparator) : queryValue;
+            return code.trim().toUpperCase(Locale.ROOT);
+        }
+
+        return normalizedValue.toUpperCase(Locale.ROOT);
     }
 
     private Integer calculateAge(LocalDate birthday) {

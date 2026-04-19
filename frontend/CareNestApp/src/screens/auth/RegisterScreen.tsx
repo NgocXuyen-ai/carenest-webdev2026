@@ -145,11 +145,7 @@ export default function RegisterScreen() {
             <View style={styles.dividerLine} />
           </View>
 
-          <TouchableOpacity
-            style={styles.googleBtn}
-            activeOpacity={0.8}
-            onPress={() => Alert.alert('Chua ho tro', 'Dang ky bang Google se duoc bo sung o phien ban sau.')}
-          >
+          <TouchableOpacity style={styles.googleBtn} activeOpacity={0.8}>
             <Text style={styles.googleIcon}>G</Text>
             <Text style={styles.googleText}>Tiếp tục với Google</Text>
           </TouchableOpacity>

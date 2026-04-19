@@ -19,6 +19,7 @@ export interface FamilyResponse {
 export interface FamilyJoinCodeResponse {
   joinCode: string;
   joinLink: string;
+  qrCodeBase64?: string;
   expiresAt: string;
   familyId: number;
   familyName: string;
@@ -94,6 +95,14 @@ export async function rotateFamilyJoinCode(): Promise<FamilyJoinCodeResponse> {
 
 export async function joinFamilyByCode(joinCode: string): Promise<FamilyResponse> {
   return apiPost<FamilyResponse, { joinCode: string }>('/family/join-by-code', { joinCode });
+}
+
+export async function joinFamilyByQr(formData: FormData): Promise<FamilyResponse> {
+  return apiPost<FamilyResponse, FormData>('/family/join-by-qr', formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
+  });
 }
 
 export async function removeMember(profileId: number): Promise<void> {

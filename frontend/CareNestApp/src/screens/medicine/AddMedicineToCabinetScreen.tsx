@@ -15,7 +15,7 @@ import Input from '../../components/common/Input';
 import { createCabinetMedicine } from '../../api/medicine';
 
 export default function AddMedicineToCabinetScreen() {
-  const navigation = useNavigation<any>();
+  const navigation = useNavigation();
   const insets = useSafeAreaInsets();
   const [name, setName] = useState('');
   const [quantity, setQuantity] = useState('');
@@ -56,11 +56,7 @@ export default function AddMedicineToCabinetScreen() {
           showsVerticalScrollIndicator={false}
         >
           {/* OCR shortcut */}
-          <TouchableOpacity
-            style={styles.ocrBanner}
-            activeOpacity={0.85}
-            onPress={() => navigation.navigate('OcrScanner')}
-          >
+          <TouchableOpacity style={styles.ocrBanner} activeOpacity={0.85}>
             <View style={styles.ocrIcon}>
               <Icon name="document_scanner" size={22} color={colors.primary} />
             </View>

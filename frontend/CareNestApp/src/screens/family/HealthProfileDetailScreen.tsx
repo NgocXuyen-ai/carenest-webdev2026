@@ -28,27 +28,29 @@ export default function HealthProfileDetailScreen() {
   }, [route.params.memberId]);
 
   const statusColor = member?.healthStatus?.includes('THEO') ? '#E65100' : '#2E7D32';
-  const statusLabel = member?.healthStatus || 'Suc khoe tot';
+  const statusLabel = member?.healthStatus || 'Sức khỏe tốt';
 
-  function formatBirthday(dateValue?: string) {
-    if (!dateValue) return 'Chua cap nhat';
-    const [year, month, day] = dateValue.split('-');
+  function formatBirthday(value?: string) {
+    if (!value) {
+      return 'Chưa cập nhật';
+    }
+    const [year, month, day] = value.split('-');
     return `${day}/${month}/${year}`;
   }
 
   return (
     <View style={styles.root}>
-      <TopAppBar variant="detail" title={member?.fullName || 'Chi tiet ho so'} />
+      <TopAppBar variant="detail" title={member?.fullName || 'Chi tiết hồ sơ'} />
       <ScrollView
         contentContainerStyle={{ paddingTop: TOP_BAR_HEIGHT + insets.top + 16, paddingBottom: BOTTOM_NAV_HEIGHT + 16 }}
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.heroSection}>
-          <Avatar name={member?.fullName || 'Thanh vien'} size="xl" />
-          <Text style={styles.heroName}>{member?.fullName || 'Dang tai...'}</Text>
+          <Avatar name={member?.fullName || 'Thành viên'} size="xl" />
+          <Text style={styles.heroName}>{member?.fullName || 'Đang tải...'}</Text>
           <View style={styles.heroBadgeRow}>
             <View style={styles.roleBadge}>
-              <Text style={styles.roleText}>Thanh vien</Text>
+              <Text style={styles.roleText}>Thành viên</Text>
             </View>
             <View style={[styles.statusBadge, { backgroundColor: `${statusColor}22` }]}>
               <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
@@ -58,27 +60,73 @@ export default function HealthProfileDetailScreen() {
         </View>
 
         <View style={[styles.card, shadows.sm]}>
-          <Text style={styles.cardTitle}>Thong tin co ban</Text>
+          <Text style={styles.cardTitle}>Thông tin cơ bản</Text>
           <View style={styles.infoGrid}>
-            <InfoRow label="Nhom mau" value={formatBloodType(member?.bloodType)} icon="healing" />
-            <InfoRow label="Ngay sinh" value={formatBirthday(member?.birthday || undefined)} icon="cake" />
-            <InfoRow label="Gioi tinh" value={formatGender(member?.gender)} icon="person" />
-            <InfoRow
-              label="Chieu cao / Can nang"
-              value={`${member?.height ?? '--'} cm / ${member?.weight ?? '--'} kg`}
-              icon="height"
-            />
+            <View style={styles.infoItem}>
+              <Icon name="healing" size={16} color={colors.primary} />
+              <View>
+                <Text style={styles.infoLabel}>Nhóm máu</Text>
+                <Text style={styles.infoValue}>{formatBloodType(member?.bloodType)}</Text>
+              </View>
+            </View>
+            <View style={styles.infoItem}>
+              <Icon name="cake" size={16} color={colors.primary} />
+              <View>
+                <Text style={styles.infoLabel}>Ngày sinh</Text>
+                <Text style={styles.infoValue}>{formatBirthday(member?.birthday || undefined)}</Text>
+              </View>
+            </View>
+            <View style={styles.infoItem}>
+              <Icon name="person" size={16} color={colors.primary} />
+              <View>
+                <Text style={styles.infoLabel}>Giới tính</Text>
+                <Text style={styles.infoValue}>{formatGender(member?.gender)}</Text>
+              </View>
+            </View>
+            <View style={styles.infoItem}>
+              <Icon name="height" size={16} color={colors.primary} />
+              <View>
+                <Text style={styles.infoLabel}>Chiều cao / Cân nặng</Text>
+                <Text style={styles.infoValue}>{member?.height ?? '--'} cm / {member?.weight ?? '--'} kg</Text>
+              </View>
+            </View>
           </View>
         </View>
 
         <View style={[styles.card, shadows.sm]}>
-          <Text style={styles.cardTitle}>Tien su benh</Text>
-          <Text style={styles.bodyText}>{member?.medicalHistory || 'Chua co thong tin'}</Text>
+          <Text style={styles.cardTitle}>Tiền sử bệnh</Text>
+          {member?.medicalHistory ? (
+            <View style={styles.historyItem}>
+              <View style={styles.historyDot} />
+              <View style={styles.historyContent}>
+                <Text style={styles.historyName}>Ghi chú bệnh lý</Text>
+                <Text style={styles.historyDesc}>{member.medicalHistory}</Text>
+              </View>
+            </View>
+          ) : (
+            <Text style={styles.emptyText}>Chưa có thông tin</Text>
+          )}
         </View>
 
         <View style={[styles.card, shadows.sm]}>
-          <Text style={styles.cardTitle}>Di ung</Text>
-          <Text style={styles.bodyText}>{member?.allergy || 'Khong co di ung'}</Text>
+          <Text style={styles.cardTitle}>Dị ứng</Text>
+          <View style={styles.chipRow}>
+            {member?.allergy ? (
+              <View style={styles.chip}>
+                <Text style={styles.chipText}>{member.allergy}</Text>
+              </View>
+            ) : (
+              <Text style={styles.emptyText}>Không có dị ứng</Text>
+            )}
+          </View>
+        </View>
+
+        <View style={[styles.card, shadows.sm]}>
+          <Text style={styles.cardTitle}>Thông tin bổ sung</Text>
+          <View style={styles.infoBox}>
+            <Icon name="info" size={32} color={colors.onSurfaceVariant} />
+            <Text style={styles.infoHint}>Hồ sơ đang hiển thị dữ liệu sức khỏe thật từ backend.</Text>
+          </View>
         </View>
 
         <View style={styles.actionRow}>
@@ -88,7 +136,7 @@ export default function HealthProfileDetailScreen() {
             onPress={() => navigation.navigate('VaccinationTracker', { memberId: String(route.params.memberId) })}
           >
             <Icon name="syringe" size={18} color={colors.onPrimary} />
-            <Text style={styles.actionBtnPrimaryText}>Lich tiem chung</Text>
+            <Text style={styles.actionBtnPrimaryText}>Lịch tiêm chủng</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.actionBtn, styles.actionBtnSecondary]}
@@ -96,22 +144,10 @@ export default function HealthProfileDetailScreen() {
             onPress={() => navigation.navigate('GrowthTracker', { memberId: String(route.params.memberId) })}
           >
             <Icon name="trending_up" size={18} color={colors.primary} />
-            <Text style={styles.actionBtnSecondaryText}>Theo doi phat trien</Text>
+            <Text style={styles.actionBtnSecondaryText}>Theo dõi phát triển</Text>
           </TouchableOpacity>
         </View>
       </ScrollView>
-    </View>
-  );
-}
-
-function InfoRow({ label, value, icon }: { label: string; value: string; icon: string }) {
-  return (
-    <View style={styles.infoItem}>
-      <Icon name={icon} size={16} color={colors.primary} />
-      <View>
-        <Text style={styles.infoLabel}>{label}</Text>
-        <Text style={styles.infoValue}>{value}</Text>
-      </View>
     </View>
   );
 }
@@ -146,7 +182,17 @@ const styles = StyleSheet.create({
   infoItem: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
   infoLabel: { fontSize: 11, fontFamily: 'Inter', color: colors.onSurfaceVariant, marginBottom: 2 },
   infoValue: { fontSize: 14, fontFamily: 'Inter', fontWeight: '600', color: colors.onSurface },
-  bodyText: { fontSize: 13, fontFamily: 'Inter', color: colors.onSurfaceVariant, lineHeight: 20 },
+  emptyText: { fontSize: 13, fontFamily: 'Inter', color: colors.onSurfaceVariant, fontStyle: 'italic' },
+  historyItem: { flexDirection: 'row', gap: 10, marginBottom: 10 },
+  historyDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.primary, marginTop: 5 },
+  historyContent: { flex: 1 },
+  historyName: { fontSize: 14, fontFamily: 'Inter', fontWeight: '600', color: colors.onSurface },
+  historyDesc: { fontSize: 13, fontFamily: 'Inter', color: colors.onSurfaceVariant, lineHeight: 18, marginTop: 2 },
+  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  chip: { backgroundColor: colors.errorContainer, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5 },
+  chipText: { fontSize: 13, fontFamily: 'Inter', fontWeight: '600', color: colors.onErrorContainer },
+  infoBox: { alignItems: 'center', paddingVertical: 20, gap: 8 },
+  infoHint: { fontSize: 13, fontFamily: 'Inter', color: colors.onSurfaceVariant, textAlign: 'center' },
   actionRow: { flexDirection: 'row', gap: 10, marginHorizontal: 16, marginTop: 4 },
   actionBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', borderRadius: 14, paddingVertical: 14, gap: 8 },
   actionBtnPrimary: { backgroundColor: colors.primary },

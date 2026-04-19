@@ -26,7 +26,9 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 
@@ -171,5 +173,14 @@ public class FamilyController {
     ) {
         MyFamilyResponse response = familyService.joinByCode(((CustomUserDetails) userDetails).getId(), request);
         return ApiResponse.success(response, "Tham gia family thanh cong");
+    }
+
+    @PostMapping(value = "/join-by-qr", consumes = {"multipart/form-data"})
+    public ResponseEntity<ApiResponse<MyFamilyResponse>> joinByQr(
+            @RequestPart("image") MultipartFile image,
+            @AuthenticationPrincipal UserDetails userDetails
+    ) {
+        MyFamilyResponse response = familyService.joinByQr(((CustomUserDetails) userDetails).getId(), image);
+        return ApiResponse.success(response, "Quet QR va tham gia family thanh cong");
     }
 }

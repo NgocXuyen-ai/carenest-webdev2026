@@ -14,6 +14,7 @@ import java.time.LocalDateTime;
 public class FamilyJoinCodeResponse {
     private String joinCode;
     private String joinLink;
+    private String qrCodeBase64;
     private LocalDateTime expiresAt;
     private Integer familyId;
     private String familyName;

@@ -1,5 +1,7 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import {
+  Animated,
+  Dimensions,
   Image,
   ScrollView,
   StatusBar,
@@ -13,65 +15,172 @@ import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { ProfileStackParamList } from '../../navigation/navigationTypes';
 import Icon from '../../components/common/Icon';
 import { getCurrentUserProfile } from '../../api/auth';
-import { getFamilyProfile } from '../../api/family';
+import { getFamilyProfile, type ProfileDetails } from '../../api/family';
 import { formatBloodType, formatGender } from '../../utils/healthOptions';
+import Emergency from './Emergency';
 
-type MedicalProfile = {
-  fullName: string;
-  roleLabel: string;
-  age?: number | null;
-  birthday?: string | null;
-  gender?: string | null;
-  bloodType?: string | null;
-  height?: number | null;
-  weight?: number | null;
-  allergy?: string | null;
-  medicalHistory?: string | null;
-};
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const TAB_WIDTH = (SCREEN_WIDTH - 40) / 2;
+
+const HealthCard = ({ title, value, icon, bgColor, textColor, children }: any) => (
+  <View style={[styles.healthCard, { backgroundColor: bgColor }]}>
+    <View style={styles.cardHeader}>
+      <Icon name={icon} size={20} color={textColor} />
+      <Text style={[styles.cardTitle, { color: textColor }]}>{title}</Text>
+    </View>
+    {children ? children : <Text style={[styles.cardValue, { color: textColor }]}>{value}</Text>}
+  </View>
+);
+
+const StatItem = ({ label, value, unit, isBmi = false }: any) => (
+  <View style={[styles.statItem, isBmi && { flex: 1.3 }]}>
+    <Text style={styles.statLabel}>{label}</Text>
+    <View style={styles.statLine}>
+      <Text style={styles.statValue}>{value}</Text>
+      {unit ? <Text style={styles.statUnit}>{unit}</Text> : null}
+      {isBmi ? (
+        <View style={styles.bmiMiniBar}>
+          <View style={styles.bmiBarBg}><View style={[styles.bmiBarFill, { width: '60%' }]} /></View>
+        </View>
+      ) : null}
+    </View>
+  </View>
+);
+
+function calculateAge(birthday?: string | null) {
+  if (!birthday) {
+    return '';
+  }
+  const birthDate = new Date(birthday);
+  const today = new Date();
+  let age = today.getFullYear() - birthDate.getFullYear();
+  const monthDiff = today.getMonth() - birthDate.getMonth();
+  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+    age--;
+  }
+  return String(age);
+}
 
 export default function UserMedicalScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<any>();
   const route = useRoute<RouteProp<ProfileStackParamList, 'UserMedical'>>();
   const { memberId } = route.params || {};
-  const [profile, setProfile] = useState<MedicalProfile | null>(null);
 
-  useEffect(() => {
-    async function loadProfile() {
+  const [activeTab, setActiveTab] = useState(0);
+  const slideAnim = useRef(new Animated.Value(0)).current;
+  const [profile, setProfile] = useState<ProfileDetails | null>(null);
+
+  React.useEffect(() => {
+    const loadProfile = async () => {
       try {
         if (memberId) {
           const response = await getFamilyProfile(Number(memberId));
-          setProfile({
-            ...response,
-            roleLabel: 'Thanh vien gia dinh',
-          });
+          setProfile(response);
           return;
         }
 
         const response = await getCurrentUserProfile();
-        const birthday = response.birthday || null;
-        const age = birthday ? calculateAge(birthday) : null;
         setProfile({
-          ...response,
-          age,
-          roleLabel: 'Tai khoan cua ban',
+          profileId: response.profileId,
+          fullName: response.fullName,
+          birthday: response.birthday,
+          gender: response.gender,
+          bloodType: response.bloodType,
+          height: response.height,
+          weight: response.weight,
+          medicalHistory: response.medicalHistory,
+          allergy: response.allergy,
         });
       } catch {
         setProfile(null);
       }
-    }
+    };
 
     void loadProfile();
   }, [memberId]);
 
-  const stats = useMemo(() => {
-    return [
-      { label: 'Nhom mau', value: formatBloodType(profile?.bloodType) },
-      { label: 'Gioi tinh', value: formatGender(profile?.gender) },
-      { label: 'Chieu cao', value: profile?.height ? `${profile.height} cm` : 'Chua cap nhat' },
-      { label: 'Can nang', value: profile?.weight ? `${profile.weight} kg` : 'Chua cap nhat' },
-    ];
-  }, [profile]);
+  const age = useMemo(() => calculateAge(profile?.birthday), [profile?.birthday]);
+  const bmi = useMemo(() => {
+    const height = Number(profile?.height || 0);
+    const weight = Number(profile?.weight || 0);
+    if (height <= 30 || weight <= 2) {
+      return '--';
+    }
+    return (weight / ((height / 100) ** 2)).toFixed(1);
+  }, [profile?.height, profile?.weight]);
+
+  const handleTabPress = (index: number) => {
+    setActiveTab(index);
+    Animated.spring(slideAnim, {
+      toValue: index * TAB_WIDTH,
+      useNativeDriver: true,
+      tension: 50,
+      friction: 10,
+    }).start();
+  };
+
+  const allergies = (profile?.allergy || 'Không có').split(',').map(item => item.trim()).filter(Boolean);
+
+  const renderTabContent = () => {
+    if (activeTab === 1) {
+      return <Emergency />;
+    }
+
+    return (
+      <View style={styles.tabContent}>
+        <View style={styles.grid}>
+          <HealthCard
+            title="NHÓM MÁU"
+            value={formatBloodType(profile?.bloodType)}
+            icon="bloodtype"
+            bgColor="#FFEBEB"
+            textColor="#B91C1C"
+          />
+          <HealthCard
+            title="DỊ ỨNG"
+            value={profile?.allergy || 'Không có'}
+            icon="warning"
+            bgColor="#FFF4E6"
+            textColor="#9A3412"
+          >
+            <View style={styles.pillContainer}>
+              {allergies.map((tag, idx) => (
+                <View key={`${tag}-${idx}`} style={styles.pill}>
+                  <Text style={styles.pillText}>{tag.toUpperCase()}</Text>
+                </View>
+              ))}
+            </View>
+          </HealthCard>
+        </View>
+
+        <View style={styles.statsRow}>
+          <StatItem label="CHIỀU CAO" value={profile?.height ?? '--'} unit="cm" />
+          <StatItem label="CÂN NẶNG" value={profile?.weight ?? '--'} unit="kg" />
+          <StatItem label="BMI" value={bmi} isBmi />
+        </View>
+
+        <View style={styles.sectionHeader}>
+          <Icon name="history_edu" size={20} color="#666" />
+          <Text style={styles.sectionTitle}>TIỀN SỬ BỆNH LÝ</Text>
+        </View>
+
+        <View style={styles.historyList}>
+          {profile?.medicalHistory ? (
+            <View style={styles.historyItemLast}>
+              <Text style={styles.historyName}>Ghi chú bệnh lý</Text>
+              <Text style={styles.historyDesc}>{profile.medicalHistory}</Text>
+            </View>
+          ) : (
+            <View style={styles.historyItemLast}>
+              <Text style={styles.historyName}>Chưa có dữ liệu</Text>
+              <Text style={styles.historyDesc}>Thông tin bệnh lý sẽ hiển thị tại đây khi được cập nhật.</Text>
+            </View>
+          )}
+        </View>
+      </View>
+    );
+  };
 
   return (
     <View style={styles.container}>
@@ -82,114 +191,115 @@ export default function UserMedicalScreen() {
           <Icon name="arrow_back" size={24} color="#333" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>CareNest</Text>
-        <View style={styles.circleBtn} />
+        <View style={styles.editBtn} />
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scrollContent}
+      >
         <View style={styles.profileSection}>
           <View style={styles.avatarWrap}>
             <Image
-              source={{ uri: `https://i.pravatar.cc/300?u=${encodeURIComponent(profile?.fullName || 'carenest')}` }}
+              source={{ uri: `https://ui-avatars.com/api/?name=${encodeURIComponent(profile?.fullName || 'CareNest')}&background=eff6ff&color=2563eb&bold=true` }}
               style={styles.avatar}
             />
+            <View style={styles.verifiedBadge}>
+              <Icon name="verified" size={16} color="#fff" />
+            </View>
           </View>
-          <Text style={styles.userName}>{profile?.fullName || 'Dang tai...'}</Text>
+
+          <Text style={styles.userName}>{profile?.fullName || 'Đang tải...'}</Text>
           <View style={styles.roleChip}>
-            <Text style={styles.roleText}>{profile?.roleLabel || 'Ho so y te'}</Text>
+            <Text style={styles.roleText}>{memberId ? 'THÀNH VIÊN GIA ĐÌNH' : 'TÀI KHOẢN CỦA BẠN'}</Text>
           </View>
           <Text style={styles.userMeta}>
-            {profile?.age != null ? `${profile.age} tuoi` : 'Chua ro tuoi'}
+            {age || '--'} Tuổi • {formatGender(profile?.gender)}
           </Text>
         </View>
 
-        <View style={styles.grid}>
-          {stats.map(stat => (
-            <View key={stat.label} style={styles.healthCard}>
-              <Text style={styles.cardTitle}>{stat.label}</Text>
-              <Text style={styles.cardValue}>{stat.value}</Text>
-            </View>
-          ))}
+        <View style={styles.tabContainer}>
+          <Animated.View style={[styles.slideBg, { transform: [{ translateX: slideAnim }] }]} />
+          <TouchableOpacity style={styles.tabItem} onPress={() => handleTabPress(0)}>
+            <Text style={[styles.tabLabel, activeTab === 0 && styles.activeLabel]}>Thông tin</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.tabItem} onPress={() => handleTabPress(1)}>
+            <Text style={[styles.tabLabel, activeTab === 1 && styles.activeLabel]}>Khẩn cấp</Text>
+          </TouchableOpacity>
         </View>
 
-        <View style={styles.sectionHeader}>
-          <Icon name="history" size={20} color="#666" />
-          <Text style={styles.sectionTitle}>Tien su benh ly</Text>
-        </View>
-        <View style={styles.infoCard}>
-          <Text style={styles.infoBody}>{profile?.medicalHistory || 'Chua co thong tin'}</Text>
-        </View>
-
-        <View style={styles.sectionHeader}>
-          <Icon name="warning" size={20} color="#666" />
-          <Text style={styles.sectionTitle}>Di ung</Text>
-        </View>
-        <View style={styles.infoCard}>
-          <Text style={styles.infoBody}>{profile?.allergy || 'Khong co di ung'}</Text>
-        </View>
+        {renderTabContent()}
       </ScrollView>
     </View>
   );
 }
 
-function calculateAge(birthday: string): number {
-  const birthDate = new Date(birthday);
-  const today = new Date();
-  let age = today.getFullYear() - birthDate.getFullYear();
-  const monthDelta = today.getMonth() - birthDate.getMonth();
-  if (monthDelta < 0 || (monthDelta === 0 && today.getDate() < birthDate.getDate())) {
-    age -= 1;
-  }
-  return age;
-}
-
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#FCFDFF' },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 8,
-    paddingBottom: 10,
-    backgroundColor: '#fff',
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: 8, paddingBottom: 10, backgroundColor: '#fff',
   },
   circleBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   headerTitle: { fontSize: 20, fontWeight: '800', color: '#1E3A8A', fontFamily: 'Inter' },
+  editBtn: { width: 44, height: 44 },
   scrollContent: { paddingHorizontal: 16, paddingBottom: 120 },
   profileSection: { alignItems: 'center', marginTop: 24, marginBottom: 32 },
   avatarWrap: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    padding: 4,
-    backgroundColor: '#fff',
-    elevation: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.1,
-    shadowRadius: 10,
+    width: 120, height: 120, borderRadius: 60, padding: 4,
+    backgroundColor: '#fff', elevation: 12, shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.1, shadowRadius: 10,
   },
   avatar: { width: '100%', height: '100%', borderRadius: 60 },
+  verifiedBadge: {
+    position: 'absolute', bottom: 4, right: 4, width: 28, height: 28,
+    borderRadius: 14, backgroundColor: '#3B82F6', alignItems: 'center',
+    justifyContent: 'center', borderWidth: 2, borderColor: '#fff',
+  },
   userName: { fontSize: 28, fontWeight: '800', color: '#1E293B', marginTop: 16, fontFamily: 'Inter' },
   roleChip: {
-    backgroundColor: '#EBF2FF',
-    paddingHorizontal: 16,
-    paddingVertical: 4,
-    borderRadius: 20,
-    marginTop: 10,
+    backgroundColor: '#EBF2FF', paddingHorizontal: 16, paddingVertical: 4,
+    borderRadius: 20, marginTop: 10,
   },
   roleText: { color: '#3B82F6', fontSize: 13, fontWeight: '800', fontFamily: 'Inter' },
   userMeta: { fontSize: 15, color: '#64748B', marginTop: 8, fontFamily: 'Inter', fontWeight: '500' },
-  grid: { gap: 16, marginBottom: 32 },
-  healthCard: { padding: 20, borderRadius: 24, backgroundColor: '#F8FAFC' },
-  cardTitle: { fontSize: 12, fontWeight: '800', fontFamily: 'Inter', color: '#64748B', marginBottom: 8 },
-  cardValue: { fontSize: 24, fontWeight: '800', color: '#1E293B', fontFamily: 'Inter' },
-  sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 14 },
-  sectionTitle: { fontSize: 15, fontWeight: '800', color: '#444', fontFamily: 'Inter' },
-  infoCard: {
-    backgroundColor: '#F8FAFC',
-    borderRadius: 24,
-    padding: 18,
-    marginBottom: 24,
+  tabContainer: {
+    flexDirection: 'row', backgroundColor: '#F1F5F9', borderRadius: 24,
+    padding: 6, marginBottom: 32, position: 'relative',
   },
-  infoBody: { fontSize: 14, color: '#64748B', lineHeight: 20, fontFamily: 'Inter' },
+  slideBg: {
+    position: 'absolute', top: 6, left: 6, width: TAB_WIDTH, height: 44,
+    backgroundColor: '#fff', borderRadius: 18, elevation: 4,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4,
+  },
+  tabItem: { flex: 1, height: 44, alignItems: 'center', justifyContent: 'center' },
+  tabLabel: { fontSize: 16, fontWeight: '700', color: '#64748B', fontFamily: 'Inter' },
+  activeLabel: { color: '#1E3A8A' },
+  tabContent: { paddingHorizontal: 16 },
+  grid: { flexDirection: 'row', gap: 16, marginBottom: 32 },
+  healthCard: { flex: 1, padding: 20, borderRadius: 28 },
+  cardHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 12 },
+  cardTitle: { fontSize: 12, fontWeight: '800', fontFamily: 'Inter' },
+  cardValue: { fontSize: 40, fontWeight: '800' },
+  pillContainer: { gap: 6 },
+  pill: { backgroundColor: 'rgba(255,255,255,0.7)', alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
+  pillText: { fontSize: 11, fontWeight: '700', color: '#9A3412' },
+  statsRow: {
+    flexDirection: 'row', gap: 20, paddingHorizontal: 4,
+    marginBottom: 40, borderBottomWidth: 1, borderBottomColor: '#F1F5F9', paddingBottom: 24,
+  },
+  statItem: { flex: 1 },
+  statLabel: { fontSize: 11, fontWeight: '700', color: '#94A3B8', marginBottom: 8, fontFamily: 'Inter' },
+  statLine: { flexDirection: 'row', alignItems: 'baseline', gap: 4 },
+  statValue: { fontSize: 24, fontWeight: '800', color: '#1E293B', fontFamily: 'Inter' },
+  statUnit: { fontSize: 14, color: '#64748B', fontWeight: '600' },
+  bmiMiniBar: { flex: 1, marginLeft: 10, alignSelf: 'center' },
+  bmiBarBg: { height: 6, backgroundColor: '#F1F5F9', borderRadius: 3, overflow: 'hidden' },
+  bmiBarFill: { height: '100%', backgroundColor: '#3B82F6' },
+  sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 20 },
+  sectionTitle: { fontSize: 15, fontWeight: '800', color: '#444', fontFamily: 'Inter' },
+  historyList: { backgroundColor: '#F8FAFC', borderRadius: 24, padding: 8 },
+  historyItemLast: { padding: 16 },
+  historyName: { fontSize: 16, fontWeight: '700', color: '#1E293B', marginBottom: 4 },
+  historyDesc: { fontSize: 14, color: '#64748B', lineHeight: 20 },
 });
