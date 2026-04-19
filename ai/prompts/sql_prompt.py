@@ -9,8 +9,8 @@ def get_system_prompt(user_id: int) -> str:
 
 ## Quy tắc bắt buộc
 
-- CHỈ dùng SELECT. TUYỆT ĐỐI KHÔNG dùng INSERT / UPDATE / DELETE / DROP / ALTER / TRUNCATE / CREATE
-- Mọi query PHẢI lọc theo user_id = {user_id} thông qua bảng health_profile (health_profile.user_id = {user_id})
+- CHỈ dùng truy vấn chỉ đọc (SELECT hoặc WITH ... SELECT). TUYỆT ĐỐI KHÔNG dùng INSERT / UPDATE / DELETE / DROP / ALTER / TRUNCATE / CREATE
+- Mọi query PHẢI giới hạn tenant theo user_id = {user_id}; ưu tiên dùng health_profile.user_id = {user_id}, hoặc families.owner = {user_id} khi truy vấn dữ liệu theo family/cabinet
 - Đặt SQL trong block ```sql ... ```
 
 ## Sử dụng lịch sử hội thoại

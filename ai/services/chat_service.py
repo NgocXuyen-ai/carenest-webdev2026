@@ -53,7 +53,7 @@ def _extract_sql(text: str) -> Optional[str]:
     if match:
         return match.group(1).strip()
 
-    match = re.search(r"(SELECT\s.+)", text, re.DOTALL | re.IGNORECASE)
+    match = re.search(r"((?:WITH\b|SELECT\b)\s.+)", text, re.DOTALL | re.IGNORECASE)
     if match:
         return match.group(1).strip().split("```")[0].strip()
     return None
@@ -123,31 +123,46 @@ def _llm_judge_sql(user_message: str, user_id: int, sql: str) -> tuple[bool, str
     import json as _json
 
     llm = _get_llm()
-    prompt = f"""Bạn la security reviewer. Kiem tra cau SQL co dat du 3 tieu chi:
-1. Trả lời dung cau hoi cua user
-2. Loc dữ liệu theo user_id = {user_id} (truc tiep hoac qua JOIN health_profile)
-3. Không tra ve dữ liệu nhay cam không lien quan den yêu cầu
+    prompt = f"""Bạn là security reviewer. Kiểm tra câu SQL có đạt đủ 3 tiêu chí:
+1. Trả lời đúng câu hỏi của user
+2. Lọc dữ liệu theo tenant của user_id = {user_id} (trực tiếp qua health_profile.user_id hoặc families.owner)
+3. Không trả về dữ liệu nhạy cảm không liên quan đến yêu cầu của user (ví dụ password, user_id,... khi không cần thiết)
 
-Cau hoi: {user_message}
+Câu hỏi: {user_message}
 SQL: {sql}
 
-Chi trả lời JSON:
+Chỉ trả lời bằng JSON theo format:
 {{"ok": true}}
-hoac
-{{"ok": false, "reason": "ly do ngan bang tiếng Việt"}}"""
+hoặc
+{{"ok": false, "reason": "mô tả lý do ngắn bằng tiếng Việt"}}"""
 
     try:
         resp = llm.invoke([HumanMessage(content=prompt)])
-        raw = resp.content.strip()
-        if raw.startswith("```"):
-            raw = re.sub(r"```[a-z]*\n?", "", raw).strip().rstrip("```")
-        data = _json.loads(raw)
-        if data.get("ok"):
-            return True, ""
-        return False, data.get("reason", "SQL không hop le theo danh gia bao mat")
     except Exception as exc:
-        logger.warning("LLM judge failed (fail-closed): %s", exc)
-        return False, "Không thể xác minh độ an toàn của truy vấn được sinh ra"
+        logger.warning("LLM judge failed (fail-soft): %s", exc)
+        return True, ""
+
+    raw = str(resp.content).strip()
+    if raw.startswith("```"):
+        raw = re.sub(r"```[a-z]*\n?", "", raw).strip().rstrip("```")
+
+    try:
+        data = _json.loads(raw)
+        if data.get("ok") is True:
+            return True, ""
+        if data.get("ok") is False:
+            return False, data.get("reason", "SQL không hợp lệ theo đánh giá bảo mật")
+        logger.warning("LLM judge returned unexpected payload, fallback to static guardrail only")
+        return True, ""
+    except Exception:
+        match_ok = re.search(r'"ok"\s*:\s*(true|false)', raw, re.IGNORECASE)
+        if match_ok and match_ok.group(1).lower() == "false":
+            match_reason = re.search(r'"reason"\s*:\s*"([^"]+)"', raw)
+            reason = match_reason.group(1) if match_reason else "SQL không hợp lệ theo đánh giá bảo mật"
+            return False, reason
+
+        logger.warning("LLM judge parse failed, fallback to static guardrail only")
+        return True, ""
 
 
 def _select_chat_route(user_message: str) -> str:

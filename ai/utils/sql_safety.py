@@ -6,16 +6,22 @@ _DANGEROUS_KEYWORDS = re.compile(
     re.IGNORECASE,
 )
 
+_READ_LOCK_KEYWORDS = re.compile(r"\bFOR\s+UPDATE\b", re.IGNORECASE)
+
 _SENSITIVE_COLUMNS = re.compile(
     r"\b(password_hash|password|secret|token|api_key)\b",
     re.IGNORECASE,
 )
 
-_HEALTH_PROFILE_TABLE = re.compile(r"\bhealth_profile\b", re.IGNORECASE)
-_TENANT_FILTER = re.compile(
-    r"\b(?:health_profile|hp)\.user_id\b|\buser_id\b",
-    re.IGNORECASE,
-)
+_TENANT_VALUE = r"(?:\d+|:\w+|\{\{?\w+\}?\}|%\(\w+\)s)"
+_TENANT_MATCH = rf"(?:=\s*{_TENANT_VALUE}|IN\s*\([^\)]*{_TENANT_VALUE}[^\)]*\)|=\s*ANY\s*\([^\)]*{_TENANT_VALUE}[^\)]*\))"
+
+_TENANT_SCOPE_PATTERNS = [
+    re.compile(rf"\b(?:health_profile|hp|\w+)\.user_id\s*{_TENANT_MATCH}", re.IGNORECASE),
+    re.compile(rf"\buser_id\s*{_TENANT_MATCH}", re.IGNORECASE),
+    re.compile(rf"\b(?:families|f|\w+)\.owner\s*{_TENANT_MATCH}", re.IGNORECASE),
+    re.compile(rf"\bowner\s*{_TENANT_MATCH}", re.IGNORECASE),
+]
 
 
 def validate_sql(sql: str) -> tuple[bool, str]:
@@ -29,22 +35,26 @@ def validate_sql(sql: str) -> tuple[bool, str]:
     if ";" in without_trailing:
         return False, "Không cho phep nhieu cau lenh SQL trong mot request"
 
-    if not re.match(r"^\s*SELECT\b", stripped, re.IGNORECASE):
-        return False, "Chi cho phep cau lenh SELECT"
+    if not re.match(r"^\s*(SELECT|WITH)\b", stripped, re.IGNORECASE):
+        return False, "Chỉ cho phép truy vấn chỉ đọc (SELECT hoặc WITH ... SELECT)"
 
     match = _DANGEROUS_KEYWORDS.search(stripped)
     if match:
         return False, f"Từ khóa không được phép: {match.group().upper()}"
 
+    match = _READ_LOCK_KEYWORDS.search(stripped)
+    if match:
+        return False, "Không cho phép truy vấn khóa bản ghi (FOR UPDATE)"
+
     match = _SENSITIVE_COLUMNS.search(stripped)
     if match:
         return False, f"Không được truy vấn trường nhạy cảm: {match.group()}"
 
-    if not _HEALTH_PROFILE_TABLE.search(stripped):
-        return False, "Query phải join hoặc truy vấn bảng health_profile để giới hạn tenant"
-
-    if not _TENANT_FILTER.search(stripped):
-        return False, "Query thieu dieu kien loc tenant theo health_profile.user_id"
+    if not any(pattern.search(stripped) for pattern in _TENANT_SCOPE_PATTERNS):
+        return False, (
+            "Query thiếu điều kiện giới hạn tenant "
+            "(ví dụ health_profile.user_id = <user_id> hoặc families.owner = <user_id>)"
+        )
 
     return True, ""
 
