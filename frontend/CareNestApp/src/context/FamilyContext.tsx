@@ -1,4 +1,4 @@
-import React, { createContext, ReactNode, useContext, useEffect, useState } from 'react';
+import React, { createContext, ReactNode, useCallback, useContext, useEffect, useState } from 'react';
 import { createFamily as createFamilyRequest, getMyFamily, type FamilyMemberSummary, type FamilyResponse } from '../api/family';
 import { useAuth } from './AuthContext';
 
@@ -25,14 +25,6 @@ export function FamilyProvider({ children }: { children: ReactNode }) {
   const [hasInitializedSelection, setHasInitializedSelection] = useState(false);
 
   useEffect(() => {
-    if (isLoggedIn) {
-      void refreshFamily();
-    } else {
-      resetFamily();
-    }
-  }, [isLoggedIn]);
-
-  useEffect(() => {
     if (!hasInitializedSelection && family?.members?.length) {
       const preferredProfileId = user?.profileId ? Number(user.profileId) : family.members[0].profileId;
       setSelectedProfileId(preferredProfileId);
@@ -40,7 +32,7 @@ export function FamilyProvider({ children }: { children: ReactNode }) {
     }
   }, [family, hasInitializedSelection, user?.profileId]);
 
-  async function refreshFamily() {
+  const refreshFamily = useCallback(async () => {
     if (!isLoggedIn) {
       return;
     }
@@ -52,7 +44,15 @@ export function FamilyProvider({ children }: { children: ReactNode }) {
       setFamily(null);
       setSelectedProfileId(user?.profileId ? Number(user.profileId) : null);
     }
-  }
+  }, [isLoggedIn, user?.profileId]);
+
+  useEffect(() => {
+    if (isLoggedIn) {
+      void refreshFamily();
+    } else {
+      resetFamily();
+    }
+  }, [isLoggedIn, refreshFamily]);
 
   async function createFamily(name: string, image: string | null) {
     await createFamilyRequest(name);

@@ -1,18 +1,31 @@
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  View, Text, ScrollView, TouchableOpacity, TextInput, StyleSheet, Image, Alert, Switch,
+  Alert,
+  Image,
+  ScrollView,
+  StyleSheet,
+  Switch,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
-import { launchImageLibrary } from 'react-native-image-picker';
 import { colors } from '../../theme/colors';
 import { shadows } from '../../theme/spacing';
 import { BOTTOM_NAV_HEIGHT } from '../../utils/constants';
 import Icon from '../../components/common/Icon';
-import NotificationBell from '../../components/common/NotificationBell';
+import SelectField from '../../components/common/SelectField';
 import { useAuth } from '../../context/AuthContext';
-import { mockFamilyMembers } from '../../data/mockFamilyMembers';
+import { useFamily } from '../../context/FamilyContext';
 import { getCurrentUserProfile, updateCurrentUserProfile } from '../../api/auth';
+import {
+  BLOOD_TYPE_OPTIONS,
+  formatBloodType,
+  formatGender,
+  GENDER_OPTIONS,
+} from '../../utils/healthOptions';
 
 interface InputFieldProps {
   icon: string;
@@ -21,9 +34,18 @@ interface InputFieldProps {
   onChangeText: (text: string) => void;
   placeholder?: string;
   keyboardType?: 'default' | 'email-address' | 'phone-pad';
+  editable?: boolean;
 }
 
-function InputField({ icon, label, value, onChangeText, placeholder, keyboardType = 'default' }: InputFieldProps) {
+function InputField({
+  icon,
+  label,
+  value,
+  onChangeText,
+  placeholder,
+  keyboardType = 'default',
+  editable = true,
+}: InputFieldProps) {
   return (
     <View style={styles.inputContainer}>
       <View style={styles.inputIconWrap}>
@@ -32,33 +54,74 @@ function InputField({ icon, label, value, onChangeText, placeholder, keyboardTyp
       <View style={styles.inputContent}>
         <Text style={styles.inputLabel}>{label}</Text>
         <TextInput
-          style={styles.textInput}
+          style={[styles.textInput, !editable && styles.textInputReadonly]}
           value={value}
           onChangeText={onChangeText}
           placeholder={placeholder}
           keyboardType={keyboardType}
           placeholderTextColor="#94A3B8"
+          editable={editable}
         />
       </View>
     </View>
   );
 }
 
+function formatBirthdayInput(value?: string | null) {
+  if (!value) {
+    return '';
+  }
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return '';
+  }
+  return date.toLocaleDateString('vi-VN');
+}
+
+function toIsoBirthday(value: string) {
+  const [day, month, year] = value.split('/');
+  if (!day || !month || !year) {
+    return '';
+  }
+  return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+}
+
+function formatMemberRole(role?: string) {
+  switch (role) {
+    case 'OWNER':
+      return 'Chủ gia đình';
+    case 'FATHER':
+      return 'Bố';
+    case 'MOTHER':
+      return 'Mẹ';
+    case 'OLDER_BROTHER':
+      return 'Anh';
+    case 'OLDER_SISTER':
+      return 'Chị';
+    case 'YOUNGER':
+      return 'Em';
+    case 'OTHER':
+      return 'Người thân';
+    case 'MEMBER':
+      return 'Thành viên';
+    default:
+      return 'Tài khoản của bạn';
+  }
+}
+
 export default function UserProfileSettingsScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<any>();
-  const { user, logout } = useAuth();
-  
-  // Local state for app settings
+  const { user, logout, refreshUser } = useAuth();
+  const { members, refreshFamily } = useFamily();
+
   const [medReminder, setMedReminder] = useState(true);
   const [apptReminder, setApptReminder] = useState(true);
-  
-  // Local state for user info
-  const [fullName, setFullName] = useState(user?.fullName || 'Nguyễn Lan Anh');
-  const [email, setEmail] = useState(user?.email || 'lananh@gmail.com');
-  const [phone, setPhone] = useState('0909654321');
-  const [birthday, setBirthday] = useState('15/03/1990');
-  const [bloodType, setBloodType] = useState('A+');
+  const [fullName, setFullName] = useState(user?.fullName || '');
+  const [email, setEmail] = useState(user?.email || '');
+  const [phone, setPhone] = useState('');
+  const [birthday, setBirthday] = useState('');
+  const [bloodType, setBloodType] = useState('O_POSITIVE');
   const [avatarUri, setAvatarUri] = useState<string | null>(null);
   const [gender, setGender] = useState('OTHER');
   const [medicalHistory, setMedicalHistory] = useState('');
@@ -66,17 +129,21 @@ export default function UserProfileSettingsScreen() {
   const [height, setHeight] = useState(160);
   const [weight, setWeight] = useState(55);
   const [emergencyContactPhone, setEmergencyContactPhone] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
 
-  // Find corresponding member for medical record
-  const member = mockFamilyMembers.find(m => m.isCurrentUser || m.fullName === fullName);
+  const memberRole = useMemo(() => {
+    const currentMember = members.find(member => String(member.profileId) === user?.profileId);
+    return formatMemberRole(currentMember?.role);
+  }, [members, user?.profileId]);
 
-  React.useEffect(() => {
-    void getCurrentUserProfile()
+  const loadProfile = useCallback(async () => {
+    await getCurrentUserProfile()
       .then(profile => {
         setFullName(profile.fullName);
         setEmail(profile.email);
         setPhone(profile.phoneNumber || '');
-        setBirthday(profile.birthday ? new Date(profile.birthday).toLocaleDateString('vi-VN') : '');
+        setBirthday(formatBirthdayInput(profile.birthday));
         setBloodType(profile.bloodType || 'O_POSITIVE');
         setGender(profile.gender || 'OTHER');
         setMedicalHistory(profile.medicalHistory || '');
@@ -84,26 +151,52 @@ export default function UserProfileSettingsScreen() {
         setHeight(profile.height || 160);
         setWeight(profile.weight || 55);
         setEmergencyContactPhone(profile.emergencyContactPhone || '');
-        if (profile.avatarUrl) {
-          setAvatarUri(profile.avatarUrl);
-        }
+        setAvatarUri(profile.avatarUrl || null);
       })
       .catch(() => {});
   }, []);
 
+  useEffect(() => {
+    void loadProfile();
+  }, [loadProfile]);
+
+  const handlePrimaryAction = () => {
+    if (isSaving) {
+      return;
+    }
+
+    if (!isEditing) {
+      setIsEditing(true);
+      return;
+    }
+
+    void handleSave();
+  };
+
   const handleChoosePhoto = () => {
-    launchImageLibrary({ mediaType: 'photo', quality: 0.8 }, (response) => {
-      if (response.assets && response.assets.length > 0) {
-        setAvatarUri(response.assets[0].uri || null);
-      }
-    });
+    if (!isEditing) {
+      Alert.alert('Chế độ xem', 'Bấm Sửa để bật chỉnh sửa thông tin tài khoản.');
+      return;
+    }
+
+    Alert.alert(
+      'Chưa hỗ trợ',
+      'Tính năng đổi ảnh đại diện sẽ được kết nối khi backend upload ảnh sẵn sàng.',
+    );
   };
 
   const handleSave = async () => {
-    try {
-      const [day, month, year] = birthday.split('/');
-      const isoBirthday = day && month && year ? `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}` : '1990-01-01';
+    const isoBirthday = toIsoBirthday(birthday);
+    if (!isoBirthday) {
+      Alert.alert(
+        'Ngày sinh chưa hợp lệ',
+        'Vui lòng nhập ngày sinh theo định dạng dd/mm/yyyy.',
+      );
+      return;
+    }
 
+    try {
+      setIsSaving(true);
       await updateCurrentUserProfile({
         fullName,
         email,
@@ -117,51 +210,60 @@ export default function UserProfileSettingsScreen() {
         weight,
         emergencyContactPhone,
       });
-      Alert.alert('Thành công', 'Thông tin của bạn đã được cập nhật.');
+      await Promise.all([refreshUser(), refreshFamily()]);
+      setIsEditing(false);
+      Alert.alert(
+        'Thành công',
+        'Thông tin của bạn đã được cập nhật.',
+      );
     } catch (error) {
-      Alert.alert('Không thể lưu', error instanceof Error ? error.message : 'Đã có lỗi xảy ra');
+      Alert.alert(
+        'Không thể lưu',
+        error instanceof Error ? error.message : 'Đã có lỗi xảy ra',
+      );
+    } finally {
+      setIsSaving(false);
     }
   };
 
   return (
     <View style={styles.root}>
-      {/* Custom Header */}
       <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
         <TouchableOpacity style={styles.headerBtn} onPress={() => navigation.goBack()}>
           <Icon name="arrow_back" size={26} color="#1E293B" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Thông tin tài khoản</Text>
-        <TouchableOpacity style={styles.saveBtn} onPress={handleSave}>
-          <Text style={styles.saveBtnText}>Lưu</Text>
+        <TouchableOpacity style={styles.saveBtn} onPress={handlePrimaryAction} disabled={isSaving}>
+          <Text style={styles.saveBtnText}>
+            {isSaving ? 'Đang lưu' : isEditing ? 'Lưu' : 'Sửa'}
+          </Text>
         </TouchableOpacity>
       </View>
 
       <ScrollView
-        contentContainerStyle={[
-          styles.scroll,
-          { paddingBottom: BOTTOM_NAV_HEIGHT + 40 }
-        ]}
+        contentContainerStyle={[styles.scroll, { paddingBottom: BOTTOM_NAV_HEIGHT + 40 }]}
         showsVerticalScrollIndicator={false}
       >
-        {/* Avatar Section */}
         <View style={styles.avatarSection}>
           <View style={[styles.avatarContainer, shadows.md]}>
             <Image
               source={{ uri: avatarUri || `https://i.pravatar.cc/150?u=${user?.id || '1'}` }}
               style={styles.avatar}
             />
-            <TouchableOpacity style={styles.cameraBtn} onPress={handleChoosePhoto}>
+            <TouchableOpacity style={[styles.cameraBtn, !isEditing && styles.cameraBtnDisabled]} onPress={handleChoosePhoto}>
               <Icon name="photo_camera" size={20} color="#fff" />
             </TouchableOpacity>
           </View>
           <Text style={styles.userNameText}>{fullName}</Text>
-          <Text style={styles.userRoleText}>{member?.role || 'Thành viên gia đình'}</Text>
+          <Text style={styles.userRoleText}>{memberRole}</Text>
         </View>
 
-        {/* Quick Actions */}
         <View style={styles.section}>
-          <TouchableOpacity 
+          <TouchableOpacity
             style={[styles.medicalRecordBtn, shadows.sm]}
+            onPressIn={() => {
+              void getCurrentUserProfile();
+            }}
             onPress={() => navigation.navigate('UserMedical', { memberId: user?.profileId })}
           >
             <View style={styles.medicalIconWrap}>
@@ -169,13 +271,14 @@ export default function UserProfileSettingsScreen() {
             </View>
             <View style={styles.medicalTextWrap}>
               <Text style={styles.medicalTitle}>Hồ sơ y tế</Text>
-              <Text style={styles.medicalSub}>Xem tiền sử, dị ứng & nhóm máu</Text>
+              <Text style={styles.medicalSub}>
+                Xem tiền sử, dị ứng và nhóm máu
+              </Text>
             </View>
             <Icon name="chevron_right" size={22} color="#CBD5E1" />
           </TouchableOpacity>
         </View>
 
-        {/* Info Form */}
         <View style={styles.section}>
           <Text style={styles.sectionLabel}>Thông tin cá nhân</Text>
           <View style={[styles.formCard, shadows.sm]}>
@@ -184,6 +287,7 @@ export default function UserProfileSettingsScreen() {
               label="Họ và tên"
               value={fullName}
               onChangeText={setFullName}
+              editable={isEditing}
             />
             <InputField
               icon="mail"
@@ -191,6 +295,7 @@ export default function UserProfileSettingsScreen() {
               value={email}
               onChangeText={setEmail}
               keyboardType="email-address"
+              editable={isEditing}
             />
             <InputField
               icon="phone"
@@ -198,23 +303,37 @@ export default function UserProfileSettingsScreen() {
               value={phone}
               onChangeText={setPhone}
               keyboardType="phone-pad"
+              editable={isEditing}
             />
             <InputField
               icon="calendar_today"
               label="Ngày sinh"
               value={birthday}
               onChangeText={setBirthday}
+              placeholder="dd/mm/yyyy"
+              editable={isEditing}
             />
-            <InputField
+            <SelectField
+              icon="wc"
+              label="Giới tính"
+              value={gender}
+              displayValue={formatGender(gender)}
+              options={GENDER_OPTIONS}
+              onChange={setGender}
+              disabled={!isEditing}
+            />
+            <SelectField
               icon="bloodtype"
               label="Nhóm máu"
               value={bloodType}
-              onChangeText={setBloodType}
+              displayValue={formatBloodType(bloodType)}
+              options={BLOOD_TYPE_OPTIONS}
+              onChange={setBloodType}
+              disabled={!isEditing}
             />
           </View>
         </View>
 
-        {/* Notifications */}
         <View style={styles.section}>
           <Text style={styles.sectionLabel}>Cài đặt thông báo</Text>
           <View style={[styles.formCard, shadows.sm]}>
@@ -245,7 +364,6 @@ export default function UserProfileSettingsScreen() {
           </View>
         </View>
 
-        {/* App Settings */}
         <View style={styles.section}>
           <Text style={styles.sectionLabel}>Ứng dụng</Text>
           <View style={[styles.formCard, shadows.sm]}>
@@ -267,7 +385,6 @@ export default function UserProfileSettingsScreen() {
           </View>
         </View>
 
-        {/* Support */}
         <View style={styles.section}>
           <Text style={styles.sectionLabel}>Hỗ trợ</Text>
           <View style={[styles.formCard, shadows.sm]}>
@@ -288,8 +405,7 @@ export default function UserProfileSettingsScreen() {
           </View>
         </View>
 
-        {/* Logout */}
-        <TouchableOpacity style={styles.logoutBtn} onPress={logout}>
+        <TouchableOpacity style={styles.logoutBtn} onPress={() => void logout()}>
           <Icon name="logout" size={22} color="#EF4444" />
           <Text style={styles.logoutText}>Đăng xuất tài khoản</Text>
         </TouchableOpacity>
@@ -309,12 +425,20 @@ const styles = StyleSheet.create({
     backgroundColor: '#F8FAFC',
   },
   headerBtn: { padding: 4 },
-  headerTitle: { fontSize: 18, fontFamily: 'Manrope', fontWeight: '800', color: '#1E3A8A' },
+  headerTitle: {
+    fontSize: 18,
+    fontFamily: 'Manrope',
+    fontWeight: '800',
+    color: '#1E3A8A',
+  },
   saveBtn: { paddingHorizontal: 16, paddingVertical: 8 },
-  saveBtnText: { fontSize: 16, fontFamily: 'Inter', fontWeight: '700', color: '#3B82F6' },
-
+  saveBtnText: {
+    fontSize: 16,
+    fontFamily: 'Inter',
+    fontWeight: '700',
+    color: '#3B82F6',
+  },
   scroll: { paddingHorizontal: 20 },
-  
   avatarSection: { alignItems: 'center', marginVertical: 24 },
   avatarContainer: {
     width: 120,
@@ -338,16 +462,28 @@ const styles = StyleSheet.create({
     borderWidth: 3,
     borderColor: '#fff',
   },
-  userNameText: { fontSize: 22, fontFamily: 'Manrope', fontWeight: '800', color: '#1E293B', marginTop: 16 },
-  userRoleText: { fontSize: 14, fontFamily: 'Inter', color: '#64748B', marginTop: 4 },
-
-  section: { marginBottom: 24 },
-  sectionLabel: { 
-    fontSize: 14, fontFamily: 'Inter', fontWeight: '800', 
-    color: '#64748B', marginBottom: 12, marginLeft: 4,
-    textTransform: 'uppercase', letterSpacing: 0.5
+  cameraBtnDisabled: {
+    opacity: 0.7,
   },
-  
+  userNameText: {
+    fontSize: 22,
+    fontFamily: 'Manrope',
+    fontWeight: '800',
+    color: '#1E293B',
+    marginTop: 16,
+  },
+  userRoleText: { fontSize: 14, fontFamily: 'Inter', color: '#64748B', marginTop: 4 },
+  section: { marginBottom: 24 },
+  sectionLabel: {
+    fontSize: 14,
+    fontFamily: 'Inter',
+    fontWeight: '800',
+    color: '#64748B',
+    marginBottom: 12,
+    marginLeft: 4,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
   formCard: { backgroundColor: '#fff', borderRadius: 24, overflow: 'hidden' },
   inputContainer: {
     flexDirection: 'row',
@@ -367,9 +503,23 @@ const styles = StyleSheet.create({
     marginRight: 16,
   },
   inputContent: { flex: 1 },
-  inputLabel: { fontSize: 12, fontFamily: 'Inter', fontWeight: '600', color: '#94A3B8', marginBottom: 2 },
-  textInput: { fontSize: 16, fontFamily: 'Inter', fontWeight: '700', color: '#1E293B', padding: 0 },
-
+  inputLabel: {
+    fontSize: 12,
+    fontFamily: 'Inter',
+    fontWeight: '600',
+    color: '#94A3B8',
+    marginBottom: 2,
+  },
+  textInput: {
+    fontSize: 16,
+    fontFamily: 'Inter',
+    fontWeight: '700',
+    color: '#1E293B',
+    padding: 0,
+  },
+  textInputReadonly: {
+    color: '#1E293B',
+  },
   settingsRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -386,9 +536,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  rowLabelText: { flex: 1, fontSize: 15, fontFamily: 'Inter', fontWeight: '600', color: '#1E293B' },
+  rowLabelText: {
+    flex: 1,
+    fontSize: 15,
+    fontFamily: 'Inter',
+    fontWeight: '600',
+    color: '#1E293B',
+  },
   rowValueText: { fontSize: 14, fontFamily: 'Inter', color: '#64748B', marginRight: 4 },
-
   medicalRecordBtn: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -406,9 +561,13 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   medicalTextWrap: { flex: 1 },
-  medicalTitle: { fontSize: 16, fontFamily: 'Inter', fontWeight: '700', color: '#1E293B' },
+  medicalTitle: {
+    fontSize: 16,
+    fontFamily: 'Inter',
+    fontWeight: '700',
+    color: '#1E293B',
+  },
   medicalSub: { fontSize: 12, fontFamily: 'Inter', color: '#64748B', marginTop: 2 },
-
   logoutBtn: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -419,5 +578,10 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     marginBottom: 20,
   },
-  logoutText: { fontSize: 16, fontFamily: 'Inter', fontWeight: '700', color: '#EF4444' },
+  logoutText: {
+    fontSize: 16,
+    fontFamily: 'Inter',
+    fontWeight: '700',
+    color: '#EF4444',
+  },
 });

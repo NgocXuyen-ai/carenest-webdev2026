@@ -1,7 +1,8 @@
-import { apiGet } from './client';
+import { apiGetCached } from './client';
 
 export interface DashboardPayload {
   generatedAt: string;
+  scopeType: 'PROFILE' | 'FAMILY';
   family?: {
     familyId: number;
     familyName: string;
@@ -15,8 +16,8 @@ export interface DashboardPayload {
       healthStatus?: string | null;
     }>;
   } | null;
-  selectedProfileId: number;
-  selectedProfile?: Record<string, unknown>;
+  selectedProfileId: number | null;
+  selectedProfile?: Record<string, unknown> | null;
   profiles: Array<Record<string, unknown>>;
   profileContexts: Array<Record<string, unknown>>;
   medicineCabinet: Array<Record<string, unknown>>;
@@ -26,5 +27,7 @@ export interface DashboardPayload {
 }
 
 export async function getDashboard(profileId?: number): Promise<DashboardPayload> {
-  return apiGet<DashboardPayload>('/dashboard', profileId ? { profileId } : undefined);
+  return apiGetCached<DashboardPayload>('/dashboard', profileId ? { profileId } : undefined, {
+    ttlMs: 20000,
+  });
 }

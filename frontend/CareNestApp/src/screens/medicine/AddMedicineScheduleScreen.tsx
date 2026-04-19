@@ -14,11 +14,12 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { colors } from '../../theme/colors';
 import { shadows } from '../../theme/spacing';
-import { TOP_BAR_HEIGHT, BOTTOM_NAV_HEIGHT } from '../../utils/constants';
+import { BOTTOM_NAV_HEIGHT } from '../../utils/constants';
 import Icon from '../../components/common/Icon';
 import { useFamily } from '../../context/FamilyContext';
 import { useAuth } from '../../context/AuthContext';
 import { createMedicineSchedule, getScheduleFormData, type MedicineScheduleFormData } from '../../api/medicine';
+import { formatLocalDate } from '../../utils/dateTime';
 
 export default function AddMedicineScheduleScreen() {
   const navigation = useNavigation();
@@ -30,8 +31,8 @@ export default function AddMedicineScheduleScreen() {
   const [selectedMedicineId, setSelectedMedicineId] = useState<number | null>(null);
   const [dosage, setDosage] = useState('');
   const [frequency, setFrequency] = useState(2);
-  const [startDate, setStartDate] = useState(new Date().toISOString().slice(0, 10));
-  const [endDate, setEndDate] = useState(new Date(Date.now() + 6 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10));
+  const [startDate, setStartDate] = useState(formatLocalDate(new Date()));
+  const [endDate, setEndDate] = useState(formatLocalDate(new Date(Date.now() + 6 * 24 * 60 * 60 * 1000)));
   const [notes, setNotes] = useState('');
 
   useEffect(() => {

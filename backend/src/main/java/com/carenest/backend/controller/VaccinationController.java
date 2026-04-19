@@ -3,10 +3,12 @@ package com.carenest.backend.controller;
 import com.carenest.backend.dto.vaccination.CreateVaccinationRequest;
 import com.carenest.backend.dto.vaccination.VaccinationTrackerResponse;
 import com.carenest.backend.helper.ApiResponse;
+import com.carenest.backend.security.CustomUserDetails;
 import com.carenest.backend.service.VaccinationService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -27,9 +29,16 @@ public class VaccinationController {
     }
 
     @GetMapping("/{profileId}")
-    public ResponseEntity<ApiResponse<List<VaccinationTrackerResponse>>> getTracker(@PathVariable Integer profileId) {
+    public ResponseEntity<ApiResponse<List<VaccinationTrackerResponse>>> getTracker(
+            @PathVariable Integer profileId,
+            @AuthenticationPrincipal CustomUserDetails userDetails
+    ) {
         try {
-            List<VaccinationTrackerResponse> data = vaccinationService.getTrackerData(profileId);
+            if (userDetails == null) {
+                throw new RuntimeException("Bạn chưa đăng nhập");
+            }
+
+            List<VaccinationTrackerResponse> data = vaccinationService.getTrackerData(userDetails.getId(), profileId);
             return ApiResponse.success(data, "Lấy lịch tiêm thành công");
         } catch (RuntimeException e) {
             return ApiResponse.error(HttpStatus.BAD_REQUEST, e.getMessage());
@@ -39,13 +48,19 @@ public class VaccinationController {
     @PostMapping("/{profileId}")
     public ResponseEntity<ApiResponse<Void>> addVaccination(
             @PathVariable Integer profileId,
-            @Valid @RequestBody CreateVaccinationRequest request
+            @Valid @RequestBody CreateVaccinationRequest request,
+            @AuthenticationPrincipal CustomUserDetails userDetails
     ) {
         try {
-            vaccinationService.addVaccination(profileId, request);
-            return ApiResponse.success(null, "Lưu thông tin tiêm chủng thành công");
+            if (userDetails == null) {
+                throw new RuntimeException("Bạn chưa đăng nhập");
+            }
+
+            vaccinationService.addVaccination(userDetails.getId(), profileId, request);
+            return ApiResponse.success(null, "Luu thông tin tiêm chủng thành công");
         } catch (RuntimeException e) {
             return ApiResponse.error(HttpStatus.BAD_REQUEST, e.getMessage());
         }
     }
 }
+

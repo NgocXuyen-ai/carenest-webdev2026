@@ -10,6 +10,7 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -37,6 +38,12 @@ public class Family {
 
     @Column(name = "created_at")
     private LocalDate createdAt;
+
+    @Column(name = "join_code", length = 32, unique = true)
+    private String joinCode;
+
+    @Column(name = "join_code_expires_at")
+    private LocalDateTime joinCodeExpiresAt;
 
     @OneToMany(mappedBy = "family")
     private List<FamilyInvitation> invitations = new ArrayList<>();

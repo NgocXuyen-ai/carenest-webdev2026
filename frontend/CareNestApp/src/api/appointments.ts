@@ -1,4 +1,4 @@
-import { apiGet, apiPatch, apiPost } from './client';
+import { apiGetCached, apiPatch, apiPost, invalidateApiGetCache } from './client';
 
 export interface AppointmentOverview {
   upcomingCount: number;
@@ -22,7 +22,9 @@ export interface AppointmentOverview {
 }
 
 export async function getAppointmentOverview(profileId: number): Promise<AppointmentOverview> {
-  return apiGet<AppointmentOverview>(`/appointments/appointment/overview/${profileId}`);
+  return apiGetCached<AppointmentOverview>(`/appointments/appointment/overview/${profileId}`, undefined, {
+    ttlMs: 20000,
+  });
 }
 
 export async function createAppointment(payload: {
@@ -34,8 +36,10 @@ export async function createAppointment(payload: {
   note?: string;
 }): Promise<void> {
   await apiPost('/appointments/create-appointment', payload);
+  invalidateApiGetCache(['/appointments/appointment/overview/', '/dashboard', '/notifications']);
 }
 
 export async function cancelAppointment(appointmentId: number): Promise<void> {
   await apiPatch(`/appointments/${appointmentId}/cancel`);
+  invalidateApiGetCache(['/appointments/appointment/overview/', '/dashboard', '/notifications']);
 }

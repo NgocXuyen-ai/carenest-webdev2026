@@ -1,18 +1,22 @@
 package com.carenest.backend.controller;
 
-import java.util.List;
-
-import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.security.core.userdetails.UserDetails;
-import org.springframework.web.bind.annotation.*;
-
 import com.carenest.backend.dto.notification.NotificationResponse;
 import com.carenest.backend.helper.ApiResponse;
+import com.carenest.backend.security.CustomUserDetails;
 import com.carenest.backend.service.NotificationGenerationService;
 import com.carenest.backend.service.NotificationService;
-
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/v1/notifications")
@@ -24,50 +28,65 @@ public class NotificationController {
 
     @GetMapping
     public ResponseEntity<ApiResponse<List<NotificationResponse>>> getNotifications(
-            @AuthenticationPrincipal UserDetails userDetails,
-            @RequestParam Integer profileId,
-            @RequestParam(required = false) Boolean isRead) {
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @RequestParam(required = false) Integer profileId,
+            @RequestParam(required = false) Boolean isRead
+    ) {
+        if (userDetails == null) {
+            throw new RuntimeException("Bạn chưa đăng nhập");
+        }
 
-        List<NotificationResponse> notifications =
-                this.notificationService.getNotifications(profileId, isRead);
-
-        return ApiResponse.success(notifications, "Lấy danh sách notification thành công");
+        List<NotificationResponse> notifications = notificationService.getNotifications(userDetails.getId(), profileId, isRead);
+        return ApiResponse.success(notifications, "Lấy danh sách thông báo thành công");
     }
 
     @PatchMapping("/{notificationId}/read")
     public ResponseEntity<ApiResponse<String>> markAsRead(
-            @AuthenticationPrincipal UserDetails userDetails,
-            @PathVariable Integer notificationId) {
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @PathVariable Integer notificationId
+    ) {
+        if (userDetails == null) {
+            throw new RuntimeException("Bạn chưa đăng nhập");
+        }
 
-        this.notificationService.markAsRead(notificationId);
-
+        notificationService.markAsRead(userDetails.getId(), notificationId);
         return ApiResponse.success("OK", "Đánh dấu đã đọc thành công");
     }
 
     @PostMapping("/generate/medicine")
     public ResponseEntity<ApiResponse<String>> generateMedicineNotifications(
-            @AuthenticationPrincipal UserDetails userDetails) {
+            @AuthenticationPrincipal CustomUserDetails userDetails
+    ) {
+        if (userDetails == null) {
+            throw new RuntimeException("Bạn chưa đăng nhập");
+        }
 
-        this.notificationGenerationService.generateMedicineNotifications();
-
-        return ApiResponse.success("OK", "Tạo notification thuốc thành công");
+        notificationGenerationService.generateMedicineNotifications();
+        return ApiResponse.success("OK", "Tạo thông báo thuốc thành công");
     }
 
     @PostMapping("/generate/appointment")
     public ResponseEntity<ApiResponse<String>> generateAppointmentNotifications(
-            @AuthenticationPrincipal UserDetails userDetails) {
+            @AuthenticationPrincipal CustomUserDetails userDetails
+    ) {
+        if (userDetails == null) {
+            throw new RuntimeException("Bạn chưa đăng nhập");
+        }
 
-        this.notificationGenerationService.generateAppointmentNotifications();
-
-        return ApiResponse.success("OK", "Tạo notification lịch hẹn thành công");
+        notificationGenerationService.generateAppointmentNotifications();
+        return ApiResponse.success("OK", "Tạo thông báo lịch hẹn thành công");
     }
 
     @PostMapping("/generate/vaccination")
     public ResponseEntity<ApiResponse<String>> generateVaccinationNotifications(
-            @AuthenticationPrincipal UserDetails userDetails) {
+            @AuthenticationPrincipal CustomUserDetails userDetails
+    ) {
+        if (userDetails == null) {
+            throw new RuntimeException("Bạn chưa đăng nhập");
+        }
 
-        this.notificationGenerationService.generateVaccinationNotifications();
-
-        return ApiResponse.success("OK", "Tạo notification tiêm chủng thành công");
+        notificationGenerationService.generateVaccinationNotifications();
+        return ApiResponse.success("OK", "Tạo thông báo tiêm chủng thành công");
     }
 }
+

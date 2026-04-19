@@ -19,6 +19,7 @@ import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/dat
 import { useFamily } from '../../context/FamilyContext';
 import { useAuth } from '../../context/AuthContext';
 import { createAppointment } from '../../api/appointments';
+import { formatLocalDateTime } from '../../utils/dateTime';
 
 export default function AddAppointmentScreen() {
   const navigation = useNavigation();
@@ -63,7 +64,7 @@ export default function AddAppointmentScreen() {
         profileId: selectedMember,
         clinicName: facility,
         doctorName: doctor,
-        appointmentDate: date.toISOString().slice(0, 19),
+        appointmentDate: formatLocalDateTime(date),
         location: address,
         note: notes,
       });

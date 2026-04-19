@@ -2,7 +2,6 @@ import React from 'react';
 import { TouchableOpacity, View, StyleSheet } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import Icon from './Icon';
-import { colors } from '../../theme/colors';
 
 interface NotificationBellProps {
   size?: number;

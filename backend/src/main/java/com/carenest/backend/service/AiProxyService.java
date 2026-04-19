@@ -72,7 +72,7 @@ public class AiProxyService {
         body.put("user_id", userId);
         body.put("message", request.getMessage());
         body.put("conversation_id", request.getConversationId());
-        body.put("context", aiContextService.buildContext(userId, request.getProfileId()));
+        body.put("context", aiContextService.buildAiRoutingContext(userId, request.getProfileId()));
         return postJson("/internal/chat", body);
     }
 
@@ -109,7 +109,7 @@ public class AiProxyService {
         if (conversationId != null) {
             body.add("conversation_id", String.valueOf(conversationId));
         }
-        body.add("context_json", writeContextAsJson(aiContextService.buildContext(userId, profileId)));
+        body.add("context_json", writeContextAsJson(aiContextService.buildAiRoutingContext(userId, profileId)));
         body.add("audio", createAudioResource(audio));
 
         return exchangeForMap(
@@ -149,7 +149,7 @@ public class AiProxyService {
             scheduleRequest.setStartDate(startDate);
             scheduleRequest.setEndDate(parseEndDate(startDate, medicineDraft.getDuration()));
 
-            medicineService.createMedicineSchedule(scheduleRequest);
+            medicineService.createMedicineSchedule(userId, scheduleRequest);
 
             medicineIds.add(medicine.getMedicineId());
             MedicineSchedule schedule = medicineScheduleRepository
@@ -180,7 +180,7 @@ public class AiProxyService {
         Integer cabinetId = medicineService.getMyCabinet(userId).getCabinetId();
         return detailsMedicineRepository
                 .findByCabinet_CabinetIdAndNameIgnoreCase(cabinetId, medicineDraft.getName().trim())
-                .orElseThrow(() -> new RuntimeException("Khong the tao thuoc tu OCR"));
+            .orElseThrow(() -> new RuntimeException("Không thể tạo thuốc từ OCR"));
     }
 
     private Map<String, Object> postJson(String path, Map<String, Object> body) {
@@ -210,7 +210,7 @@ public class AiProxyService {
                 }
             };
         } catch (IOException e) {
-            throw new RuntimeException("Khong the doc file audio", e);
+            throw new RuntimeException("Không thể đọc file audio", e);
         }
     }
 
@@ -218,7 +218,7 @@ public class AiProxyService {
         try {
             return objectMapper.writeValueAsString(context);
         } catch (Exception e) {
-            throw new RuntimeException("Khong the ma hoa AI context", e);
+            throw new RuntimeException("Không thể mã hóa AI context", e);
         }
     }
 
@@ -261,3 +261,4 @@ public class AiProxyService {
         return value != null && !value.isBlank() ? value : fallback;
     }
 }
+

@@ -1,14 +1,17 @@
 import React, { useState } from 'react';
 import {
   Alert,
+  PermissionsAndroid,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from 'react-native';
+import type { Permission } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { launchImageLibrary } from 'react-native-image-picker';
+import { launchCamera, launchImageLibrary, type Asset, type ImagePickerResponse } from 'react-native-image-picker';
 import { useNavigation } from '@react-navigation/native';
 import { colors } from '../../theme/colors';
 import { shadows } from '../../theme/spacing';
@@ -42,22 +45,101 @@ export default function OcrScannerScreen() {
   const [doctorName, setDoctorName] = useState('');
   const [prescriptionDate, setPrescriptionDate] = useState('');
 
+  const ensureAndroidPermission = async (
+    permission: Permission,
+    title: string,
+    message: string,
+  ): Promise<boolean> => {
+    if (Platform.OS !== 'android') {
+      return true;
+    }
+
+    const alreadyGranted = await PermissionsAndroid.check(permission);
+    if (alreadyGranted) {
+      return true;
+    }
+
+    const granted = await PermissionsAndroid.request(permission, {
+      title,
+      message,
+      buttonPositive: 'Cho phép',
+      buttonNegative: 'Từ chối',
+      buttonNeutral: 'Để sau',
+    });
+    return granted === PermissionsAndroid.RESULTS.GRANTED;
+  };
+
+  const ensureCameraPermission = async (): Promise<boolean> => {
+    return ensureAndroidPermission(
+      PermissionsAndroid.PERMISSIONS.CAMERA,
+      'Cho phép dùng camera',
+      'CareNest cần quyền camera để chụp toa thuốc.',
+    );
+  };
+
+  const ensureLibraryPermission = async (): Promise<boolean> => {
+    if (Platform.OS !== 'android') {
+      return true;
+    }
+
+    const permissions = PermissionsAndroid.PERMISSIONS as Record<string, string | undefined>;
+    const permission =
+      Platform.Version >= 33
+        ? permissions.READ_MEDIA_IMAGES
+        : permissions.READ_EXTERNAL_STORAGE;
+
+    if (!permission) {
+      return true;
+    }
+
+    return ensureAndroidPermission(
+      permission as Permission,
+      'Cho phép truy cập ảnh',
+      'CareNest cần quyền truy cập ảnh để quét toa thuốc từ thư viện.',
+    );
+  };
+
+  const getAssetFromPickerResponse = (
+    response: ImagePickerResponse,
+    sourceName: 'camera' | 'thư viện',
+  ): Asset | null => {
+    if (response.didCancel) {
+      return null;
+    }
+
+    if (response.errorCode) {
+      Alert.alert(
+        `Không thể mở ${sourceName}`,
+        response.errorMessage || 'Vui lòng kiểm tra quyền truy cập và thử lại.',
+      );
+      return null;
+    }
+
+    const asset = response.assets?.[0];
+    if (!asset) {
+      Alert.alert('Không có ảnh', `Chưa nhận được ảnh từ ${sourceName}.`);
+      return null;
+    }
+
+    if (!asset.base64) {
+      Alert.alert(
+        'Không thể đọc ảnh',
+        'Ảnh chưa có dữ liệu hợp lệ để OCR. Vui lòng thử ảnh khác.',
+      );
+      return null;
+    }
+
+    return asset;
+  };
+
   const activeProfileId = selectedProfileId || (user?.profileId ? Number(user.profileId) : null);
 
-  async function handleScan() {
+  async function processSelectedImage(asset?: Asset) {
     if (!activeProfileId) {
       Alert.alert('Chưa có hồ sơ', 'Vui lòng tạo hoặc chọn hồ sơ sức khỏe trước khi quét toa thuốc.');
       return;
     }
 
-    const result = await launchImageLibrary({
-      mediaType: 'photo',
-      includeBase64: true,
-      quality: 0.8,
-      selectionLimit: 1,
-    });
-
-    const asset = result.assets?.[0];
     if (!asset?.base64) {
       return;
     }
@@ -87,6 +169,46 @@ export default function OcrScannerScreen() {
       setOcrState('idle');
       Alert.alert('Không thể OCR', error instanceof Error ? error.message : 'Đã có lỗi xảy ra');
     }
+  }
+
+  async function handleScanFromLibrary() {
+    const granted = await ensureLibraryPermission();
+    if (!granted) {
+      Alert.alert('Thiếu quyền truy cập ảnh', 'Vui lòng cấp quyền để chọn ảnh từ thư viện.');
+      return;
+    }
+
+    const result = await launchImageLibrary({
+      mediaType: 'photo',
+      includeBase64: true,
+      quality: 0.8,
+      selectionLimit: 1,
+    });
+    const asset = getAssetFromPickerResponse(result, 'thư viện');
+    if (!asset) {
+      return;
+    }
+    await processSelectedImage(asset);
+  }
+
+  async function handleScanFromCamera() {
+    const granted = await ensureCameraPermission();
+    if (!granted) {
+      Alert.alert('Thiếu quyền camera', 'Vui lòng cấp quyền camera để chụp toa thuốc.');
+      return;
+    }
+
+    const result = await launchCamera({
+      mediaType: 'photo',
+      includeBase64: true,
+      quality: 0.8,
+      saveToPhotos: false,
+    });
+    const asset = getAssetFromPickerResponse(result, 'camera');
+    if (!asset) {
+      return;
+    }
+    await processSelectedImage(asset);
   }
 
   async function handleConfirm() {
@@ -143,16 +265,24 @@ export default function OcrScannerScreen() {
             <View style={styles.idleOverlay}>
               <View style={styles.scanFrame} />
               <Icon name="document_scanner" size={40} color="rgba(255,255,255,0.7)" />
-              <Text style={styles.idleText}>Chọn ảnh toa thuốc để AI trích xuất</Text>
+              <Text style={styles.idleText}>Dùng camera hoặc chọn ảnh toa thuốc để AI trích xuất</Text>
             </View>
           )}
         </View>
 
         {ocrState !== 'scanning' ? (
-          <TouchableOpacity style={styles.scanBtn} onPress={handleScan} activeOpacity={0.85}>
-            <Icon name="photo_library" size={22} color={colors.onPrimary} />
-            <Text style={styles.scanBtnText}>{ocrState === 'result' ? 'Quét lại ảnh khác' : 'Chọn ảnh toa thuốc'}</Text>
-          </TouchableOpacity>
+          <View style={styles.scanActions}>
+            <TouchableOpacity style={styles.scanBtn} onPress={() => void handleScanFromCamera()} activeOpacity={0.85}>
+              <Icon name="photo_camera" size={22} color={colors.onPrimary} />
+              <Text style={styles.scanBtnText}>Chụp trực tiếp</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.secondaryScanBtn} onPress={() => void handleScanFromLibrary()} activeOpacity={0.85}>
+              <Icon name="photo_library" size={22} color={colors.primary} />
+              <Text style={styles.secondaryScanBtnText}>
+                {ocrState === 'result' ? 'Chọn ảnh khác' : 'Chọn từ thư viện'}
+              </Text>
+            </TouchableOpacity>
+          </View>
         ) : null}
 
         {ocrState === 'result' ? (
@@ -231,7 +361,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     marginBottom: 8,
   },
-  idleText: { fontSize: 13, fontFamily: 'Inter', color: 'rgba(255,255,255,0.7)' },
+  idleText: { fontSize: 13, fontFamily: 'Inter', color: 'rgba(255,255,255,0.7)', textAlign: 'center', paddingHorizontal: 12 },
   scanningOverlay: { alignItems: 'center', gap: 16, width: '100%' },
   scanLine: {
     position: 'absolute',
@@ -245,6 +375,7 @@ const styles = StyleSheet.create({
   scanningText: { fontSize: 14, fontFamily: 'Inter', fontWeight: '600', color: '#fff', marginTop: 100 },
   resultPreview: { alignItems: 'center', gap: 10 },
   resultPreviewText: { fontSize: 16, fontFamily: 'Manrope', fontWeight: '700', color: '#fff' },
+  scanActions: { gap: 12 },
   scanBtn: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -260,6 +391,16 @@ const styles = StyleSheet.create({
     elevation: 6,
   },
   scanBtnText: { fontSize: 16, fontFamily: 'Inter', fontWeight: '700', color: colors.onPrimary },
+  secondaryScanBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    height: 52,
+    backgroundColor: '#E0F2FE',
+    borderRadius: 999,
+    gap: 8,
+  },
+  secondaryScanBtnText: { fontSize: 15, fontFamily: 'Inter', fontWeight: '700', color: colors.primary },
   resultHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   resultHeaderText: { fontSize: 13, fontFamily: 'Inter', fontWeight: '600', color: colors.primary, flex: 1 },
   card: { backgroundColor: colors.surfaceContainerLowest, borderRadius: 16, padding: 16, gap: 12 },

@@ -1,16 +1,16 @@
 import React, { useRef, useState } from 'react';
 import {
+  Image,
   View,
   Text,
   FlatList,
   TouchableOpacity,
   Dimensions,
   StyleSheet,
-  Image,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../../context/AuthContext';
-import { mockOnboardingSlides } from '../../data/mockOnboarding';
+import { onboardingSlides } from '../../data/onboardingSlides';
 import { colors } from '../../theme/colors';
 
 const { width } = Dimensions.get('window');
@@ -22,7 +22,7 @@ export default function OnboardingScreen() {
   const insets = useSafeAreaInsets();
 
   function handleNext() {
-    if (currentIndex < mockOnboardingSlides.length - 1) {
+    if (currentIndex < onboardingSlides.length - 1) {
       flatListRef.current?.scrollToIndex({ index: currentIndex + 1, animated: true });
       setCurrentIndex(currentIndex + 1);
     } else {
@@ -47,7 +47,7 @@ export default function OnboardingScreen() {
       {/* Slides */}
       <FlatList
         ref={flatListRef}
-        data={mockOnboardingSlides}
+        data={onboardingSlides}
         keyExtractor={item => item.id}
         horizontal
         pagingEnabled
@@ -57,7 +57,7 @@ export default function OnboardingScreen() {
           <View style={[styles.slide, { width }]}>
             <View style={styles.imageContainer}>
               <View style={styles.imagePlaceholder}>
-                <Text style={styles.imagePlaceholderIcon}>🏥</Text>
+                <Image source={item.imageSource} style={styles.onboardingImage} resizeMode="contain" />
               </View>
             </View>
             <Text style={styles.slideTitle}>{item.title}</Text>
@@ -68,7 +68,7 @@ export default function OnboardingScreen() {
 
       {/* Dots */}
       <View style={styles.dotsRow}>
-        {mockOnboardingSlides.map((_, i) => (
+        {onboardingSlides.map((_, i) => (
           <View
             key={i}
             style={[styles.dot, i === currentIndex ? styles.dotActive : styles.dotInactive]}
@@ -79,7 +79,7 @@ export default function OnboardingScreen() {
       {/* CTA button */}
       <TouchableOpacity style={styles.cta} onPress={handleNext} activeOpacity={0.85}>
         <Text style={styles.ctaText}>
-          {currentIndex < mockOnboardingSlides.length - 1 ? 'Tiếp theo' : 'Bắt đầu'}
+          {currentIndex < onboardingSlides.length - 1 ? 'Tiếp theo' : 'Bắt đầu'}
         </Text>
       </TouchableOpacity>
     </View>
@@ -119,12 +119,13 @@ const styles = StyleSheet.create({
   imagePlaceholder: {
     width: 200,
     height: 200,
-    borderRadius: 100,
+    borderRadius: 24,
     backgroundColor: colors.primaryFixed,
     alignItems: 'center',
     justifyContent: 'center',
+    padding: 14,
   },
-  imagePlaceholderIcon: { fontSize: 80 },
+  onboardingImage: { width: '100%', height: '100%' },
   slideTitle: {
     fontSize: 28,
     fontFamily: 'Manrope',

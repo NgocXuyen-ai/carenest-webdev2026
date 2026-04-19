@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import {
   Alert,
+  Image,
   View,
   Text,
   TouchableOpacity,
@@ -17,6 +18,7 @@ import Input from '../../components/common/Input';
 import Icon from '../../components/common/Icon';
 import type { AuthStackParamList } from '../../navigation/navigationTypes';
 import { register as registerRequest } from '../../api/auth';
+import { CARENEST_LOGO_FULL } from '../../assets/branding';
 
 type Nav = NativeStackNavigationProp<AuthStackParamList, 'Register'>;
 
@@ -68,10 +70,7 @@ export default function RegisterScreen() {
             <Icon name="arrow_back" size={24} color={colors.onSurface} />
           </TouchableOpacity>
           <View style={styles.logoRow}>
-            <View style={styles.logoIcon}>
-              <Icon name="nest_eco_leaf" size={28} color="#fff" />
-            </View>
-            <Text style={styles.appName}>CareNest</Text>
+            <Image source={CARENEST_LOGO_FULL} style={styles.logoImage} resizeMode="contain" />
           </View>
           <Text style={styles.title}>Tạo tài khoản mới</Text>
           <Text style={styles.subtitle}>Bắt đầu hành trình chăm sóc sức khỏe gia đình</Text>
@@ -168,16 +167,8 @@ const styles = StyleSheet.create({
   content: { paddingHorizontal: 24 },
   header: { marginBottom: 28 },
   backBtn: { marginBottom: 20, width: 40, height: 40, justifyContent: 'center' },
-  logoRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 16 },
-  logoIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 14,
-    backgroundColor: colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  appName: { fontSize: 22, fontFamily: 'Manrope', fontWeight: '800', color: colors.onBackground },
+  logoRow: { alignItems: 'flex-start', marginBottom: 12 },
+  logoImage: { width: 132, height: 132 },
   title: { fontSize: 26, fontFamily: 'Manrope', fontWeight: '800', color: colors.onBackground, marginBottom: 6 },
   subtitle: { fontSize: 14, fontFamily: 'Inter', color: colors.onSurfaceVariant },
   card: {

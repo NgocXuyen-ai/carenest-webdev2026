@@ -1,45 +1,43 @@
 package com.carenest.backend.service;
 
-import java.time.LocalDateTime;
-import java.time.format.TextStyle;
-import java.util.List;
-import java.util.Locale;
-
-import org.springframework.stereotype.Service;
-
 import com.carenest.backend.dto.appointment.AppointmentDetailResponse;
 import com.carenest.backend.dto.appointment.AppointmentFormResponse;
 import com.carenest.backend.dto.appointment.AppointmentHistoryItemResponse;
 import com.carenest.backend.dto.appointment.AppointmentOverviewResponse;
 import com.carenest.backend.dto.appointment.AppointmentResponse;
 import com.carenest.backend.dto.appointment.CreateAppointmentRequest;
-import com.carenest.backend.dto.appointment.UpcomingAppointmentResponse;
 import com.carenest.backend.dto.appointment.UpdateAppointmentRequest;
+import com.carenest.backend.dto.appointment.UpcomingAppointmentResponse;
 import com.carenest.backend.dto.medicine.ProfileOptionResponse;
 import com.carenest.backend.model.Appointment;
 import com.carenest.backend.model.HealthProfile;
 import com.carenest.backend.model.enums.AppointmentStatus;
 import com.carenest.backend.repository.AppointmentRepository;
 import com.carenest.backend.repository.HealthProfileRepository;
-
 import jakarta.persistence.EntityNotFoundException;
+import org.springframework.stereotype.Service;
+
+import java.time.LocalDateTime;
+import java.time.format.TextStyle;
+import java.util.List;
+import java.util.Locale;
 
 @Service
 public class AppointmentService {
     public final AppointmentRepository appointmentRepository;
     public final HealthProfileRepository healthProfileRepository;
+    private final ProfileAccessService profileAccessService;
 
-    public AppointmentService(
-        AppointmentRepository appointmentRepository,
-        HealthProfileRepository healthProfileRepository
-    ){
+    public AppointmentService(AppointmentRepository appointmentRepository,
+                              HealthProfileRepository healthProfileRepository,
+                              ProfileAccessService profileAccessService) {
         this.appointmentRepository = appointmentRepository;
         this.healthProfileRepository = healthProfileRepository;
+        this.profileAccessService = profileAccessService;
     }
 
-    public AppointmentDetailResponse createAppointment(CreateAppointmentRequest request) {
-        HealthProfile profile = healthProfileRepository.findById(request.getProfileId())
-                .orElseThrow(() -> new EntityNotFoundException("Không tìm thấy profile với id: " + request.getProfileId()));
+    public AppointmentDetailResponse createAppointment(Integer userId, CreateAppointmentRequest request) {
+        HealthProfile profile = profileAccessService.requireAccessibleProfile(userId, request.getProfileId());
 
         Appointment appointment = new Appointment();
         appointment.setProfile(profile);
@@ -48,8 +46,6 @@ public class AppointmentService {
         appointment.setAppointmentDate(request.getAppointmentDate());
         appointment.setLocation(request.getLocation());
         appointment.setNote(request.getNote());
-
-        // Khi create thì nên set mặc định, không cho client tự truyền status
         appointment.setStatus(AppointmentStatus.SCHEDULED);
 
         Appointment savedAppointment = appointmentRepository.save(appointment);
@@ -68,12 +64,11 @@ public class AppointmentService {
     }
 
     public AppointmentOverviewResponse getOverview(Integer userId, Integer profileId) {
+        profileAccessService.requireAccessibleProfile(userId, profileId);
         LocalDateTime now = LocalDateTime.now();
 
         List<Appointment> upcoming = appointmentRepository
-        .findByProfile_ProfileAndAppointmentDateGreaterThanEqualOrderByAppointmentDateAsc(
-                profileId, now
-        );
+                .findByProfile_ProfileAndAppointmentDateGreaterThanEqualOrderByAppointmentDateAsc(profileId, now);
         List<Appointment> history = appointmentRepository
                 .findByProfile_ProfileAndAppointmentDateLessThanOrderByAppointmentDateDesc(profileId, now);
 
@@ -93,7 +88,7 @@ public class AppointmentService {
     }
 
     public AppointmentFormResponse getFormData(Integer userId) {
-        List<HealthProfile> profiles = healthProfileRepository.findByUserUserId(userId);
+        List<HealthProfile> profiles = profileAccessService.getAccessibleProfiles(userId);
 
         List<ProfileOptionResponse> items = profiles.stream()
                 .map(profile -> ProfileOptionResponse.builder()
@@ -105,6 +100,43 @@ public class AppointmentService {
         return AppointmentFormResponse.builder()
                 .profiles(items)
                 .build();
+    }
+
+    public AppointmentResponse updateAppointment(Integer userId, Integer appointmentId, UpdateAppointmentRequest request) {
+        Appointment appointment = appointmentRepository.findById(appointmentId)
+                .orElseThrow(() -> new EntityNotFoundException("Không tìm thấy cuộc hẹn"));
+
+        profileAccessService.requireAccessibleProfile(userId, appointment.getProfile().getProfile());
+        HealthProfile profile = profileAccessService.requireAccessibleProfile(userId, request.getProfileId());
+
+        if (AppointmentStatus.CANCELLED.equals(appointment.getStatus())) {
+                        throw new IllegalStateException("Cuộc hẹn đã bị hủy, không thể cập nhật");
+        }
+
+        appointment.setProfile(profile);
+        appointment.setClinicName(request.getClinicName());
+        appointment.setDoctorName(request.getDoctorName());
+        appointment.setAppointmentDate(request.getAppointmentDate());
+        appointment.setLocation(request.getLocation());
+        appointment.setNote(request.getNote());
+
+        Appointment saved = appointmentRepository.save(appointment);
+        return mapToResponse(saved);
+    }
+
+    public AppointmentResponse cancelAppointment(Integer userId, Integer appointmentId) {
+        Appointment appointment = appointmentRepository.findById(appointmentId)
+                .orElseThrow(() -> new EntityNotFoundException("Không tìm thấy cuộc hẹn"));
+
+        profileAccessService.requireAccessibleProfile(userId, appointment.getProfile().getProfile());
+
+        if (AppointmentStatus.CANCELLED.equals(appointment.getStatus())) {
+            throw new IllegalStateException("Cuộc hẹn đã được hủy trước đó");
+        }
+
+        appointment.setStatus(AppointmentStatus.CANCELLED);
+        Appointment saved = appointmentRepository.save(appointment);
+        return mapToResponse(saved);
     }
 
     private UpcomingAppointmentResponse mapToUpcomingResponse(Appointment appointment) {
@@ -136,55 +168,17 @@ public class AppointmentService {
 
     private String formatDayOfWeek(LocalDateTime dateTime) {
         return dateTime.getDayOfWeek()
-        .getDisplayName(TextStyle.SHORT, Locale.of("vi", "VN"))
-        .toUpperCase();
+                .getDisplayName(TextStyle.SHORT, Locale.of("vi", "VN"))
+                .toUpperCase();
     }
 
     private String formatDisplayDate(LocalDateTime dateTime) {
-        return String.format("%02d Tháng %d, %d - %02d:%02d",
+                return String.format("%02d Tháng %d, %d - %02d:%02d",
                 dateTime.getDayOfMonth(),
                 dateTime.getMonthValue(),
                 dateTime.getYear(),
                 dateTime.getHour(),
                 dateTime.getMinute());
-    }
-
-    public AppointmentResponse updateAppointment(Integer userId, Integer appointmentId, UpdateAppointmentRequest request) {
-        Appointment appointment = appointmentRepository.findById(appointmentId)
-                .orElseThrow(() -> new EntityNotFoundException("Không tìm thấy cuộc hẹn"));
-    
-        HealthProfile profile = healthProfileRepository.findById(request.getProfileId())
-                .orElseThrow(() -> new EntityNotFoundException("Không tìm thấy profile"));
-    
-        if (AppointmentStatus.CANCELLED.equals(appointment.getStatus())) {
-            throw new IllegalStateException("Cuộc hẹn đã bị hủy, không thể cập nhật");
-        }
-    
-        appointment.setProfile(profile);
-        appointment.setClinicName(request.getClinicName());
-        appointment.setDoctorName(request.getDoctorName());
-        appointment.setAppointmentDate(request.getAppointmentDate());
-        appointment.setLocation(request.getLocation());
-        appointment.setNote(request.getNote());
-    
-        Appointment saved = appointmentRepository.save(appointment);
-    
-        return mapToResponse(saved);
-    }
-
-    public AppointmentResponse cancelAppointment(Integer userId, Integer appointmentId) {
-        Appointment appointment = appointmentRepository.findById(appointmentId)
-                .orElseThrow(() -> new EntityNotFoundException("Không tìm thấy cuộc hẹn"));
-
-        if (AppointmentStatus.CANCELLED.equals(appointment.getStatus())) {
-            throw new IllegalStateException("Cuộc hẹn đã được hủy trước đó");
-        }
-
-        appointment.setStatus(AppointmentStatus.CANCELLED);
-
-        Appointment saved = appointmentRepository.save(appointment);
-
-        return mapToResponse(saved);
     }
 
     private AppointmentResponse mapToResponse(Appointment appointment) {
@@ -202,3 +196,4 @@ public class AppointmentService {
                 .build();
     }
 }
+

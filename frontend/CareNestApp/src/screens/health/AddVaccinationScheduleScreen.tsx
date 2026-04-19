@@ -18,6 +18,7 @@ import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/dat
 import { colors } from '../../theme/colors';
 import type { FamilyStackParamList } from '../../navigation/navigationTypes';
 import { createVaccination } from '../../api/vaccinations';
+import { formatLocalDate } from '../../utils/dateTime';
 
 type AddVaccinationRoute = RouteProp<FamilyStackParamList, 'AddVaccinationSchedule'>;
 
@@ -49,7 +50,7 @@ export default function AddVaccinationScheduleScreen() {
     }
 
     try {
-      const dateValue = date.toISOString().slice(0, 10);
+      const dateValue = formatLocalDate(date);
       await createVaccination(profileId, {
         vaccineName,
         doseNumber: Number(doseNumber) || 1,

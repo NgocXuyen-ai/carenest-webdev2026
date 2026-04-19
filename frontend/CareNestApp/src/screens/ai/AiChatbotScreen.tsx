@@ -1,20 +1,25 @@
-import React, { useRef, useState } from 'react';
+import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  View,
-  Text,
-  ScrollView,
-  TextInput,
-  TouchableOpacity,
-  StyleSheet,
+  Alert,
+  Animated,
+  Easing,
+  FlatList,
+  Image,
   KeyboardAvoidingView,
   Platform,
-  Alert,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import Markdown from 'react-native-markdown-display';
 import { colors } from '../../theme/colors';
+import { CARENEST_LOGO_HOUSE } from '../../assets/branding';
 import { chatAi } from '../../api/ai';
 import { useFamily } from '../../context/FamilyContext';
 import { useAuth } from '../../context/AuthContext';
@@ -36,21 +41,115 @@ function normalizeMarkdown(content: string): string {
   return content.replace(/\r\n/g, '\n').replace(/\\n/g, '\n').trim();
 }
 
+const MessageBubble = memo(function MessageBubble({ message }: { message: Message }) {
+  const normalizedContent = useMemo(() => normalizeMarkdown(message.content), [message.content]);
+  const isAssistant = message.role === 'assistant';
+
+  return (
+    <View style={[styles.messageRow, isAssistant ? styles.rowAI : styles.rowUser]}>
+      {isAssistant ? (
+        <View style={styles.aiAvatarSmall}>
+          <Image source={CARENEST_LOGO_HOUSE} style={styles.aiAvatarIconSmall} resizeMode="contain" />
+        </View>
+      ) : null}
+      <View style={[styles.bubble, isAssistant ? styles.bubbleAI : styles.bubbleUser]}>
+        {isAssistant ? (
+          <Markdown style={markdownStyles}>{normalizedContent}</Markdown>
+        ) : (
+          <Text style={[styles.bubbleText, styles.textUser]}>{message.content}</Text>
+        )}
+      </View>
+      <Text style={styles.timestamp}>{message.timestamp}</Text>
+    </View>
+  );
+});
+
+const TypingIndicator = memo(function TypingIndicator() {
+  const progress = useRef(new Animated.Value(0)).current;
+
+  const dotConfigs = useMemo(() => [0.06, 0.26, 0.46].map(offset => ({
+    opacity: progress.interpolate({
+      inputRange: [0, offset, offset + 0.12, offset + 0.24, 1],
+      outputRange: [0.45, 0.45, 1, 0.45, 0.45],
+    }),
+    translateY: progress.interpolate({
+      inputRange: [0, offset, offset + 0.12, offset + 0.24, 1],
+      outputRange: [0, 0, -3, 0, 0],
+    }),
+    scale: progress.interpolate({
+      inputRange: [0, offset, offset + 0.12, offset + 0.24, 1],
+      outputRange: [1, 1, 1.2, 1, 1],
+    }),
+  })), [progress]);
+
+  useEffect(() => {
+    progress.setValue(0);
+    const loop = Animated.loop(
+      Animated.timing(progress, {
+        toValue: 1,
+        duration: 1100,
+        easing: Easing.linear,
+        useNativeDriver: true,
+      }),
+    );
+
+    loop.start();
+
+    return () => {
+      loop.stop();
+      progress.stopAnimation();
+      progress.setValue(0);
+    };
+  }, [progress]);
+
+  return (
+    <View style={styles.typingDotsWrap}>
+      {dotConfigs.map((dot, index) => (
+        <Animated.View
+          key={`typing-dot-${index}`}
+          style={[
+            styles.typingDot,
+            {
+              opacity: dot.opacity,
+              transform: [
+                { translateY: dot.translateY },
+                { scale: dot.scale },
+              ],
+            },
+          ]}
+        />
+      ))}
+    </View>
+  );
+});
+
 export default function AiChatbotScreen() {
   const navigation = useNavigation<any>();
   const insets = useSafeAreaInsets();
-  const scrollRef = useRef<ScrollView>(null);
+  const listRef = useRef<FlatList<Message>>(null);
   const { selectedProfileId } = useFamily();
   const { user } = useAuth();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [conversationId, setConversationId] = useState<number | null>(null);
+  const shouldShowSuggestions = messages.length === 0;
 
   const activeProfileId = selectedProfileId || (user?.profileId ? Number(user.profileId) : null);
 
-  const sendMessage = async (text: string) => {
-    if (!text.trim() || isTyping) return;
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => {
+      listRef.current?.scrollToEnd({ animated: true });
+    });
+
+    return () => cancelAnimationFrame(frame);
+  }, [messages.length, isTyping]);
+
+  const sendMessage = useCallback(async (rawText: string) => {
+    const text = rawText.trim();
+    if (!text || isTyping) {
+      return;
+    }
 
     const userMsg: Message = {
       id: `user-${Date.now()}`,
@@ -62,7 +161,6 @@ export default function AiChatbotScreen() {
     setMessages(prev => [...prev, userMsg]);
     setInput('');
     setIsTyping(true);
-    setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 100);
 
     try {
       const response = await chatAi({
@@ -82,12 +180,19 @@ export default function AiChatbotScreen() {
         },
       ]);
     } catch (error) {
-      Alert.alert('AI chưa phản hồi được', error instanceof Error ? error.message : 'Đã có lỗi xảy ra');
+      Alert.alert(
+        'AI chưa phản hồi được',
+        error instanceof Error ? error.message : 'Đã có lỗi xảy ra',
+      );
     } finally {
       setIsTyping(false);
-      setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 120);
     }
-  };
+  }, [activeProfileId, conversationId, isTyping]);
+
+  const renderMessage = useCallback(
+    ({ item }: { item: Message }) => <MessageBubble message={item} />,
+    [],
+  );
 
   return (
     <View style={[styles.root, { backgroundColor: '#fff' }]}>
@@ -95,7 +200,7 @@ export default function AiChatbotScreen() {
         <View style={styles.headerContent}>
           <View style={styles.headerLeft}>
             <View style={styles.avatarCircle}>
-              <MaterialCommunityIcons name="robot" size={24} color="#fff" />
+              <Image source={CARENEST_LOGO_HOUSE} style={styles.aiAvatarIconLarge} resizeMode="contain" />
             </View>
             <View>
               <Text style={styles.headerTitle}>CareNest AI</Text>
@@ -105,9 +210,6 @@ export default function AiChatbotScreen() {
               </View>
             </View>
           </View>
-          <TouchableOpacity>
-            <MaterialCommunityIcons name="dots-vertical" size={24} color={colors.onSurfaceVariant} />
-          </TouchableOpacity>
         </View>
       </View>
 
@@ -115,65 +217,64 @@ export default function AiChatbotScreen() {
         style={{ flex: 1 }}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
-        <ScrollView
-          ref={scrollRef}
+        <FlatList
+          ref={listRef}
           style={styles.chatArea}
+          data={messages}
+          keyExtractor={item => item.id}
+          renderItem={renderMessage}
           contentContainerStyle={styles.chatContent}
           showsVerticalScrollIndicator={false}
-        >
-          {messages.length === 0 ? (
+          keyboardShouldPersistTaps="handled"
+          initialNumToRender={8}
+          maxToRenderPerBatch={8}
+          updateCellsBatchingPeriod={16}
+          windowSize={7}
+          removeClippedSubviews={Platform.OS === 'android'}
+          ListEmptyComponent={
             <View style={styles.emptyState}>
-              <MaterialCommunityIcons name="robot-outline" size={54} color="#94a3b8" />
+              <Image source={CARENEST_LOGO_HOUSE} style={styles.emptyBrandIcon} resizeMode="contain" />
               <Text style={styles.emptyTitle}>Hỏi CareNest AI</Text>
               <Text style={styles.emptyText}>
-                Bạn có thể hỏi về thuốc hôm nay, lịch hẹn sắp tới, tiêm chủng hoặc thông tin sức khỏe của gia đình.
+                Bạn có thể hỏi về thuốc hôm nay, lịch hẹn sắp tới, tiêm chủng hoặc thông tin
+                sức khỏe của gia đình.
               </Text>
             </View>
-          ) : null}
-
-          {messages.map(msg => (
-            <View
-              key={msg.id}
-              style={[styles.messageRow, msg.role === 'user' ? styles.rowUser : styles.rowAI]}
-            >
-              {msg.role === 'assistant' ? (
+          }
+          ListFooterComponent={
+            isTyping ? (
+              <View style={[styles.messageRow, styles.rowAI]}>
                 <View style={styles.aiAvatarSmall}>
-                  <MaterialCommunityIcons name="robot" size={16} color="#fff" />
+                  <Image source={CARENEST_LOGO_HOUSE} style={styles.aiAvatarIconSmall} resizeMode="contain" />
                 </View>
-              ) : null}
-              <View style={[styles.bubble, msg.role === 'user' ? styles.bubbleUser : styles.bubbleAI]}>
-                {msg.role === 'assistant' ? (
-                  <Markdown style={markdownStyles}>{normalizeMarkdown(msg.content)}</Markdown>
-                ) : (
-                  <Text style={[styles.bubbleText, styles.textUser]}>{msg.content}</Text>
-                )}
+                <View style={[styles.bubble, styles.bubbleAI]}>
+                  <TypingIndicator />
+                </View>
               </View>
-              <Text style={styles.timestamp}>{msg.timestamp}</Text>
-            </View>
-          ))}
+            ) : null
+          }
+        />
 
-          {isTyping ? (
-            <View style={[styles.messageRow, styles.rowAI]}>
-              <View style={styles.aiAvatarSmall}>
-                <MaterialCommunityIcons name="robot" size={16} color="#fff" />
-              </View>
-              <View style={[styles.bubble, styles.bubbleAI]}>
-                <Text style={styles.typingDots}>• • •</Text>
-              </View>
-            </View>
-          ) : null}
-        </ScrollView>
-
-        <View style={styles.suggestionSection}>
-          <Text style={styles.suggestionLabel}>GỢI Ý CÂU HỎI</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.suggestionList}>
-            {QUICK_PROMPTS.map(prompt => (
-              <TouchableOpacity key={prompt} style={styles.suggestionChip} onPress={() => void sendMessage(prompt)}>
-                <Text style={styles.suggestionText}>{prompt}</Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-        </View>
+        {shouldShowSuggestions ? (
+          <View style={styles.suggestionSection}>
+            <Text style={styles.suggestionLabel}>GỢI Ý CÂU HỎI</Text>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.suggestionList}
+            >
+              {QUICK_PROMPTS.map(prompt => (
+                <TouchableOpacity
+                  key={prompt}
+                  style={styles.suggestionChip}
+                  onPress={() => void sendMessage(prompt)}
+                >
+                  <Text style={styles.suggestionText}>{prompt}</Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        ) : null}
 
         <View style={[styles.inputContainer, { paddingBottom: Math.max(insets.bottom, 12) }]}>
           <View style={styles.inputBar}>
@@ -230,10 +331,10 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: '#1a73e8',
     alignItems: 'center',
     justifyContent: 'center',
   },
+  aiAvatarIconLarge: { width: 26, height: 26 },
   headerTitle: {
     fontSize: 18,
     fontFamily: 'Manrope',
@@ -260,6 +361,7 @@ const styles = StyleSheet.create({
   chatArea: { flex: 1, backgroundColor: '#fff' },
   chatContent: { padding: 16, paddingBottom: 32 },
   emptyState: { alignItems: 'center', justifyContent: 'center', paddingVertical: 56, gap: 10 },
+  emptyBrandIcon: { width: 54, height: 54, opacity: 0.75 },
   emptyTitle: { fontSize: 18, fontWeight: '700', color: '#0f172a' },
   emptyText: { fontSize: 14, color: '#64748b', textAlign: 'center', lineHeight: 22 },
   messageRow: { marginBottom: 24, position: 'relative' },
@@ -272,10 +374,10 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 8,
-    backgroundColor: '#004a78',
     alignItems: 'center',
     justifyContent: 'center',
   },
+  aiAvatarIconSmall: { width: 16, height: 16 },
   bubble: { paddingHorizontal: 16, paddingVertical: 12, borderRadius: 20, maxWidth: '85%' },
   bubbleAI: {
     backgroundColor: '#f8fafc',
@@ -288,61 +390,73 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 4,
   },
   bubbleText: { fontSize: 15, fontFamily: 'Inter', lineHeight: 22 },
-  textAI: { color: '#334155' },
   textUser: { color: '#fff' },
   timestamp: { fontSize: 10, color: '#94a3b8', marginTop: 6 },
-  typingDots: { fontSize: 18, color: '#94a3b8', letterSpacing: 4 },
+  typingDotsWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    minWidth: 34,
+    paddingVertical: 2,
+  },
+  typingDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    marginHorizontal: 2,
+    backgroundColor: '#94a3b8',
+  },
   suggestionSection: {
-    paddingVertical: 16,
+    paddingVertical: 10,
     borderTopWidth: 1,
     borderTopColor: '#f1f5f9',
   },
   suggestionLabel: {
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: '800',
     color: '#64748b',
-    marginBottom: 10,
+    marginBottom: 8,
     paddingHorizontal: 16,
   },
   suggestionList: { paddingHorizontal: 16, gap: 10 },
   suggestionChip: {
-    paddingHorizontal: 16,
-    paddingVertical: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
     backgroundColor: '#fff',
-    borderRadius: 24,
+    borderRadius: 20,
     borderWidth: 1,
     borderColor: '#e2e8f0',
   },
-  suggestionText: { fontSize: 13, color: '#1a73e8', fontWeight: '500' },
+  suggestionText: { fontSize: 12, color: '#1a73e8', fontWeight: '500' },
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
-    paddingVertical: 12,
-    gap: 10,
+    paddingVertical: 8,
+    gap: 8,
     borderTopWidth: 1,
     borderTopColor: '#f1f5f9',
   },
   inputBar: {
     flex: 1,
-    height: 52,
+    height: 46,
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#f1f5f9',
-    borderRadius: 26,
+    borderRadius: 23,
     paddingHorizontal: 8,
   },
   inputActionBtn: {
-    width: 40,
-    height: 40,
+    width: 34,
+    height: 34,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  input: { flex: 1, fontSize: 15, color: '#1e293b', paddingHorizontal: 8 },
+  input: { flex: 1, fontSize: 14, color: '#1e293b', paddingHorizontal: 8 },
   sendBtn: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
+    width: 46,
+    height: 46,
+    borderRadius: 23,
     backgroundColor: '#1a73e8',
     alignItems: 'center',
     justifyContent: 'center',

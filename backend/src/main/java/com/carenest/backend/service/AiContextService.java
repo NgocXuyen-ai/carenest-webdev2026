@@ -2,18 +2,16 @@ package com.carenest.backend.service;
 
 import com.carenest.backend.dto.family.MyFamilyResponse;
 import com.carenest.backend.dto.notification.NotificationResponse;
-import com.carenest.backend.dto.profile.ProfileDetailsResponse;
 import com.carenest.backend.model.HealthProfile;
 import com.carenest.backend.repository.HealthProfileRepository;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 @Service
 public class AiContextService {
@@ -25,6 +23,7 @@ public class AiContextService {
     private final GrowthService growthService;
     private final NotificationService notificationService;
     private final HealthProfileRepository healthProfileRepository;
+    private final ProfileAccessService profileAccessService;
 
     public AiContextService(FamilyService familyService,
                             MedicineService medicineService,
@@ -32,7 +31,8 @@ public class AiContextService {
                             VaccinationService vaccinationService,
                             GrowthService growthService,
                             NotificationService notificationService,
-                            HealthProfileRepository healthProfileRepository) {
+                            HealthProfileRepository healthProfileRepository,
+                            ProfileAccessService profileAccessService) {
         this.familyService = familyService;
         this.medicineService = medicineService;
         this.appointmentService = appointmentService;
@@ -40,18 +40,26 @@ public class AiContextService {
         this.growthService = growthService;
         this.notificationService = notificationService;
         this.healthProfileRepository = healthProfileRepository;
+        this.profileAccessService = profileAccessService;
     }
 
     public Map<String, Object> buildContext(Integer userId, Integer requestedProfileId) {
         Map<String, Object> context = new LinkedHashMap<>();
         context.put("currentDate", LocalDate.now().toString());
 
-            HealthProfile ownProfile = healthProfileRepository.findFirstByUser_UserIdOrderByProfileAsc(userId)
-                .orElseThrow(() -> new RuntimeException("Không tìm thấy hồ sơ sức khỏe của người dùng"));
+        List<HealthProfile> accessibleProfiles = profileAccessService.getAccessibleProfiles(userId);
+        boolean familyAggregate = requestedProfileId == null && accessibleProfiles.size() > 1;
 
-        Set<Integer> accessibleProfileIds = new LinkedHashSet<>();
+        HealthProfile selectedProfile = null;
+        if (!familyAggregate) {
+            Integer effectiveProfileId = requestedProfileId != null
+                    ? profileAccessService.requireAccessibleProfile(userId, requestedProfileId).getProfile()
+                    : accessibleProfiles.getFirst().getProfile();
+            selectedProfile = healthProfileRepository.findById(effectiveProfileId)
+                    .orElseThrow(() -> new RuntimeException("Không tìm thấy hồ sơ được chọn"));
+        }
+
         Map<String, Object> familyData = null;
-
         try {
             MyFamilyResponse family = familyService.getMyFamily(userId);
             familyData = new LinkedHashMap<>();
@@ -59,47 +67,64 @@ public class AiContextService {
             familyData.put("familyName", family.getFamilyName());
             familyData.put("memberCount", family.getMemberCount());
             familyData.put("members", family.getMembers());
-            family.getMembers().forEach(member -> accessibleProfileIds.add(member.getProfileId()));
         } catch (RuntimeException ignored) {
-            accessibleProfileIds.add(ownProfile.getProfile());
         }
-
-        if (accessibleProfileIds.isEmpty()) {
-            accessibleProfileIds.add(ownProfile.getProfile());
-        }
-
-        Integer selectedProfileId = requestedProfileId != null && accessibleProfileIds.contains(requestedProfileId)
-                ? requestedProfileId
-                : accessibleProfileIds.iterator().next();
 
         List<Map<String, Object>> profileContexts = new ArrayList<>();
-        for (Integer profileId : accessibleProfileIds) {
+        for (HealthProfile profile : accessibleProfiles) {
+            Integer profileId = profile.getProfile();
             Map<String, Object> item = new LinkedHashMap<>();
-            HealthProfile profile = healthProfileRepository.findById(profileId)
-                    .orElseThrow(() -> new RuntimeException("Không tìm thấy profile với id = " + profileId));
-
             item.put("profile", mapProfile(profile));
             item.put("dailyMedicine", safeExecute(() -> medicineService.getDailySchedule(profileId, LocalDate.now(), userId)));
             item.put("appointments", safeExecute(() -> appointmentService.getOverview(userId, profileId)));
-            item.put("vaccinations", safeExecute(() -> vaccinationService.getTrackerData(profileId)));
-            item.put("growth", safeExecute(() -> growthService.getGrowthSummary(profileId)));
+            item.put("vaccinations", safeExecute(() -> vaccinationService.getTrackerData(userId, profileId)));
+            item.put("growth", safeExecute(() -> growthService.getGrowthSummary(userId, profileId)));
             profileContexts.add(item);
         }
 
-        List<NotificationResponse> unreadNotifications =
-                safeExecute(() -> notificationService.getNotifications(selectedProfileId, false));
+        List<NotificationResponse> unreadNotifications = loadUnreadNotifications(userId, accessibleProfiles, selectedProfile, familyAggregate);
 
         context.put("family", familyData);
-        context.put("selectedProfileId", selectedProfileId);
-        context.put("selectedProfile", mapProfile(
-                healthProfileRepository.findById(selectedProfileId)
-                        .orElseThrow(() -> new RuntimeException("Không tìm thấy profile được chọn"))
-        ));
+        context.put("scopeType", familyAggregate ? "FAMILY" : "PROFILE");
+        context.put("selectedProfileId", selectedProfile != null ? selectedProfile.getProfile() : null);
+        context.put("selectedProfile", selectedProfile != null ? mapProfile(selectedProfile) : null);
         context.put("profiles", profileContexts);
         context.put("medicineCabinet", safeExecute(() -> medicineService.getMyMedicines(userId)));
         context.put("unreadNotifications", unreadNotifications);
-        context.put("unreadNotificationCount", unreadNotifications != null ? unreadNotifications.size() : 0);
+        context.put("unreadNotificationCount", unreadNotifications.size());
         return context;
+    }
+
+    public Map<String, Object> buildAiRoutingContext(Integer userId, Integer requestedProfileId) {
+        Map<String, Object> fullContext = buildContext(userId, requestedProfileId);
+        Map<String, Object> compactContext = new LinkedHashMap<>();
+        compactContext.put("currentDate", fullContext.get("currentDate"));
+        compactContext.put("scopeType", fullContext.get("scopeType"));
+        compactContext.put("selectedProfileId", fullContext.get("selectedProfileId"));
+        compactContext.put("selectedProfile", fullContext.get("selectedProfile"));
+        compactContext.put("family", fullContext.get("family"));
+        compactContext.put("unreadNotificationCount", fullContext.get("unreadNotificationCount"));
+        compactContext.put("profiles", fullContext.get("profiles"));
+        return compactContext;
+    }
+
+    private List<NotificationResponse> loadUnreadNotifications(Integer userId,
+                                                               List<HealthProfile> accessibleProfiles,
+                                                               HealthProfile selectedProfile,
+                                                               boolean familyAggregate) {
+        if (familyAggregate) {
+            return accessibleProfiles.stream()
+                    .flatMap(profile -> notificationService.getNotifications(userId, profile.getProfile(), false).stream())
+                    .sorted(Comparator.comparing(NotificationResponse::getScheduledTime,
+                            Comparator.nullsLast(Comparator.reverseOrder())))
+                    .toList();
+        }
+
+        if (selectedProfile == null) {
+            return List.of();
+        }
+
+        return notificationService.getNotifications(userId, selectedProfile.getProfile(), false);
     }
 
     private Map<String, Object> mapProfile(HealthProfile profile) {
@@ -131,3 +156,4 @@ public class AiContextService {
         T get();
     }
 }
+

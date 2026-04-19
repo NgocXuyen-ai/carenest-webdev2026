@@ -9,7 +9,7 @@ class Settings(BaseSettings):
     PROXY_BASE_URL: str = "https://pg.ebebot.click/api/proxy"
     SQL_MODEL: str = "claude-haiku-4-5-20251001"
     OCR_MODEL: str = "gpt-5.4-mini"
-    DATABASE_URL: str = "postgresql://postgres:123456@localhost:5432/carenest_db"
+    DATABASE_URL: str = ""
     INTERNAL_SHARED_TOKEN: str = ""
 
     # LLM
@@ -26,7 +26,10 @@ class Settings(BaseSettings):
     RATE_LIMIT_DEFAULT: str = "30/minute"
 
     model_config = SettingsConfigDict(
-        env_file=str(Path(__file__).parent / ".env"),
+        env_file=(
+            str(Path(__file__).parent.parent / ".env.prod"),
+            str(Path(__file__).parent / ".env"),
+        ),
         env_file_encoding="utf-8",
         extra="ignore",
     )

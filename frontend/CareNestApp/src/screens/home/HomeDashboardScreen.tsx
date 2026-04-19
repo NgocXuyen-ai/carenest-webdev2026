@@ -1,25 +1,31 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import {
-  View,
-  Text,
+  Image,
   ScrollView,
-  TouchableOpacity,
-  StyleSheet,
   StatusBar,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useNavigation, CompositeNavigationProp } from '@react-navigation/native';
+import { useFocusEffect, useNavigation, CompositeNavigationProp } from '@react-navigation/native';
 import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 import { shadows } from '../../theme/spacing';
 import { BOTTOM_NAV_HEIGHT } from '../../utils/constants';
+import { CARENEST_LOGO_HOUSE } from '../../assets/branding';
 import Icon from '../../components/common/Icon';
 import Avatar from '../../components/common/Avatar';
 import type { HomeStackParamList, MainTabParamList } from '../../navigation/navigationTypes';
 import { useAuth } from '../../context/AuthContext';
 import { useFamily } from '../../context/FamilyContext';
 import { getDashboard, type DashboardPayload } from '../../api/dashboard';
+import { getAppointmentOverview } from '../../api/appointments';
+import { getDailySchedule } from '../../api/medicine';
+import { getVaccinationTracker } from '../../api/vaccinations';
+import { formatLocalDate } from '../../utils/dateTime';
 
 type Nav = CompositeNavigationProp<
   NativeStackNavigationProp<HomeStackParamList, 'HomeDashboard'>,
@@ -36,6 +42,131 @@ type TaskCard = {
   badge?: string;
 };
 
+type ProfileContext = {
+  profile?: { profileId?: number; fullName?: string };
+  dailyMedicine?: {
+    sections?: Array<{
+      session: string;
+      items: Array<{
+        doseId: number;
+        medicineName: string;
+        dosage: string;
+        isTaken: boolean;
+      }>;
+    }>;
+  };
+  appointments?: {
+    upcomingAppointments?: Array<{
+      appointmentId: number;
+      title: string;
+      appointmentDate: string;
+      location?: string | null;
+      doctorName?: string | null;
+    }>;
+  };
+  vaccinations?: Array<{
+    stageLabel: string;
+    vaccinations: Array<{
+      vaccineLogId: number;
+      vaccineName: string;
+      plannedDate?: string | null;
+      dateGiven?: string | null;
+      status: string;
+    }>;
+  }>;
+};
+
+const AI_SUMMARY_FALLBACK =
+  'CareNest AI sẽ tóm tắt nhanh các việc cần chú ý trong ngày của gia đình bạn.';
+
+const AI_SUMMARY_NORMALIZERS: Array<{ pattern: RegExp; value: string }> = [
+  {
+    pattern:
+      /^hom nay chua co canh bao lon\.? ban co the kiem tra lich thuoc, lich kham va hoi carenest ai neu can tra cuu nhanh\.?$/i,
+    value:
+      'Hôm nay chưa có cảnh báo lớn. Bạn có thể kiểm tra lịch thuốc, lịch khám và hỏi CareNest AI nếu cần tra cứu nhanh.',
+  },
+  {
+    pattern:
+      /^che do ca nha dang tong hop suc khoe cua toan bo thanh vien\.? ban co the xem nhac nho, lich kham va hoi carenest ai de tra cuu nhanh\.?$/i,
+    value:
+      'Chế độ Cả nhà đang tổng hợp sức khỏe của toàn bộ thành viên. Bạn có thể xem nhắc nhở, lịch khám và hỏi CareNest AI để tra cứu nhanh.',
+  },
+];
+
+function normalizeAiSummaryText(summary?: string | null): string {
+  if (!summary || !summary.trim()) {
+    return AI_SUMMARY_FALLBACK;
+  }
+
+  const trimmed = summary.trim();
+  const normalized = trimmed.toLowerCase().replace(/\s+/g, ' ');
+
+  for (const item of AI_SUMMARY_NORMALIZERS) {
+    if (item.pattern.test(normalized)) {
+      return item.value;
+    }
+  }
+
+  return trimmed;
+}
+
+function buildTasks(context?: ProfileContext): TaskCard[] {
+  if (!context) {
+    return [];
+  }
+
+  const nextTasks: TaskCard[] = [];
+  const medicineSections = context.dailyMedicine?.sections || [];
+  const firstDose = medicineSections.flatMap(section =>
+    section.items.map(item => ({
+      id: `dose-${item.doseId}`,
+      icon: 'pill',
+      iconBg: '#EFF6FF',
+      iconColor: '#2563EB',
+      title: item.medicineName,
+      subtitle: `${section.session} · ${item.dosage}`,
+      badge: item.isTaken ? 'ĐÃ UỐNG' : 'CHƯA UỐNG',
+    })),
+  )[0];
+
+  if (firstDose) {
+    nextTasks.push(firstDose);
+  }
+
+  const nextAppointment = context.appointments?.upcomingAppointments?.[0];
+  if (nextAppointment) {
+    nextTasks.push({
+      id: `appt-${nextAppointment.appointmentId}`,
+      icon: 'calendar_month',
+      iconBg: '#F0FDF4',
+      iconColor: '#16A34A',
+      title: nextAppointment.title,
+      subtitle: new Date(nextAppointment.appointmentDate).toLocaleString('vi-VN'),
+    });
+  }
+
+  const nextVaccination = context.vaccinations
+    ?.flatMap(group => group.vaccinations)
+    .find(item => item.status !== 'DONE');
+
+  if (nextVaccination) {
+    nextTasks.push({
+      id: `vac-${nextVaccination.vaccineLogId}`,
+      icon: 'syringe',
+      iconBg: '#FFF7ED',
+      iconColor: '#EA580C',
+      title: nextVaccination.vaccineName,
+      subtitle:
+        nextVaccination.plannedDate ||
+        nextVaccination.dateGiven ||
+        'Theo dõi lịch tiêm',
+    });
+  }
+
+  return nextTasks;
+}
+
 export default function HomeDashboardScreen() {
   const navigation = useNavigation<Nav>();
   const insets = useSafeAreaInsets();
@@ -43,116 +174,87 @@ export default function HomeDashboardScreen() {
   const { members, selectedProfileId, setSelectedProfileId } = useFamily();
   const [dashboard, setDashboard] = useState<DashboardPayload | null>(null);
 
-  useEffect(() => {
-    void getDashboard(selectedProfileId || undefined)
+  const loadDashboard = useCallback(async () => {
+    await getDashboard(selectedProfileId || undefined)
       .then(setDashboard)
       .catch(() => setDashboard(null));
   }, [selectedProfileId]);
 
-  const selectedProfileContext = useMemo(() => {
-    return dashboard?.profileContexts?.find(item => {
-      const profile = item.profile as { profileId?: number } | undefined;
-      return profile?.profileId === dashboard.selectedProfileId;
-    }) as
-      | {
-          profile?: { profileId?: number; fullName?: string };
-          dailyMedicine?: {
-            sections?: Array<{
-              session: string;
-              items: Array<{
-                doseId: number;
-                medicineName: string;
-                dosage: string;
-                isTaken: boolean;
-              }>;
-            }>;
-          };
-          appointments?: {
-            upcomingAppointments?: Array<{
-              appointmentId: number;
-              title: string;
-              appointmentDate: string;
-              location?: string | null;
-              doctorName?: string | null;
-            }>;
-          };
-          vaccinations?: Array<{
-            stageLabel: string;
-            vaccinations: Array<{
-              vaccineLogId: number;
-              vaccineName: string;
-              plannedDate?: string | null;
-              dateGiven?: string | null;
-              status: string;
-            }>;
-          }>;
-        }
-      | undefined;
-  }, [dashboard]);
+  useFocusEffect(
+    useCallback(() => {
+      void loadDashboard();
+      return undefined;
+    }, [loadDashboard]),
+  );
 
-  const tasks = useMemo<TaskCard[]>(() => {
-    const nextTasks: TaskCard[] = [];
-    const medicineSections = selectedProfileContext?.dailyMedicine?.sections || [];
-    const firstDose = medicineSections.flatMap(section =>
-      section.items.map(item => ({
-        id: `dose-${item.doseId}`,
-        icon: 'pill',
-        iconBg: '#EFF6FF',
-        iconColor: '#2563EB',
-        title: item.medicineName,
-        subtitle: `${section.session} · ${item.dosage}`,
-        badge: item.isTaken ? 'ĐÃ UỐNG' : 'CHƯA UỐNG',
-      })),
-    )[0];
-    if (firstDose) {
-      nextTasks.push(firstDose);
+  const profileContexts = useMemo(
+    () => (dashboard?.profileContexts || []) as ProfileContext[],
+    [dashboard],
+  );
+
+  const selectedProfileContext = useMemo(
+    () =>
+      profileContexts.find(item => {
+        const profile = item.profile as { profileId?: number } | undefined;
+        return profile?.profileId === dashboard?.selectedProfileId;
+      }),
+    [dashboard?.selectedProfileId, profileContexts],
+  );
+
+  const tasks = useMemo(() => {
+    if (!dashboard) {
+      return [];
     }
 
-    const nextAppointment = selectedProfileContext?.appointments?.upcomingAppointments?.[0];
-    if (nextAppointment) {
-      nextTasks.push({
-        id: `appt-${nextAppointment.appointmentId}`,
-        icon: 'calendar_month',
-        iconBg: '#F0FDF4',
-        iconColor: '#16A34A',
-        title: nextAppointment.title,
-        subtitle: new Date(nextAppointment.appointmentDate).toLocaleString('vi-VN'),
-      });
+    if (dashboard.scopeType === 'FAMILY') {
+      return profileContexts.flatMap(context => buildTasks(context)).slice(0, 4);
     }
 
-    const nextVaccination = selectedProfileContext?.vaccinations
-      ?.flatMap(group => group.vaccinations)
-      .find(item => item.status !== 'DONE');
-    if (nextVaccination) {
-      nextTasks.push({
-        id: `vac-${nextVaccination.vaccineLogId}`,
-        icon: 'syringe',
-        iconBg: '#FFF7ED',
-        iconColor: '#EA580C',
-        title: nextVaccination.vaccineName,
-        subtitle: nextVaccination.plannedDate || nextVaccination.dateGiven || 'Theo dõi lịch tiêm',
-      });
-    }
-
-    return nextTasks;
-  }, [selectedProfileContext]);
+    return buildTasks(selectedProfileContext);
+  }, [dashboard, profileContexts, selectedProfileContext]);
 
   const unreadCount = dashboard?.unreadNotificationCount ?? 0;
-  const selectedProfileRouteId = String(selectedProfileId || members[0]?.profileId || user?.profileId || '');
+  const aiSummaryText = normalizeAiSummaryText(dashboard?.aiSummary);
+  const selectedProfileRouteId = String(
+    selectedProfileId || user?.profileId || members[0]?.profileId || '',
+  );
+  const activeShortcutProfileId = Number(selectedProfileRouteId);
+
+  const prefetchMedicineSchedule = useCallback(() => {
+    if (!Number.isFinite(activeShortcutProfileId) || activeShortcutProfileId <= 0) {
+      return;
+    }
+
+    const today = formatLocalDate(new Date());
+    void getDailySchedule(activeShortcutProfileId, today);
+  }, [activeShortcutProfileId]);
+
+  const prefetchAppointments = useCallback(() => {
+    if (!Number.isFinite(activeShortcutProfileId) || activeShortcutProfileId <= 0) {
+      return;
+    }
+
+    void getAppointmentOverview(activeShortcutProfileId);
+  }, [activeShortcutProfileId]);
+
+  const prefetchVaccinations = useCallback(() => {
+    if (!Number.isFinite(activeShortcutProfileId) || activeShortcutProfileId <= 0) {
+      return;
+    }
+
+    void getVaccinationTracker(activeShortcutProfileId);
+  }, [activeShortcutProfileId]);
 
   return (
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#fff" />
 
       <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
-        <View style={styles.headerLeft}>
-          <Avatar uri={user?.avatarUrl} name={user?.fullName || 'CareNest'} size="sm" bordered />
+        <View style={styles.brandLeft}>
+          <Image source={CARENEST_LOGO_HOUSE} style={styles.brandGlyph} resizeMode="contain" />
           <Text style={styles.logoText}>CareNest</Text>
         </View>
-        <TouchableOpacity style={styles.notificationBtn} onPress={() => navigation.navigate('NotificationsCenter')}>
-          <Icon name="notifications" size={24} color="#0047AB" />
-          {unreadCount > 0 ? <View style={styles.notificationDot} /> : null}
-        </TouchableOpacity>
+        <Avatar uri={user?.avatarUrl} name={user?.fullName || 'CareNest'} size="sm" bordered />
       </View>
 
       <ScrollView
@@ -163,25 +265,41 @@ export default function HomeDashboardScreen() {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.greetingSection}>
-          <Text style={styles.greetingTitle}>Xin chào, {user?.fullName || 'bạn'}!</Text>
-          <Text style={styles.greetingSubtitle}>Hy vọng gia đình mình có một ngày khỏe mạnh.</Text>
+          <Text style={styles.greetingTitle}>
+            Xin chào, {user?.fullName || 'bạn'}!
+          </Text>
+          <Text style={styles.greetingSubtitle}>
+            Hy vọng gia đình mình có một ngày khỏe mạnh.
+          </Text>
         </View>
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>THÀNH VIÊN</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.memberList}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.memberList}
+          >
             <TouchableOpacity
               style={[styles.memberPill, selectedProfileId === null && styles.memberPillActive]}
               onPress={() => setSelectedProfileId(null)}
             >
-              <Text style={[styles.memberPillText, selectedProfileId === null && styles.memberPillTextActive]}>
+              <Text
+                style={[
+                  styles.memberPillText,
+                  selectedProfileId === null && styles.memberPillTextActive,
+                ]}
+              >
                 Cả nhà
               </Text>
             </TouchableOpacity>
             {members.map(member => (
               <TouchableOpacity
                 key={member.profileId}
-                style={[styles.memberPill, selectedProfileId === member.profileId && styles.memberPillActive]}
+                style={[
+                  styles.memberPill,
+                  selectedProfileId === member.profileId && styles.memberPillActive,
+                ]}
                 onPress={() => setSelectedProfileId(member.profileId)}
               >
                 <Text
@@ -198,13 +316,21 @@ export default function HomeDashboardScreen() {
         </View>
 
         <View style={styles.shortcutGrid}>
-          <TouchableOpacity style={styles.shortcutCard} onPress={() => navigation.navigate('MedicineSchedule')}>
+          <TouchableOpacity
+            style={styles.shortcutCard}
+            onPressIn={prefetchMedicineSchedule}
+            onPress={() => navigation.navigate('MedicineSchedule')}
+          >
             <View style={[styles.shortcutIconWrap, { backgroundColor: '#E0F2FE' }]}>
               <Icon name="pill" size={26} color="#0EA5E9" />
             </View>
             <Text style={styles.shortcutLabel}>Lịch thuốc</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.shortcutCard} onPress={() => navigation.navigate('AppointmentList')}>
+          <TouchableOpacity
+            style={styles.shortcutCard}
+            onPressIn={prefetchAppointments}
+            onPress={() => navigation.navigate('AppointmentList')}
+          >
             <View style={[styles.shortcutIconWrap, { backgroundColor: '#F3E8FF' }]}>
               <Icon name="calendar_month" size={26} color="#A855F7" />
             </View>
@@ -212,7 +338,10 @@ export default function HomeDashboardScreen() {
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.shortcutCard}
-            onPress={() => navigation.navigate('VaccinationTracker', { memberId: selectedProfileRouteId })}
+            onPressIn={prefetchVaccinations}
+            onPress={() =>
+              navigation.navigate('VaccinationTracker', { memberId: selectedProfileRouteId })
+            }
           >
             <View style={[styles.shortcutIconWrap, { backgroundColor: '#E0F7FA' }]}>
               <Icon name="syringe" size={26} color="#0097A7" />
@@ -236,8 +365,14 @@ export default function HomeDashboardScreen() {
 
           <View style={styles.heroHeader}>
             <View>
-              <Text style={styles.heroDate}>{dashboard?.generatedAt || new Date().toLocaleDateString('vi-VN')}</Text>
-              <Text style={styles.heroStatus}>{unreadCount > 0 ? 'Có việc cần chú ý' : 'Mọi thứ đều ổn'}</Text>
+              <Text style={styles.heroDate}>
+                {dashboard?.generatedAt || new Date().toLocaleDateString('vi-VN')}
+              </Text>
+              <Text style={styles.heroStatus}>
+                {unreadCount > 0
+                  ? 'Có việc cần chú ý'
+                  : 'Mọi thứ đều ổn'}
+              </Text>
             </View>
             <Icon name="sunny" size={40} color="rgba(255,255,255,0.8)" />
           </View>
@@ -245,18 +380,41 @@ export default function HomeDashboardScreen() {
           <View style={styles.glassStatsRow}>
             <View style={styles.glassModule}>
               <Icon name="group" size={18} color="#fff" />
-              <Text style={styles.moduleLabel}>Thành viên</Text>
+              <Text
+                style={styles.moduleLabel}
+                numberOfLines={1}
+                adjustsFontSizeToFit
+                minimumFontScale={0.8}
+              >
+                Thành viên
+              </Text>
               <Text style={styles.moduleValue}>{members.length}</Text>
             </View>
             <View style={styles.glassModule}>
               <Icon name="notifications" size={18} color="#fff" />
-              <Text style={styles.moduleLabel}>Nhắc nhở</Text>
+              <Text
+                style={styles.moduleLabel}
+                numberOfLines={1}
+                adjustsFontSizeToFit
+                minimumFontScale={0.8}
+              >
+                Nhắc nhở
+              </Text>
               <Text style={styles.moduleValue}>{unreadCount}</Text>
             </View>
             <View style={styles.glassModule}>
               <Icon name="pill" size={18} color="#fff" />
-              <Text style={styles.moduleLabel}>Thuốc hôm nay</Text>
-              <Text style={styles.moduleValue}>{tasks.filter(task => task.icon === 'pill').length}</Text>
+              <Text
+                style={styles.moduleLabel}
+                numberOfLines={1}
+                adjustsFontSizeToFit
+                minimumFontScale={0.7}
+              >
+                Thuốc hôm nay
+              </Text>
+              <Text style={styles.moduleValue}>
+                {tasks.filter(task => task.icon === 'pill').length}
+              </Text>
             </View>
           </View>
         </View>
@@ -273,7 +431,10 @@ export default function HomeDashboardScreen() {
               </View>
               <View style={styles.taskInfo}>
                 <Text style={styles.taskTitle}>Chưa có việc nào cần xử lý</Text>
-                <Text style={styles.taskTime}>Dashboard sẽ tự cập nhật khi có lịch thuốc, khám hoặc tiêm chủng.</Text>
+                <Text style={styles.taskTime}>
+                  Dashboard sẽ tự cập nhật khi có lịch thuốc, khám
+                  hoặc tiêm chủng.
+                </Text>
               </View>
             </View>
           ) : (
@@ -301,12 +462,14 @@ export default function HomeDashboardScreen() {
         <View style={[styles.aiAdvisorCard, { backgroundColor: '#E1F5FE' }]}>
           <View style={styles.aiHeader}>
             <View style={styles.aiAvatar}>
-              <Icon name="smart_toy" size={20} color="#fff" />
+              <Image source={CARENEST_LOGO_HOUSE} style={styles.aiAvatarIcon} resizeMode="contain" />
             </View>
             <Text style={styles.aiLabel}>AI CỐ VẤN</Text>
           </View>
           <Text style={styles.aiAdviceText}>
-            "{dashboard?.aiSummary || 'CareNest AI sẽ tóm tắt nhanh các việc cần chú ý trong ngày của gia đình bạn.'}"
+            "
+            {aiSummaryText}
+            "
           </Text>
         </View>
       </ScrollView>
@@ -315,10 +478,7 @@ export default function HomeDashboardScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#fff',
-  },
+  container: { flex: 1, backgroundColor: '#fff' },
   header: {
     paddingHorizontal: 20,
     flexDirection: 'row',
@@ -326,11 +486,8 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingBottom: 15,
   },
-  headerLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
+  brandLeft: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  brandGlyph: { width: 22, height: 22 },
   logoText: {
     fontSize: 22,
     fontFamily: 'Manrope',
@@ -338,33 +495,8 @@ const styles = StyleSheet.create({
     color: '#0047AB',
     letterSpacing: -0.5,
   },
-  notificationBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: '#F3F4F6',
-    alignItems: 'center',
-    justifyContent: 'center',
-    position: 'relative',
-  },
-  notificationDot: {
-    position: 'absolute',
-    top: 12,
-    right: 13,
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: '#EF4444',
-    borderWidth: 1.5,
-    borderColor: '#fff',
-  },
-  scroll: {
-    paddingHorizontal: 20,
-    paddingTop: 10,
-  },
-  greetingSection: {
-    marginBottom: 24,
-  },
+  scroll: { paddingHorizontal: 20, paddingTop: 10 },
+  greetingSection: { marginBottom: 24 },
   greetingTitle: {
     fontSize: 26,
     fontFamily: 'Manrope',
@@ -377,9 +509,7 @@ const styles = StyleSheet.create({
     color: '#64748B',
     marginTop: 4,
   },
-  section: {
-    marginBottom: 24,
-  },
+  section: { marginBottom: 24 },
   sectionHeaderRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -394,10 +524,7 @@ const styles = StyleSheet.create({
     letterSpacing: 1.2,
     marginBottom: 12,
   },
-  memberList: {
-    paddingBottom: 5,
-    gap: 12,
-  },
+  memberList: { paddingBottom: 5, gap: 12 },
   memberPill: {
     paddingHorizontal: 20,
     paddingVertical: 10,
@@ -414,14 +541,8 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#475569',
   },
-  memberPillTextActive: {
-    color: '#fff',
-  },
-  shortcutGrid: {
-    flexDirection: 'row',
-    gap: 12,
-    marginBottom: 24,
-  },
+  memberPillTextActive: { color: '#fff' },
+  shortcutGrid: { flexDirection: 'row', gap: 12, marginBottom: 24 },
   shortcutCard: {
     flex: 1,
     backgroundColor: '#fff',
@@ -472,10 +593,7 @@ const styles = StyleSheet.create({
     color: '#fff',
     marginTop: 4,
   },
-  glassStatsRow: {
-    flexDirection: 'row',
-    gap: 10,
-  },
+  glassStatsRow: { flexDirection: 'row', gap: 10 },
   glassModule: {
     flex: 1,
     backgroundColor: 'rgba(255, 255, 255, 0.2)',
@@ -487,10 +605,12 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   moduleLabel: {
-    fontSize: 10,
+    fontSize: 9,
     fontFamily: 'Inter',
     color: 'rgba(255,255,255,0.8)',
     textTransform: 'uppercase',
+    textAlign: 'center',
+    width: '100%',
   },
   moduleValue: {
     fontSize: 14,
@@ -517,9 +637,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginRight: 15,
   },
-  taskInfo: {
-    flex: 1,
-  },
+  taskInfo: { flex: 1 },
   taskTitle: {
     fontSize: 15,
     fontFamily: 'Manrope',
@@ -564,6 +682,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  aiAvatarIcon: { width: 20, height: 20 },
   aiLabel: {
     fontSize: 12,
     fontFamily: 'Inter',
