@@ -6,6 +6,8 @@ import lombok.Setter;
 
 import java.time.LocalDate;
 
+import com.carenest.backend.model.enums.VaccinationStatus;
+
 @Getter
 @Setter
 @Builder
@@ -24,5 +26,5 @@ public class VaccinationResponse {
 
     private String clinicName;
 
-    private String status;
+    private VaccinationStatus status;
 }
