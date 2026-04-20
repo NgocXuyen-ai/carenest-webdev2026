@@ -11,7 +11,7 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute } from '@react-navigation/native';
 import { colors } from '../../theme/colors';
 import { shadows } from '../../theme/spacing';
 import { BOTTOM_NAV_HEIGHT } from '../../utils/constants';
@@ -23,11 +23,17 @@ import { formatLocalDate } from '../../utils/dateTime';
 
 export default function AddMedicineScheduleScreen() {
   const navigation = useNavigation();
+  const route = useRoute<any>();
   const insets = useSafeAreaInsets();
   const { selectedProfileId } = useFamily();
   const { user } = useAuth();
+  const memberId = route.params?.memberId as string | undefined;
   const [formData, setFormData] = useState<MedicineScheduleFormData | null>(null);
-  const [selectedMember, setSelectedMember] = useState<number | null>(selectedProfileId || (user?.profileId ? Number(user.profileId) : null));
+  const [selectedMember, setSelectedMember] = useState<number | null>(
+    memberId
+      ? Number(memberId)
+      : selectedProfileId || (user?.profileId ? Number(user.profileId) : null),
+  );
   const [selectedMedicineId, setSelectedMedicineId] = useState<number | null>(null);
   const [dosage, setDosage] = useState('');
   const [frequency, setFrequency] = useState(2);
@@ -47,7 +53,7 @@ export default function AddMedicineScheduleScreen() {
         }
       })
       .catch(() => setFormData(null));
-  }, []);
+  }, [selectedMember]);
 
   const selectedMedicine = useMemo(
     () => formData?.medicines.find(item => item.medicineId === selectedMedicineId) || null,
@@ -107,6 +113,7 @@ export default function AddMedicineScheduleScreen() {
                   key={profile.profileId}
                   style={[styles.memberCard, selectedMember === profile.profileId && styles.memberCardActive]}
                   onPress={() => setSelectedMember(profile.profileId)}
+                  disabled={Boolean(memberId)}
                 >
                   <View style={[styles.avatarWrap, selectedMember === profile.profileId && styles.avatarWrapActive]}>
                     <Text style={styles.memberInitial}>{profile.fullName.charAt(0)}</Text>

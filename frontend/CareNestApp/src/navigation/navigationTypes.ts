@@ -21,12 +21,12 @@ export type MainTabParamList = {
 export type HomeStackParamList = {
   HomeDashboard: undefined;
   NotificationsCenter: undefined;
-  AppointmentList: undefined;
-  AddAppointment: { editId?: string };
+  AppointmentList: { memberId?: string } | undefined;
+  AddAppointment: { editId?: string; memberId?: string } | undefined;
   VaccinationTracker: { memberId: string };
   GrowthTracker: { memberId: string };
-  MedicineSchedule: undefined;
-  AddMedicineSchedule: { editId?: string };
+  MedicineSchedule: { memberId?: string } | undefined;
+  AddMedicineSchedule: { editId?: string; memberId?: string } | undefined;
   AddVaccinationSchedule: { profileId: number };
 };
 
@@ -36,17 +36,21 @@ export type FamilyStackParamList = {
   VaccinationTracker: { memberId: string };
   GrowthTracker: { memberId: string };
   UserMedical: { memberId?: string };
+  MedicineSchedule: { memberId?: string } | undefined;
+  AddMedicineSchedule: { editId?: string; memberId?: string } | undefined;
+  AppointmentList: { memberId?: string } | undefined;
+  AddAppointment: { editId?: string; memberId?: string } | undefined;
   AddVaccinationSchedule: { profileId: number };
 };
 
 export type MedicineStackParamList = {
-  MedicineSchedule: undefined;
+  MedicineSchedule: { memberId?: string } | undefined;
   MedicineCabinet: undefined;
-  AddMedicineSchedule: { editId?: string };
+  AddMedicineSchedule: { editId?: string; memberId?: string } | undefined;
   AddMedicineToCabinet: { editId?: string };
   OcrScanner: undefined;
-  AppointmentList: undefined;
-  AddAppointment: { editId?: string };
+  AppointmentList: { memberId?: string } | undefined;
+  AddAppointment: { editId?: string; memberId?: string } | undefined;
 };
 
 export type AiChatStackParamList = {

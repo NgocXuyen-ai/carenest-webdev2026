@@ -24,7 +24,7 @@ import { formatBloodType, formatGender } from '../../utils/healthOptions';
 import Emergency from './Emergency';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
-const TAB_WIDTH = (SCREEN_WIDTH - 40) / 2;
+const TAB_WIDTH = (SCREEN_WIDTH - 40) / 3;
 const DEFAULT_EDITABLE_ROLE_OPTIONS: FamilyRole[] = [
   'MEMBER',
   'FATHER',
@@ -260,6 +260,63 @@ export default function UserMedicalScreen() {
     void handleUpdateMemberRole(role);
   };
 
+  const renderScheduleTab = () => (
+    <View style={styles.tabContent}>
+      <TouchableOpacity
+        style={styles.scheduleCard}
+        activeOpacity={0.85}
+        onPress={() => navigation.navigate('MedicineSchedule', memberId ? { memberId } : {})}
+      >
+        <View style={[styles.scheduleIconWrap, { backgroundColor: '#DBEAFE' }]}>
+          <Icon name="pill" size={22} color="#2563EB" />
+        </View>
+        <View style={styles.scheduleTextWrap}>
+          <Text style={styles.scheduleTitle}>Lịch thuốc</Text>
+          <Text style={styles.scheduleSubtitle}>Xem các liều uống thuốc theo ngày.</Text>
+        </View>
+        <Icon name="chevron_right" size={20} color="#94A3B8" />
+      </TouchableOpacity>
+
+      <TouchableOpacity
+        style={styles.scheduleCard}
+        activeOpacity={0.85}
+        onPress={() => navigation.navigate('AppointmentList', memberId ? { memberId } : {})}
+      >
+        <View style={[styles.scheduleIconWrap, { backgroundColor: '#DCFCE7' }]}>
+          <Icon name="calendar_month" size={22} color="#16A34A" />
+        </View>
+        <View style={styles.scheduleTextWrap}>
+          <Text style={styles.scheduleTitle}>Lịch hẹn</Text>
+          <Text style={styles.scheduleSubtitle}>Theo dõi lịch khám và tái khám sắp tới.</Text>
+        </View>
+        <Icon name="chevron_right" size={20} color="#94A3B8" />
+      </TouchableOpacity>
+
+      <TouchableOpacity
+        style={styles.scheduleCard}
+        activeOpacity={0.85}
+        onPress={() => {
+          if (!memberId && viewedProfileId === null) {
+            return;
+          }
+
+          navigation.navigate('VaccinationTracker', {
+            memberId: memberId || String(viewedProfileId),
+          });
+        }}
+      >
+        <View style={[styles.scheduleIconWrap, { backgroundColor: '#FCE7F3' }]}>
+          <Icon name="syringe" size={22} color="#DB2777" />
+        </View>
+        <View style={styles.scheduleTextWrap}>
+          <Text style={styles.scheduleTitle}>Tiêm chủng</Text>
+          <Text style={styles.scheduleSubtitle}>Xem lịch sử và lịch tiêm dự kiến.</Text>
+        </View>
+        <Icon name="chevron_right" size={20} color="#94A3B8" />
+      </TouchableOpacity>
+    </View>
+  );
+
   const renderTabContent = () => {
     if (activeTab === 1) {
       return (
@@ -271,6 +328,10 @@ export default function UserMedicalScreen() {
           emergencyContactPhone={profile?.emergencyContactPhone}
         />
       );
+    }
+
+    if (activeTab === 2) {
+      return renderScheduleTab();
     }
 
     return (
@@ -424,6 +485,11 @@ export default function UserMedicalScreen() {
               Khẩn cấp
             </Text>
           </TouchableOpacity>
+          <TouchableOpacity style={styles.tabItem} onPress={() => handleTabPress(2)}>
+            <Text style={[styles.tabLabel, activeTab === 2 && styles.activeLabel]}>
+              Lịch
+            </Text>
+          </TouchableOpacity>
         </View>
 
         {renderTabContent()}
@@ -567,6 +633,30 @@ const styles = StyleSheet.create({
   tabLabel: { fontSize: 16, fontWeight: '700', color: '#64748B', fontFamily: 'Inter' },
   activeLabel: { color: '#1E3A8A' },
   tabContent: { paddingHorizontal: 16 },
+  scheduleCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    padding: 16,
+    marginBottom: 14,
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.05,
+    shadowRadius: 16,
+    elevation: 3,
+  },
+  scheduleIconWrap: {
+    width: 48,
+    height: 48,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  scheduleTextWrap: { flex: 1 },
+  scheduleTitle: { fontSize: 16, fontWeight: '800', color: '#0F172A', fontFamily: 'Inter' },
+  scheduleSubtitle: { fontSize: 13, color: '#64748B', marginTop: 4, lineHeight: 19 },
   grid: { flexDirection: 'row', gap: 16, marginBottom: 32 },
   healthCard: { flex: 1, padding: 20, borderRadius: 28 },
   cardHeader: {

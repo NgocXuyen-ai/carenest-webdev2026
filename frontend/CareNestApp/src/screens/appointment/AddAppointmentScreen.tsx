@@ -9,7 +9,7 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute } from '@react-navigation/native';
 import { colors } from '../../theme/colors';
 import { shadows } from '../../theme/spacing';
 import { TOP_BAR_HEIGHT, BOTTOM_NAV_HEIGHT } from '../../utils/constants';
@@ -23,11 +23,17 @@ import { formatLocalDateTime } from '../../utils/dateTime';
 
 export default function AddAppointmentScreen() {
   const navigation = useNavigation();
+  const route = useRoute<any>();
   const insets = useSafeAreaInsets();
   const { members, selectedProfileId } = useFamily();
   const { user } = useAuth();
+  const memberId = route.params?.memberId as string | undefined;
 
-  const [selectedMember, setSelectedMember] = useState<number | null>(selectedProfileId || (user?.profileId ? Number(user.profileId) : null));
+  const [selectedMember, setSelectedMember] = useState<number | null>(
+    memberId
+      ? Number(memberId)
+      : selectedProfileId || (user?.profileId ? Number(user.profileId) : null),
+  );
   const [facility, setFacility] = useState('');
   const [doctor, setDoctor] = useState('');
   const [address, setAddress] = useState('');
@@ -100,6 +106,7 @@ export default function AddAppointmentScreen() {
                 key={member.profileId}
                 style={[styles.memberCard, selectedMember === member.profileId && styles.memberCardActive]}
                 onPress={() => setSelectedMember(member.profileId)}
+                disabled={Boolean(memberId)}
               >
                 <View style={[styles.avatarWrap, selectedMember === member.profileId && styles.avatarWrapActive]}>
                   <Text style={styles.avatarText}>{member.fullName.charAt(0)}</Text>
