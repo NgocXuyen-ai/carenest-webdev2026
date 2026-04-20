@@ -15,20 +15,22 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useNavigation } from '@react-navigation/native';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import Markdown from 'react-native-markdown-display';
 import { colors } from '../../theme/colors';
 import { CARENEST_LOGO_HOUSE } from '../../assets/branding';
-import { chatAi } from '../../api/ai';
+import { chatAi, voiceChat, speakText } from '../../api/ai';
 import { useFamily } from '../../context/FamilyContext';
 import { useAuth } from '../../context/AuthContext';
+import { useAudioRecorder } from '../../hooks/useAudioRecorder';
+import { useAudioPlayback } from '../../hooks/useAudioPlayback';
 
 interface Message {
   id: string;
   role: 'user' | 'assistant';
   content: string;
   timestamp: string;
+  audioBase64?: string;
 }
 
 const QUICK_PROMPTS = [
@@ -41,7 +43,23 @@ function normalizeMarkdown(content: string): string {
   return content.replace(/\r\n/g, '\n').replace(/\\n/g, '\n').trim();
 }
 
-const MessageBubble = memo(function MessageBubble({ message }: { message: Message }) {
+function toUploadUri(path: string): string {
+  return path.startsWith('file://') ? path : `file://${path}`;
+}
+
+interface MessageBubbleProps {
+  message: Message;
+  isSpeaking: boolean;
+  isTtsLoading: boolean;
+  onSpeak: (messageId: string, text: string, audioBase64?: string) => void;
+}
+
+const MessageBubble = memo(function MessageBubble({
+  message,
+  isSpeaking,
+  isTtsLoading,
+  onSpeak,
+}: MessageBubbleProps) {
   const normalizedContent = useMemo(() => normalizeMarkdown(message.content), [message.content]);
   const isAssistant = message.role === 'assistant';
 
@@ -52,14 +70,34 @@ const MessageBubble = memo(function MessageBubble({ message }: { message: Messag
           <Image source={CARENEST_LOGO_HOUSE} style={styles.aiAvatarIconSmall} resizeMode="contain" />
         </View>
       ) : null}
-      <View style={[styles.bubble, isAssistant ? styles.bubbleAI : styles.bubbleUser]}>
+
+      <View style={styles.bubbleGroup}>
+        <View style={[styles.bubble, isAssistant ? styles.bubbleAI : styles.bubbleUser]}>
+          {isAssistant ? (
+            <Markdown style={markdownStyles}>{normalizedContent}</Markdown>
+          ) : (
+            <Text style={[styles.bubbleText, styles.textUser]}>{message.content}</Text>
+          )}
+        </View>
+
         {isAssistant ? (
-          <Markdown style={markdownStyles}>{normalizedContent}</Markdown>
-        ) : (
-          <Text style={[styles.bubbleText, styles.textUser]}>{message.content}</Text>
-        )}
+          <TouchableOpacity
+            style={styles.speakBtn}
+            onPress={() => onSpeak(message.id, message.content, message.audioBase64)}
+            disabled={isTtsLoading}
+          >
+            <MaterialCommunityIcons
+              name={isTtsLoading ? 'loading' : isSpeaking ? 'volume-high' : 'volume-medium-outline'}
+              size={16}
+              color={isSpeaking ? '#1a73e8' : '#94a3b8'}
+            />
+          </TouchableOpacity>
+        ) : null}
+
+        <Text style={[styles.timestamp, isAssistant ? styles.timestampAI : styles.timestampUser]}>
+          {message.timestamp}
+        </Text>
       </View>
-      <Text style={styles.timestamp}>{message.timestamp}</Text>
     </View>
   );
 });
@@ -92,9 +130,7 @@ const TypingIndicator = memo(function TypingIndicator() {
         useNativeDriver: true,
       }),
     );
-
     loop.start();
-
     return () => {
       loop.stop();
       progress.stopAnimation();
@@ -111,10 +147,7 @@ const TypingIndicator = memo(function TypingIndicator() {
             styles.typingDot,
             {
               opacity: dot.opacity,
-              transform: [
-                { translateY: dot.translateY },
-                { scale: dot.scale },
-              ],
+              transform: [{ translateY: dot.translateY }, { scale: dot.scale }],
             },
           ]}
         />
@@ -124,24 +157,54 @@ const TypingIndicator = memo(function TypingIndicator() {
 });
 
 export default function AiChatbotScreen() {
-  const navigation = useNavigation<any>();
   const insets = useSafeAreaInsets();
   const listRef = useRef<FlatList<Message>>(null);
   const { selectedProfileId } = useFamily();
   const { user } = useAuth();
+
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [conversationId, setConversationId] = useState<number | null>(null);
-  const shouldShowSuggestions = messages.length === 0;
+  const [speakingMessageId, setSpeakingMessageId] = useState<string | null>(null);
+  const [ttsLoadingId, setTtsLoadingId] = useState<string | null>(null);
 
+  const { isRecording, startRecording, stopRecording } = useAudioRecorder();
+  const { isPlaying, playBase64, stopPlayback } = useAudioPlayback();
+
+  const shouldShowSuggestions = messages.length === 0 && !isRecording;
   const activeProfileId = selectedProfileId || (user?.profileId ? Number(user.profileId) : null);
+
+  // Pulse animation cho mic button khi đang ghi âm
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+  const pulseLoop = useRef<Animated.CompositeAnimation | null>(null);
+
+  useEffect(() => {
+    if (isRecording) {
+      pulseLoop.current = Animated.loop(
+        Animated.sequence([
+          Animated.timing(pulseAnim, { toValue: 1.35, duration: 600, useNativeDriver: true }),
+          Animated.timing(pulseAnim, { toValue: 1, duration: 600, useNativeDriver: true }),
+        ]),
+      );
+      pulseLoop.current.start();
+    } else {
+      pulseLoop.current?.stop();
+      pulseAnim.setValue(1);
+    }
+  }, [isRecording, pulseAnim]);
+
+  // Xoá speakingMessageId khi audio dừng
+  useEffect(() => {
+    if (!isPlaying) {
+      setSpeakingMessageId(null);
+    }
+  }, [isPlaying]);
 
   useEffect(() => {
     const frame = requestAnimationFrame(() => {
       listRef.current?.scrollToEnd({ animated: true });
     });
-
     return () => cancelAnimationFrame(frame);
   }, [messages.length, isTyping]);
 
@@ -151,11 +214,12 @@ export default function AiChatbotScreen() {
       return;
     }
 
+    const ts = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     const userMsg: Message = {
       id: `user-${Date.now()}`,
       role: 'user',
       content: text,
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      timestamp: ts,
     };
 
     setMessages(prev => [...prev, userMsg]);
@@ -189,9 +253,125 @@ export default function AiChatbotScreen() {
     }
   }, [activeProfileId, conversationId, isTyping]);
 
+  const handleMicPress = useCallback(async () => {
+    if (isTyping) {
+      return;
+    }
+
+    try {
+      if (!isRecording) {
+        await startRecording();
+        return;
+      }
+
+      // Đang ghi âm → dừng và gửi
+      const recordedPath = await stopRecording();
+      if (!recordedPath) {
+        throw new Error('Không tìm thấy file ghi âm.');
+      }
+
+      setIsTyping(true);
+
+      const formData = new FormData();
+      formData.append('audio', {
+        uri: toUploadUri(recordedPath),
+        type: 'audio/mp4',
+        name: `voice-${Date.now()}.m4a`,
+      } as any);
+      if (activeProfileId) {
+        formData.append('profileId', String(activeProfileId));
+      }
+      if (conversationId) {
+        formData.append('conversationId', String(conversationId));
+      }
+
+      const response = await voiceChat(formData);
+
+      const ts = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      const now = Date.now();
+      const userVoiceId = `user-voice-${now}`;
+      const aiVoiceId = `assistant-voice-${now}`;
+
+      setConversationId(response.conversation_id);
+      setMessages(prev => [
+        ...prev,
+        {
+          id: userVoiceId,
+          role: 'user',
+          content: response.transcribed_text || '(giọng nói)',
+          timestamp: ts,
+        },
+        {
+          id: aiVoiceId,
+          role: 'assistant',
+          content: response.reply_text || '',
+          timestamp: ts,
+          audioBase64: response.audio_base64 || undefined,
+        },
+      ]);
+
+      // Tự phát audio phản hồi
+      if (response.audio_base64) {
+        setSpeakingMessageId(aiVoiceId);
+        await playBase64(response.audio_base64);
+      }
+    } catch (error) {
+      Alert.alert(
+        'Không xử lý được giọng nói',
+        error instanceof Error ? error.message : 'Đã có lỗi xảy ra',
+      );
+    } finally {
+      setIsTyping(false);
+    }
+  }, [activeProfileId, conversationId, isRecording, isTyping, playBase64, startRecording, stopRecording]);
+
+  const handleSpeak = useCallback(async (messageId: string, text: string, audioBase64?: string) => {
+    // Nếu đang phát message này → dừng
+    if (speakingMessageId === messageId) {
+      await stopPlayback();
+      setSpeakingMessageId(null);
+      return;
+    }
+
+    // Dừng audio đang phát (nếu có)
+    if (isPlaying) {
+      await stopPlayback();
+    }
+
+    setSpeakingMessageId(messageId);
+
+    try {
+      // Nếu message đã có audio từ voice chat → phát luôn
+      if (audioBase64) {
+        await playBase64(audioBase64);
+        return;
+      }
+
+      // Gọi TTS endpoint để tổng hợp giọng
+      setTtsLoadingId(messageId);
+      const base64Audio = await speakText(text);
+      setTtsLoadingId(null);
+      await playBase64(base64Audio);
+    } catch (error) {
+      setTtsLoadingId(null);
+      setSpeakingMessageId(null);
+      Alert.alert(
+        'Không thể đọc phản hồi',
+        error instanceof Error ? error.message : 'Đã có lỗi xảy ra',
+      );
+    }
+  }, [isPlaying, playBase64, speakingMessageId, stopPlayback]);
+
   const renderMessage = useCallback(
-    ({ item }: { item: Message }) => <MessageBubble message={item} />,
-    [],
+    ({ item }: { item: Message }) => (
+      <MessageBubble
+        message={item}
+        isSpeaking={speakingMessageId === item.id}
+        isTtsLoading={ttsLoadingId === item.id}
+        onSpeak={handleSpeak}
+      />
+    ),
+    [handleSpeak, speakingMessageId, ttsLoadingId],
   );
 
   return (
@@ -277,28 +457,37 @@ export default function AiChatbotScreen() {
         ) : null}
 
         <View style={[styles.inputContainer, { paddingBottom: Math.max(insets.bottom, 12) }]}>
-          <View style={styles.inputBar}>
+          <View style={[styles.inputBar, isRecording && styles.inputBarRecording]}>
             <TextInput
               style={styles.input}
-              placeholder="Hỏi tôi về sức khỏe..."
-              placeholderTextColor={colors.outline}
+              placeholder={isRecording ? 'Đang ghi âm...' : 'Hỏi tôi về sức khỏe...'}
+              placeholderTextColor={isRecording ? '#e74c3c' : colors.outline}
               value={input}
               onChangeText={setInput}
               onSubmitEditing={() => void sendMessage(input)}
+              editable={!isRecording}
             />
 
+            {/* Mic button với pulse animation */}
             <TouchableOpacity
-              style={styles.inputActionBtn}
-              onPress={() => navigation.navigate('VoiceAssistant')}
+              style={[styles.micBtn, isRecording && styles.micBtnRecording]}
+              onPress={() => void handleMicPress()}
+              disabled={isTyping}
             >
-              <MaterialCommunityIcons name="microphone" size={22} color={colors.outline} />
+              <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>
+                <MaterialCommunityIcons
+                  name={isRecording ? 'stop' : 'microphone'}
+                  size={20}
+                  color={isRecording ? '#fff' : colors.outline}
+                />
+              </Animated.View>
             </TouchableOpacity>
           </View>
 
           <TouchableOpacity
-            style={[styles.sendBtn, !input.trim() && styles.sendBtnDisabled]}
+            style={[styles.sendBtn, (!input.trim() || isRecording) && styles.sendBtnDisabled]}
             onPress={() => void sendMessage(input)}
-            disabled={!input.trim()}
+            disabled={!input.trim() || isRecording}
           >
             <MaterialCommunityIcons name="send" size={24} color="#fff" />
           </TouchableOpacity>
@@ -378,7 +567,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   aiAvatarIconSmall: { width: 16, height: 16 },
-  bubble: { paddingHorizontal: 16, paddingVertical: 12, borderRadius: 20, maxWidth: '85%' },
+  bubbleGroup: {
+    maxWidth: '85%',
+    alignItems: 'flex-start',
+  },
+  bubble: { paddingHorizontal: 16, paddingVertical: 12, borderRadius: 20 },
   bubbleAI: {
     backgroundColor: '#f8fafc',
     borderTopLeftRadius: 4,
@@ -391,7 +584,14 @@ const styles = StyleSheet.create({
   },
   bubbleText: { fontSize: 15, fontFamily: 'Inter', lineHeight: 22 },
   textUser: { color: '#fff' },
-  timestamp: { fontSize: 10, color: '#94a3b8', marginTop: 6 },
+  speakBtn: {
+    marginTop: 4,
+    marginLeft: 4,
+    padding: 4,
+  },
+  timestamp: { fontSize: 10, color: '#94a3b8', marginTop: 4 },
+  timestampAI: { marginLeft: 2 },
+  timestampUser: { alignSelf: 'flex-end' },
   typingDotsWrap: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -446,11 +646,20 @@ const styles = StyleSheet.create({
     borderRadius: 23,
     paddingHorizontal: 8,
   },
-  inputActionBtn: {
+  inputBarRecording: {
+    backgroundColor: '#fff0f0',
+    borderWidth: 1.5,
+    borderColor: '#e74c3c',
+  },
+  micBtn: {
     width: 34,
     height: 34,
     alignItems: 'center',
     justifyContent: 'center',
+    borderRadius: 17,
+  },
+  micBtnRecording: {
+    backgroundColor: '#e74c3c',
   },
   input: { flex: 1, fontSize: 14, color: '#1e293b', paddingHorizontal: 8 },
   sendBtn: {

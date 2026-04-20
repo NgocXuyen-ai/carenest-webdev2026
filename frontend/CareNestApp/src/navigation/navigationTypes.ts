@@ -51,7 +51,6 @@ export type MedicineStackParamList = {
 
 export type AiChatStackParamList = {
   AiChatbot: undefined;
-  VoiceAssistant: undefined;
 };
 
 export type ProfileStackParamList = {

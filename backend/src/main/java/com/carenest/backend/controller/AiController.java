@@ -91,4 +91,14 @@ public class AiController {
         Map<String, Object> response = aiProxyService.voiceChat(userDetails.getId(), profileId, conversationId, audio);
         return ApiResponse.success(response, "Trợ lý giọng nói phản hồi thành công");
     }
+
+    @PostMapping("/voice/tts")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> tts(
+            @RequestBody Map<String, String> body
+    ) {
+        String text = body.getOrDefault("text", "");
+        String lang = body.getOrDefault("lang", "vi");
+        Map<String, Object> response = aiProxyService.tts(text, lang);
+        return ApiResponse.success(response, "TTS thành công");
+    }
 }
