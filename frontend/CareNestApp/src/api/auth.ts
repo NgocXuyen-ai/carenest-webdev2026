@@ -1,5 +1,6 @@
-import { apiGet, apiGetCached, apiPatch, apiPost, invalidateApiGetCache } from './client';
+import { apiGet, apiGetCached, apiPatch, apiPost, apiClient, invalidateApiGetCache } from './client';
 import type { AuthSession } from './storage';
+import { getStoredSession } from './storage';
 
 export interface LoginPayload {
   email: string;
@@ -86,6 +87,25 @@ export async function changePassword(oldPassword: string, newPassword: string): 
     newPassword,
     confirmPassword: newPassword,
   });
+}
+
+export async function uploadAvatar(fileUri: string, fileName: string, mimeType: string): Promise<CurrentUserProfile> {
+  const formData = new FormData();
+  formData.append('avatar', { uri: fileUri, name: fileName, type: mimeType } as unknown as Blob);
+
+  const session = await getStoredSession();
+  const response = await apiClient.post<import('./client').ApiEnvelope<CurrentUserProfile>>(
+    '/users/me/avatar',
+    formData,
+    {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+        ...(session?.token ? { Authorization: `Bearer ${session.token}` } : {}),
+      },
+    },
+  );
+  invalidateApiGetCache(['/users/me/profile', '/dashboard', '/family/profiles/']);
+  return response.data.data;
 }
 
 export async function getUsers(): Promise<Array<{ userId: number; email: string }>> {
