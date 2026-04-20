@@ -1,8 +1,8 @@
 package com.carenest.backend.service;
 
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
 
 import com.carenest.backend.dto.auth.ChangePasswordRequest;
 import com.carenest.backend.dto.user.CurrentUserProfileResponse;
@@ -11,19 +11,25 @@ import com.carenest.backend.model.HealthProfile;
 import com.carenest.backend.model.User;
 import com.carenest.backend.repository.HealthProfileRepository;
 import com.carenest.backend.repository.UserRepository;
+import org.springframework.security.crypto.password.PasswordEncoder;
+
+import java.io.IOException;
 
 @Service
 public class UserService {
     private final UserRepository userRepository;
     private final HealthProfileRepository healthProfileRepository;
     private final PasswordEncoder passwordEncoder;
+    private final FileStorageService fileStorageService;
 
     public UserService(UserRepository userRepository,
                        HealthProfileRepository healthProfileRepository,
-                       PasswordEncoder passwordEncoder){
+                       PasswordEncoder passwordEncoder,
+                       FileStorageService fileStorageService) {
         this.userRepository = userRepository;
         this.healthProfileRepository = healthProfileRepository;
         this.passwordEncoder = passwordEncoder;
+        this.fileStorageService = fileStorageService;
     }
 
     public void changePassword(Integer currentUserId, ChangePasswordRequest req) {
@@ -100,4 +106,27 @@ public class UserService {
 
         return getCurrentUserProfile(currentUserId);
     }
+
+    public CurrentUserProfileResponse uploadAvatar(Integer currentUserId, MultipartFile file) {
+        HealthProfile profile = healthProfileRepository.findFirstByUser_UserIdOrderByProfileAsc(currentUserId)
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy hồ sơ sức khỏe"));
+
+        String oldUrl = profile.getAvatarUrl();
+        String newUrl;
+        try {
+            newUrl = fileStorageService.storeAvatar(file);
+        } catch (IOException e) {
+            throw new RuntimeException("Không thể lưu ảnh: " + e.getMessage());
+        }
+
+        profile.setAvatarUrl(newUrl);
+        healthProfileRepository.save(profile);
+
+        if (oldUrl != null) {
+            fileStorageService.deleteByUrl(oldUrl);
+        }
+
+        return getCurrentUserProfile(currentUserId);
+    }
 }
+

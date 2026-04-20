@@ -83,6 +83,10 @@ export function invalidateApiGetCache(matchers?: Array<string | RegExp>): void {
 }
 
 apiClient.interceptors.request.use(async config => {
+  if (!config.headers.Accept) {
+    config.headers.Accept = 'application/json';
+  }
+
   const session = await getStoredSession();
   if (session?.token) {
     config.headers.Authorization = `Bearer ${session.token}`;

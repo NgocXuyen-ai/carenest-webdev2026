@@ -1,5 +1,22 @@
-import { apiGet, apiGetCached, apiPatch, apiPost, invalidateApiGetCache } from './client';
+import { apiGet, apiGetCached, apiPatch, apiPost, apiClient, invalidateApiGetCache } from './client';
 import type { AuthSession } from './storage';
+
+function normalizeUploadUri(uri: string): string {
+  if (!uri) {
+    return uri;
+  }
+
+  if (
+    uri.startsWith('file://')
+    || uri.startsWith('content://')
+    || uri.startsWith('ph://')
+    || uri.startsWith('assets-library://')
+  ) {
+    return uri;
+  }
+
+  return `file://${uri}`;
+}
 
 export interface LoginPayload {
   email: string;
@@ -86,6 +103,19 @@ export async function changePassword(oldPassword: string, newPassword: string): 
     newPassword,
     confirmPassword: newPassword,
   });
+}
+
+export async function uploadAvatar(fileUri: string, fileName: string, mimeType: string): Promise<CurrentUserProfile> {
+  const formData = new FormData();
+  formData.append('avatar', {
+    uri: normalizeUploadUri(fileUri),
+    name: fileName,
+    type: mimeType,
+  } as unknown as Blob);
+
+  const response = await apiClient.post<import('./client').ApiEnvelope<CurrentUserProfile>>('/users/me/avatar', formData);
+  invalidateApiGetCache(['/users/me/profile', '/dashboard', '/family/profiles/']);
+  return response.data.data;
 }
 
 export async function getUsers(): Promise<Array<{ userId: number; email: string }>> {

@@ -24,7 +24,7 @@ import org.springframework.web.multipart.MultipartFile;
 import java.util.Map;
 
 @RestController
-@RequestMapping("/api/v1/ai")
+@RequestMapping(value = "/api/v1/ai", produces = MediaType.APPLICATION_JSON_VALUE)
 public class AiController {
 
     private final AiProxyService aiProxyService;
@@ -81,7 +81,11 @@ public class AiController {
         return ApiResponse.success(response, "Đã xác nhận và nhập dữ liệu OCR vào hệ thống");
     }
 
-    @PostMapping(value = "/voice/chat", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+        @PostMapping(
+            value = "/voice/chat",
+            consumes = MediaType.MULTIPART_FORM_DATA_VALUE,
+            produces = MediaType.APPLICATION_JSON_VALUE
+        )
     public ResponseEntity<ApiResponse<Map<String, Object>>> voiceChat(
             @AuthenticationPrincipal CustomUserDetails userDetails,
             @RequestPart("audio") MultipartFile audio,
@@ -90,5 +94,15 @@ public class AiController {
     ) {
         Map<String, Object> response = aiProxyService.voiceChat(userDetails.getId(), profileId, conversationId, audio);
         return ApiResponse.success(response, "Trợ lý giọng nói phản hồi thành công");
+    }
+
+        @PostMapping(value = "/voice/tts", produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<ApiResponse<Map<String, Object>>> tts(
+            @RequestBody Map<String, String> body
+    ) {
+        String text = body.getOrDefault("text", "");
+        String lang = body.getOrDefault("lang", "vi");
+        Map<String, Object> response = aiProxyService.tts(text, lang);
+        return ApiResponse.success(response, "TTS thành công");
     }
 }

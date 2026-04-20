@@ -17,13 +17,10 @@ from database import execute_query
 from prompts.chat_prompts import (
     build_answer_synthesis_prompt,
     build_context_answer_prompt,
-    build_context_answer_guard_prompt,
-    build_pre_route_guard_prompt,
     build_response_guard_prompt,
     build_router_prompt,
     build_small_talk_prompt,
     build_sql_generation_prompt,
-    build_sql_guard_prompt,
 )
 from schemas.chat_schemas import ChatRequest, ChatResponse
 from services import conversation_service
@@ -585,51 +582,6 @@ def _node_capture_route(state: ChatGraphState) -> ChatGraphState:
     return {}
 
 
-def _node_pre_route_guard(state: ChatGraphState) -> ChatGraphState:
-    request = state["request"]
-    prompt = build_pre_route_guard_prompt(
-        route=state.get("route", "clarify"),
-        route_reason=state.get("route_reason", ""),
-        message=request.message,
-        context=request.context,
-    )
-    guard = _invoke_json_prompt(prompt, state=state, stage="pre_route_guard")
-    if not guard or "allow" not in guard:
-        _trace(
-            state,
-            "pre_route_guard.fallback",
-            guard=guard,
-            reason="missing_allow_field",
-        )
-        return {
-            "route": "clarify",
-            "safety_decision": "deny",
-            "safety_reason": "Safety guard output was unavailable, so the request was routed to a safe clarification path.",
-        }
-
-    allow_raw = guard.get("allow")
-    allow = allow_raw is True or (isinstance(allow_raw, str) and allow_raw.strip().lower() == "true")
-    normalized_route = _normalize_route(str(guard.get("normalized_route", state.get("route", "clarify"))))
-    reason = str(guard.get("reason", "")).strip()
-
-    if not allow and normalized_route not in {"clarify", "refuse"}:
-        normalized_route = "clarify"
-
-    _trace(
-        state,
-        "pre_route_guard.decision",
-        allow=allow,
-        normalized_route=normalized_route,
-        safety_reason=reason,
-    )
-
-    return {
-        "route": normalized_route,
-        "safety_decision": "allow" if allow else "deny",
-        "safety_reason": reason,
-    }
-
-
 def _select_lane(state: ChatGraphState) -> str:
     route = state.get("route", "clarify")
     if route == "small_talk":
@@ -681,38 +633,18 @@ def _node_context_answer_lane(state: ChatGraphState) -> ChatGraphState:
         context=request.context,
     )
     _trace_prompt(state, "context_answer_lane.prompt", prompt)
-    try:
-        response = _get_llm().invoke([HumanMessage(content=prompt)])
-        reply = _content_to_text(response.content)
-    except Exception as exc:
-        logger.warning("Context lane failed: %s", exc)
-        _trace(state, "context_answer_lane.error", error=str(exc))
-        reply = ""
-    if not reply:
-        reply = "Mình chưa đủ thông tin để trả lời. Bạn cho mình thêm thông tin chi tiết nhé."
+    result = _invoke_json_prompt(prompt, state=state, stage="context_answer_lane")
 
-    guard_prompt = build_context_answer_guard_prompt(
-        message=request.message,
-        draft_reply=reply,
-        context=request.context,
-    )
-    guarded = _invoke_json_prompt(guard_prompt, state=state, stage="context_answer_guard")
-    action = str(guarded.get("action", "keep_answer")).strip().lower()
-    guarded_reply = guarded.get("final_reply")
-    if isinstance(guarded_reply, str) and guarded_reply.strip():
-        reply = guarded_reply.strip()
-
-    _trace(
-        state,
-        "context_answer_guard.decision",
-        action=action,
-        final_reply=reply,
-    )
+    action = str(result.get("action", "answer")).strip().lower()
+    reply = result.get("reply")
+    _trace(state, "context_answer_lane.decision", action=action, reply=reply)
 
     if action == "fallback_to_sql":
-        logger.info("context_answer_guard requested fallback_to_sql for message=%s", request.message)
-        _trace(state, "context_answer_guard.fallback_to_sql")
+        _trace(state, "context_answer_lane.fallback_to_sql")
         return _node_text_to_sql_lane(state)
+
+    if not isinstance(reply, str) or not reply.strip():
+        reply = "Mình chưa đủ thông tin để trả lời. Bạn cho mình thêm thông tin chi tiết nhé."
 
     profiles = request.context.get("profiles")
     data = profiles if isinstance(profiles, list) else None
@@ -765,30 +697,22 @@ def _node_text_to_sql_lane(state: ChatGraphState) -> ChatGraphState:
         }
 
     sql = raw_sql.strip()
-    guard_prompt = build_sql_guard_prompt(request.user_id, request.message, sql)
-    guard = _invoke_json_prompt(guard_prompt, state=state, stage="sql_guard")
-    verdict = str(guard.get("verdict", "reject")).strip().lower()
-    reason = str(guard.get("reason", "")).strip()
 
-    revised_sql = guard.get("revised_sql")
-    if isinstance(revised_sql, str) and revised_sql.strip():
-        sql = revised_sql.strip()
-
-    _trace(
-        state,
-        "sql_guard.decision",
-        verdict=verdict,
-        reason=reason,
-        sql=sql,
-    )
-
-    if verdict == "clarify":
-        question = str(guard.get("clarification_question", "")).strip()
-        reply = question or reason or "Ban co the noi ro hon de minh truy van an toan va dung y khong?"
-        return {"route": "clarify", "reply": reply, "status": "success", "sql": sql}
-
-    if verdict != "allow":
+    # Programmatic safety checks (replaces separate sql_guard LLM call)
+    tenant_ok = generation.get("tenant_scope_ok")
+    read_only_ok = generation.get("read_only_ok")
+    sensitive_ok = generation.get("sensitive_data_ok")
+    if tenant_ok is False or read_only_ok is False or sensitive_ok is False:
+        reason = generation.get("reason", "")
         reply = reason or "Minh khong the thuc hien yeu cau nay vi ly do an toan du lieu."
+        _trace(
+            state,
+            "sql_safety_check.failed",
+            tenant_scope_ok=tenant_ok,
+            read_only_ok=read_only_ok,
+            sensitive_data_ok=sensitive_ok,
+            reason=reason,
+        )
         return {"route": "refuse", "reply": reply, "status": "error", "sql": sql}
 
     sql = _ensure_limit(sql)
@@ -879,7 +803,7 @@ def _node_refuse_lane(state: ChatGraphState) -> ChatGraphState:
 
 def _node_response_guard(state: ChatGraphState) -> ChatGraphState:
     route = state.get("route", "clarify")
-    if route in {"clarify", "refuse"}:
+    if route in {"clarify", "refuse", "small_talk"}:
         _trace(state, "response_guard.skip", reason="route_is_terminal", route=route)
         return {}
 
@@ -950,7 +874,6 @@ def _build_chat_graph() -> Any:
     graph.add_node("route_tools", ToolNode(ROUTE_TOOLS))
     graph.add_node("route_fallback", _node_route_fallback)
     graph.add_node("capture_route", _node_capture_route)
-    graph.add_node("pre_route_guard", _node_pre_route_guard)
     graph.add_node("small_talk_lane", _node_small_talk_lane)
     graph.add_node("context_answer_lane", _node_context_answer_lane)
     graph.add_node("text_to_sql_lane", _node_text_to_sql_lane)
@@ -971,9 +894,8 @@ def _build_chat_graph() -> Any:
     )
     graph.add_edge("route_tools", "capture_route")
     graph.add_edge("route_fallback", "capture_route")
-    graph.add_edge("capture_route", "pre_route_guard")
     graph.add_conditional_edges(
-        "pre_route_guard",
+        "capture_route",
         _select_lane,
         {
             "small_talk_lane": "small_talk_lane",

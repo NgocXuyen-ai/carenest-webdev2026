@@ -35,6 +35,7 @@ import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -151,6 +152,30 @@ public class AiProxyService {
             userId,
             result.get("conversation_id"),
             result.keySet());
+        return result;
+    }
+
+    public Map<String, Object> tts(String text, String lang) {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("text", text);
+        body.put("lang", lang != null ? lang : "vi");
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.set("X-Internal-Token", aiInternalToken);
+        headers.setContentType(MediaType.APPLICATION_JSON);
+
+        ResponseEntity<byte[]> response = restTemplate.exchange(
+                aiServiceBaseUrl + "/internal/voice/tts",
+                HttpMethod.POST,
+                new HttpEntity<>(body, headers),
+                byte[].class
+        );
+
+        byte[] audioBytes = response.getBody();
+        String audioBase64 = audioBytes != null ? Base64.getEncoder().encodeToString(audioBytes) : "";
+
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("audio_base64", audioBase64);
         return result;
     }
 

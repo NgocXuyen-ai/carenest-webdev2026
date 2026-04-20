@@ -17,13 +17,7 @@ import { useFamily } from '../../context/FamilyContext';
 import { useAuth } from '../../context/AuthContext';
 import { useAudioRecorder } from '../../hooks/useAudioRecorder';
 import { useAudioPlayback } from '../../hooks/useAudioPlayback';
-
-function toUploadUri(path: string): string {
-  if (path.startsWith('file://')) {
-    return path;
-  }
-  return `file://${path}`;
-}
+import { normalizeUploadUri } from '../../utils/uploadUri';
 
 export default function VoiceAssistantScreen() {
   const navigation = useNavigation<any>();
@@ -57,7 +51,7 @@ export default function VoiceAssistantScreen() {
   const submitVoice = useCallback(async (audioPath: string) => {
     const formData = new FormData();
     formData.append('audio', {
-      uri: toUploadUri(audioPath),
+      uri: normalizeUploadUri(audioPath),
       type: 'audio/mp4',
       name: `voice-${Date.now()}.m4a`,
     } as any);

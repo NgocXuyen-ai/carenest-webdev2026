@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
+  ActivityIndicator,
   Alert,
   Image,
   ScrollView,
@@ -10,6 +11,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { launchCamera, launchImageLibrary } from 'react-native-image-picker';
 import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
@@ -20,7 +22,7 @@ import Icon from '../../components/common/Icon';
 import SelectField from '../../components/common/SelectField';
 import { useAuth } from '../../context/AuthContext';
 import { useFamily } from '../../context/FamilyContext';
-import { getCurrentUserProfile, updateCurrentUserProfile } from '../../api/auth';
+import { getCurrentUserProfile, updateCurrentUserProfile, uploadAvatar } from '../../api/auth';
 import {
   BLOOD_TYPE_OPTIONS,
   formatBloodType,
@@ -153,6 +155,7 @@ export default function UserProfileSettingsScreen() {
   const [emergencyContactPhone, setEmergencyContactPhone] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
 
   const memberRole = useMemo(() => {
     const currentMember = members.find(member => String(member.profileId) === user?.profileId);
@@ -204,9 +207,57 @@ export default function UserProfileSettingsScreen() {
     }
 
     Alert.alert(
-      'Chưa hỗ trợ',
-      'Tính năng đổi ảnh đại diện sẽ được kết nối khi backend upload ảnh sẵn sàng.',
+      'Đổi ảnh đại diện',
+      'Chọn cách thêm ảnh',
+      [
+        {
+          text: 'Chụp ảnh',
+          onPress: () => void handlePickImage('camera'),
+        },
+        {
+          text: 'Thư viện ảnh',
+          onPress: () => void handlePickImage('library'),
+        },
+        {
+          text: 'Từ tệp',
+          onPress: () => void handlePickImage('files'),
+        },
+        {
+          text: 'Hủy',
+          style: 'cancel',
+        },
+      ],
     );
+  };
+
+  const handlePickImage = async (source: 'camera' | 'library' | 'files') => {
+    try {
+      const pickerResult = source === 'camera'
+        ? await launchCamera({ mediaType: 'photo', maxWidth: 800, maxHeight: 800, quality: 0.8, saveToPhotos: false })
+        : await launchImageLibrary({ mediaType: 'photo', maxWidth: 800, maxHeight: 800, quality: 0.8, selectionLimit: 1 });
+
+      if (pickerResult.didCancel || pickerResult.errorCode) {
+        return;
+      }
+
+      const asset = pickerResult.assets?.[0];
+      if (!asset?.uri) {
+        return;
+      }
+
+      setIsUploadingAvatar(true);
+      const updated = await uploadAvatar(
+        asset.uri,
+        asset.fileName || 'avatar.jpg',
+        asset.type || 'image/jpeg',
+      );
+      setAvatarUri(updated.avatarUrl || null);
+      await refreshUser();
+    } catch (error) {
+      Alert.alert('Lỗi', error instanceof Error ? error.message : 'Không thể tải ảnh lên');
+    } finally {
+      setIsUploadingAvatar(false);
+    }
   };
 
   const handleSave = async () => {
@@ -291,7 +342,16 @@ export default function UserProfileSettingsScreen() {
               source={{ uri: avatarUri || `https://i.pravatar.cc/150?u=${user?.id || '1'}` }}
               style={styles.avatar}
             />
-            <TouchableOpacity style={[styles.cameraBtn, !isEditing && styles.cameraBtnDisabled]} onPress={handleChoosePhoto}>
+            {isUploadingAvatar ? (
+              <View style={styles.avatarLoadingOverlay}>
+                <ActivityIndicator size="small" color="#fff" />
+              </View>
+            ) : null}
+            <TouchableOpacity
+              style={[styles.cameraBtn, (!isEditing || isUploadingAvatar) && styles.cameraBtnDisabled]}
+              onPress={handleChoosePhoto}
+              disabled={isUploadingAvatar}
+            >
               <Icon name="photo_camera" size={20} color="#fff" />
             </TouchableOpacity>
           </View>
@@ -529,6 +589,17 @@ const styles = StyleSheet.create({
     padding: 4,
   },
   avatar: { width: '100%', height: '100%', borderRadius: 56 },
+  avatarLoadingOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    borderRadius: 56,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   cameraBtn: {
     position: 'absolute',
     bottom: 2,

@@ -1,13 +1,17 @@
 package com.carenest.backend.controller;
 
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 import com.carenest.backend.dto.auth.ChangePasswordRequest;
 import com.carenest.backend.dto.user.CurrentUserProfileResponse;
@@ -67,4 +71,19 @@ public class UserController {
         CurrentUserProfileResponse response = userService.updateCurrentUserProfile(currentUserId, body);
         return ApiResponse.success(response, "Cập nhật hồ sơ người dùng thành công");
     }
+
+    @PostMapping(value = "/me/avatar", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<ApiResponse<CurrentUserProfileResponse>> uploadAvatar(
+            @RequestPart("avatar") MultipartFile file,
+            @AuthenticationPrincipal UserDetails userDetails
+    ) {
+        if (userDetails == null) {
+            throw new RuntimeException("Bạn chưa đăng nhập");
+        }
+
+        Integer currentUserId = ((CustomUserDetails) userDetails).getId();
+        CurrentUserProfileResponse response = userService.uploadAvatar(currentUserId, file);
+        return ApiResponse.success(response, "Cập nhật ảnh đại diện thành công");
+    }
 }
+

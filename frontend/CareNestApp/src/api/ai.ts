@@ -58,8 +58,17 @@ export async function confirmOcr(ocrId: number, payload: { profileId: number; st
 
 export async function voiceChat(payload: FormData): Promise<VoiceReply> {
   const response = await apiClient.post('/ai/voice/chat', payload, {
-    headers: { 'Content-Type': 'multipart/form-data' },
+    headers: { Accept: 'application/json' },
     timeout: 300000,
   });
   return response.data.data as VoiceReply;
+}
+
+export async function speakText(text: string): Promise<string> {
+  const response = await apiClient.post(
+    '/ai/voice/tts',
+    { text, lang: 'vi' },
+    { timeout: 60000 },
+  );
+  return (response.data.data as { audio_base64: string }).audio_base64;
 }
