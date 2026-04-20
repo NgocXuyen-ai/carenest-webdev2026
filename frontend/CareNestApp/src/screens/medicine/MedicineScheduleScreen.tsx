@@ -7,7 +7,7 @@ import {
   StyleSheet,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import { useFocusEffect, useNavigation, useRoute } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { colors } from '../../theme/colors';
 import { shadows } from '../../theme/spacing';
@@ -23,19 +23,23 @@ import { formatLocalDate } from '../../utils/dateTime';
 type Nav = NativeStackNavigationProp<any, 'MedicineSchedule'>;
 
 const TIME_GROUPS = [
-  { key: 'MORNING', label: 'Buổi sáng', icon: 'wb_sunny', bg: '#FFF9C4', iconColor: '#F9A825' },
-  { key: 'NOON', label: 'Buổi trưa', icon: 'partly_cloudy_day', bg: '#E3F2FD', iconColor: '#1976D2' },
-  { key: 'EVENING', label: 'Buổi tối', icon: 'bedtime', bg: '#EDE7F6', iconColor: '#7B1FA2' },
+  { key: 'MORNING', label: 'Buoi sang', icon: 'wb_sunny', bg: '#FFF9C4', iconColor: '#F9A825' },
+  { key: 'NOON', label: 'Buoi trua', icon: 'partly_cloudy_day', bg: '#E3F2FD', iconColor: '#1976D2' },
+  { key: 'EVENING', label: 'Buoi toi', icon: 'bedtime', bg: '#EDE7F6', iconColor: '#7B1FA2' },
 ];
 
 export default function MedicineScheduleScreen() {
   const navigation = useNavigation<Nav>();
+  const route = useRoute<any>();
   const insets = useSafeAreaInsets();
   const { selectedProfileId } = useFamily();
   const { user } = useAuth();
   const [schedule, setSchedule] = useState<DailyMedicineSchedule | null>(null);
 
-  const activeProfileId = selectedProfileId || (user?.profileId ? Number(user.profileId) : null);
+  const memberId = route.params?.memberId as string | undefined;
+  const activeProfileId = memberId
+    ? Number(memberId)
+    : selectedProfileId || (user?.profileId ? Number(user.profileId) : null);
 
   const loadSchedule = useCallback(async () => {
     if (!activeProfileId) {
@@ -48,7 +52,6 @@ export default function MedicineScheduleScreen() {
       .then(setSchedule)
       .catch(() => setSchedule(null));
 
-    // Warm up AddMedicineSchedule data before navigation.
     void getScheduleFormData();
   }, [activeProfileId]);
 
@@ -83,7 +86,7 @@ export default function MedicineScheduleScreen() {
 
   return (
     <View style={styles.root}>
-      <TopAppBar variant="detail" title="Lịch uống thuốc" />
+      <TopAppBar variant="detail" title="Lich uong thuoc" />
       <ScrollView
         contentContainerStyle={[
           styles.scroll,
@@ -93,9 +96,9 @@ export default function MedicineScheduleScreen() {
       >
         <View style={styles.progressCard}>
           <View style={styles.progressInfo}>
-            <Text style={styles.progressTitle}>Hôm nay</Text>
+            <Text style={styles.progressTitle}>{schedule?.profileName || 'Hom nay'}</Text>
             <Text style={styles.progressSub}>
-              {takenCount}/{totalCount} lần uống đã hoàn thành
+              {takenCount}/{totalCount} lan uong da hoan thanh
             </Text>
           </View>
           <View style={styles.progressCircle}>
@@ -138,7 +141,7 @@ export default function MedicineScheduleScreen() {
                       <Text style={[styles.schedName, item.isTaken && styles.schedNameTaken]}>
                         {item.medicineName}
                       </Text>
-                      <Text style={styles.schedDosage}>{item.dosage}{item.note ? ` · ${item.note}` : ''}</Text>
+                      <Text style={styles.schedDosage}>{item.dosage}{item.note ? ` - ${item.note}` : ''}</Text>
                     </View>
                   </TouchableOpacity>
                 ))}
@@ -149,13 +152,13 @@ export default function MedicineScheduleScreen() {
 
         {scheduleItems.length === 0 ? (
           <View style={[styles.card, shadows.sm, { padding: 20 }]}>
-            <Text style={styles.schedDosage}>Chưa có lịch thuốc nào cho hồ sơ đang chọn.</Text>
+            <Text style={styles.schedDosage}>Chua co lich thuoc nao cho ho so dang chon.</Text>
           </View>
         ) : null}
       </ScrollView>
       <FAB
         iconName="add"
-        onPress={() => navigation.navigate('AddMedicineSchedule', {})}
+        onPress={() => navigation.navigate('AddMedicineSchedule', memberId ? { memberId } : {})}
         bottomOffset={BOTTOM_NAV_HEIGHT - 55}
       />
     </View>

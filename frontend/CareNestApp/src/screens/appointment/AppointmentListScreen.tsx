@@ -7,7 +7,7 @@ import {
   StyleSheet,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import { useFocusEffect, useNavigation, useRoute } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { colors } from '../../theme/colors';
 import { shadows } from '../../theme/spacing';
@@ -31,13 +31,17 @@ const FILTERS: { key: FilterKey; label: string }[] = [
 
 export default function AppointmentListScreen() {
   const navigation = useNavigation<Nav>();
+  const route = useRoute<any>();
   const insets = useSafeAreaInsets();
   const { selectedProfileId } = useFamily();
   const { user } = useAuth();
   const [filter, setFilter] = useState<FilterKey>('all');
   const [overview, setOverview] = useState<AppointmentOverview | null>(null);
+  const memberId = route.params?.memberId as string | undefined;
 
-  const activeProfileId = selectedProfileId || (user?.profileId ? Number(user.profileId) : null);
+  const activeProfileId = memberId
+    ? Number(memberId)
+    : selectedProfileId || (user?.profileId ? Number(user.profileId) : null);
 
   const loadOverview = useCallback(async () => {
     if (!activeProfileId) {
@@ -128,7 +132,10 @@ export default function AppointmentListScreen() {
           })
         )}
       </ScrollView>
-      <FAB iconName="add" onPress={() => navigation.navigate('AddAppointment', {})} />
+      <FAB
+        iconName="add"
+        onPress={() => navigation.navigate('AddAppointment', memberId ? { memberId } : {})}
+      />
     </View>
   );
 }

@@ -42,6 +42,17 @@ export interface MedicineScheduleFormData {
   medicines: Array<{ medicineId: number; name: string; quantity: number; unit: string }>;
 }
 
+interface MedicineScheduleFormApiData {
+  profiles: Array<{ profileId: number; fullName: string }>;
+  medicines: Array<{
+    medicineId: number;
+    name?: string;
+    medicineName?: string;
+    quantity: number;
+    unit: string;
+  }>;
+}
+
 export async function getCabinetMedicines(): Promise<MedicineItem[]> {
   return apiGetCached<MedicineItem[]>('/medicine/cabinet', undefined, { ttlMs: 20000 });
 }
@@ -71,9 +82,19 @@ export async function getMedicineSchedules(profileId: number): Promise<MedicineS
 }
 
 export async function getScheduleFormData(): Promise<MedicineScheduleFormData> {
-  return apiGetCached<MedicineScheduleFormData>('/medicine/schedules/form-data', undefined, {
+  const data = await apiGetCached<MedicineScheduleFormApiData>('/medicine/schedules/form-data', undefined, {
     ttlMs: 30000,
   });
+
+  return {
+    profiles: data.profiles,
+    medicines: data.medicines.map(medicine => ({
+      medicineId: medicine.medicineId,
+      name: medicine.name ?? medicine.medicineName ?? '',
+      quantity: medicine.quantity,
+      unit: medicine.unit,
+    })),
+  };
 }
 
 export async function createMedicineSchedule(payload: {
