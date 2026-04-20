@@ -1,0 +1,84 @@
+services:
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: carenest-nginx
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      SERVER_NAME: ${SERVER_NAME}
+      SSL_CERT_PATH: ${SSL_CERT_PATH:-/etc/nginx/certs/origin.crt}
+      SSL_KEY_PATH: ${SSL_KEY_PATH:-/etc/nginx/certs/origin.key}
+    volumes:
+      - ./deploy/nginx/default.conf.template:/etc/nginx/templates/default.conf.template:ro
+      - ./deploy/certs:/etc/nginx/certs:ro
+    networks:
+      - public
+      - app-internal
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost/nginx-health >/dev/null 2>&1 || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    image: carenest-backend:${BACKEND_IMAGE_TAG:-latest}
+    container_name: carenest-backend
+    restart: unless-stopped
+    env_file:
+      - ./.env.prod
+    environment:
+      AI_SERVICE_BASE_URL: http://ai:8000
+    expose:
+      - "8080"
+    networks:
+      - app-internal
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
+    mem_limit: 1500m
+    cpus: 1.5
+
+  ai:
+    build:
+      context: ./ai
+      dockerfile: Dockerfile
+    image: carenest-ai:${AI_IMAGE_TAG:-latest}
+    container_name: carenest-ai
+    restart: unless-stopped
+    env_file:
+      - ./.env.prod
+    expose:
+      - "8000"
+    networks:
+      - app-internal
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=5)",
+        ]
+      interval: 30s
+      timeout: 7s
+      retries: 5
+      start_period: 30s
+    mem_limit: 1200m
+    cpus: 1.0
+
+networks:
+  public:
+    driver: bridge
+  app-internal:
+    driver: bridge

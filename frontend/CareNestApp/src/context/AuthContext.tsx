@@ -1,7 +1,12 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useEffect, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { User } from '../types';
-import { mockCurrentUser } from '../data/mockUsers';
+import {
+  getCurrentUserProfile,
+  login as loginRequest,
+  type CurrentUserProfile,
+} from '../api/auth';
+import { getStoredSession, setStoredSession } from '../api/storage';
 
 interface AuthContextValue {
   isLoggedIn: boolean;
@@ -10,12 +15,26 @@ interface AuthContextValue {
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   completeOnboarding: () => Promise<void>;
+  refreshUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-const STORAGE_KEY_AUTH = '@carenest_auth';
 const STORAGE_KEY_ONBOARDING = '@carenest_onboarding_done';
+
+function mapProfileToUser(profile: CurrentUserProfile, token?: string): User {
+  return {
+    id: String(profile.userId),
+    userId: profile.userId,
+    profileId: String(profile.profileId),
+    email: profile.email,
+    fullName: profile.fullName,
+    avatarUrl: profile.avatarUrl || undefined,
+    createdAt: new Date().toISOString(),
+    phoneNumber: profile.phoneNumber || undefined,
+    token,
+  };
+}
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -29,33 +48,52 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   async function restoreSession() {
     try {
-      const [authValue, onboardingValue] = await Promise.all([
-        AsyncStorage.getItem(STORAGE_KEY_AUTH),
+      const [session, onboardingValue] = await Promise.all([
+        getStoredSession(),
         AsyncStorage.getItem(STORAGE_KEY_ONBOARDING),
       ]);
-      if (authValue) {
+
+      if (session) {
+        const profile = await getCurrentUserProfile();
+        setUser(mapProfileToUser(profile, session.token));
         setIsLoggedIn(true);
-        setUser(mockCurrentUser);
       }
+
       if (onboardingValue) {
         setIsOnboardingDone(true);
       }
     } catch {
-      // ignore
+      await setStoredSession(null);
+      setUser(null);
+      setIsLoggedIn(false);
     } finally {
       setIsLoading(false);
     }
   }
 
-  async function login(_email: string, _password: string) {
-    // Mock: accept any credentials
-    await AsyncStorage.setItem(STORAGE_KEY_AUTH, 'true');
-    setUser(mockCurrentUser);
+  async function refreshUser() {
+    const session = await getStoredSession();
+    if (!session) {
+      setUser(null);
+      setIsLoggedIn(false);
+      return;
+    }
+
+    const profile = await getCurrentUserProfile();
+    setUser(mapProfileToUser(profile, session.token));
+    setIsLoggedIn(true);
+  }
+
+  async function login(email: string, password: string) {
+    const session = await loginRequest({ email, password });
+    await setStoredSession(session);
+    const profile = await getCurrentUserProfile();
+    setUser(mapProfileToUser(profile, session.token));
     setIsLoggedIn(true);
   }
 
   async function logout() {
-    await AsyncStorage.removeItem(STORAGE_KEY_AUTH);
+    await setStoredSession(null);
     setUser(null);
     setIsLoggedIn(false);
   }
@@ -70,7 +108,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <AuthContext.Provider value={{ isLoggedIn, user, isOnboardingDone, login, logout, completeOnboarding }}>
+    <AuthContext.Provider value={{ isLoggedIn, user, isOnboardingDone, login, logout, completeOnboarding, refreshUser }}>
       {children}
     </AuthContext.Provider>
   );
@@ -78,6 +116,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
 export function useAuth(): AuthContextValue {
   const ctx = useContext(AuthContext);
-  if (!ctx) throw new Error('useAuth must be used within AuthProvider');
+  if (!ctx) {
+    throw new Error('useAuth must be used within AuthProvider');
+  }
   return ctx;
 }

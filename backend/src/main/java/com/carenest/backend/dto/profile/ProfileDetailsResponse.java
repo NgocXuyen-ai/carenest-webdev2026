@@ -26,5 +26,6 @@ public class ProfileDetailsResponse {
     private BigDecimal weight;
     private String medicalHistory;
     private String allergy;
+    private String emergencyContactPhone;
     private String healthStatus;
 }

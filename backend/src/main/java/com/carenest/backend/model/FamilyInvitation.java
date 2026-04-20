@@ -9,6 +9,7 @@ import lombok.Setter;
 
 import java.time.LocalDateTime;
 
+import com.carenest.backend.model.enums.FamilyRole;
 import com.carenest.backend.model.enums.InvitationStatus;
 
 @Entity
@@ -40,6 +41,9 @@ public class FamilyInvitation {
 
     @Column(name = "created_at")
     private LocalDateTime createdAt;
+
+    @Column(name = "role")
+    private FamilyRole role;
 
     @NotNull(message = "Sender không được để trống")
     @ManyToOne

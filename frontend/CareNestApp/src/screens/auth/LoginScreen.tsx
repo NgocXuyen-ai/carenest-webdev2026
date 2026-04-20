@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import {
+  Alert,
+  Image,
   View,
   Text,
   TouchableOpacity,
@@ -15,6 +17,7 @@ import { useAuth } from '../../context/AuthContext';
 import { colors } from '../../theme/colors';
 import Input from '../../components/common/Input';
 import Icon from '../../components/common/Icon';
+import { CARENEST_LOGO_FULL } from '../../assets/branding';
 import type { AuthStackParamList } from '../../navigation/navigationTypes';
 
 type Nav = NativeStackNavigationProp<AuthStackParamList, 'Login'>;
@@ -33,6 +36,8 @@ export default function LoginScreen() {
     setLoading(true);
     try {
       await login(email, password);
+    } catch (error) {
+      Alert.alert('Không thể đăng nhập', error instanceof Error ? error.message : 'Đã có lỗi xảy ra');
     } finally {
       setLoading(false);
     }
@@ -55,10 +60,7 @@ export default function LoginScreen() {
 
         {/* Logo */}
         <View style={styles.logoSection}>
-          <View style={styles.logoIcon}>
-            <Icon name="nest_eco_leaf" size={36} color="#fff" />
-          </View>
-          <Text style={styles.appName}>CareNest</Text>
+          <Image source={CARENEST_LOGO_FULL} style={styles.fullLogo} resizeMode="contain" />
           <Text style={styles.subtitle}>Chào mừng bạn quay trở lại</Text>
         </View>
 
@@ -157,26 +159,10 @@ const styles = StyleSheet.create({
     opacity: 0.1,
   },
   logoSection: { alignItems: 'center', marginBottom: 40 },
-  logoIcon: {
-    width: 64,
-    height: 64,
-    borderRadius: 20,
-    backgroundColor: colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
+  fullLogo: {
+    width: 172,
+    height: 172,
     marginBottom: 12,
-    shadowColor: colors.primary,
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.35,
-    shadowRadius: 12,
-    elevation: 8,
-  },
-  appName: {
-    fontSize: 28,
-    fontFamily: 'Manrope',
-    fontWeight: '800',
-    color: colors.onBackground,
-    letterSpacing: -0.5,
   },
   subtitle: {
     fontSize: 14,

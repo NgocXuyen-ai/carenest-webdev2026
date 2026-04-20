@@ -1,11 +1,27 @@
+import logging
+
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 
+from config import settings
 from rate_limiter import limiter
 from routers import chat, conversation, ocr, voice
+
+
+def _configure_logging() -> None:
+    level_name = (settings.AI_LOG_LEVEL or "INFO").upper()
+    level = getattr(logging, level_name, logging.INFO)
+    logging.basicConfig(
+        level=level,
+        format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
+        force=True,
+    )
+
+
+_configure_logging()
 
 app = FastAPI(title="CareNest AI Service", version="1.0.0")
 

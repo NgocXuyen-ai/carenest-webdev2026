@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Any, Optional
 
 from pydantic import BaseModel
 
@@ -7,6 +7,7 @@ class ChatRequest(BaseModel):
     user_id: int
     message: str
     conversation_id: Optional[int] = None
+    context: Optional[dict[str, Any]] = None
 
 
 class ChatResponse(BaseModel):

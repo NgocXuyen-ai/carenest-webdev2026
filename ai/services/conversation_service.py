@@ -8,6 +8,7 @@ from datetime import datetime
 from typing import Optional
 
 from database import execute_query, execute_write
+from utils.trace import emit_trace, preview_text
 
 logger = logging.getLogger(__name__)
 
@@ -16,15 +17,27 @@ logger = logging.getLogger(__name__)
 
 def create_conversation(user_id: int, title: str) -> int:
     """Create a new conversation and return its ID."""
+    emit_trace(
+        logger,
+        "conversation.create.start",
+        user_id=user_id,
+        title_preview=preview_text(title, 120),
+    )
     result = execute_write(
         """
         INSERT INTO ai_conversation (user_id, title, status, created_at, updated_at)
-        VALUES (:user_id, :title, 'active', NOW(), NOW())
+        VALUES (:user_id, :title, 'ACTIVE', NOW(), NOW())
         RETURNING conversation_id
         """,
         {"user_id": user_id, "title": title[:255]},
     )
     row = result.fetchone()
+    emit_trace(
+        logger,
+        "conversation.create.done",
+        user_id=user_id,
+        conversation_id=row[0] if row else None,
+    )
     return row[0]
 
 
@@ -41,23 +54,34 @@ def get_conversation(conversation_id: int, user_id: int) -> Optional[dict]:
         """,
         {"cid": conversation_id, "uid": user_id},
     )
+    emit_trace(
+        logger,
+        "conversation.get.done",
+        conversation_id=conversation_id,
+        user_id=user_id,
+        found=bool(rows),
+    )
     return rows[0] if rows else None
 
 
 def close_conversation(conversation_id: int) -> None:
     """Set conversation status to 'closed'."""
+    emit_trace(logger, "conversation.close.start", conversation_id=conversation_id)
     execute_write(
-        "UPDATE ai_conversation SET status='closed', updated_at=NOW() WHERE conversation_id = :cid",
+        "UPDATE ai_conversation SET status='CLOSED', updated_at=NOW() WHERE conversation_id = :cid",
         {"cid": conversation_id},
     )
+    emit_trace(logger, "conversation.close.done", conversation_id=conversation_id)
 
 
 def touch_conversation(conversation_id: int) -> None:
     """Update updated_at to now (tracks last activity for expiry checks)."""
+    emit_trace(logger, "conversation.touch.start", conversation_id=conversation_id)
     execute_write(
         "UPDATE ai_conversation SET updated_at=NOW() WHERE conversation_id = :cid",
         {"cid": conversation_id},
     )
+    emit_trace(logger, "conversation.touch.done", conversation_id=conversation_id)
 
 
 def list_conversations(
@@ -69,6 +93,13 @@ def list_conversations(
     List conversations for a user ordered by most recent activity.
     Returns (conversations, total_count).
     """
+    emit_trace(
+        logger,
+        "conversation.list.start",
+        user_id=user_id,
+        limit=limit,
+        offset=offset,
+    )
     rows = execute_query(
         """
         SELECT
@@ -94,6 +125,14 @@ def list_conversations(
     )
     total = total_rows[0]["total"] if total_rows else 0
 
+    emit_trace(
+        logger,
+        "conversation.list.done",
+        user_id=user_id,
+        returned=len(rows),
+        total=total,
+    )
+
     return rows, total
 
 
@@ -112,6 +151,15 @@ def save_message(
     message_type: "text" | "sql_query" | "error"
     Returns the new message_id.
     """
+    emit_trace(
+        logger,
+        "conversation.message.save.start",
+        conversation_id=conversation_id,
+        request_id=request_id,
+        sender=sender,
+        message_type=message_type,
+        content_preview=preview_text(content, 180),
+    )
     result = execute_write(
         """
         INSERT INTO ai_chat_detail
@@ -128,6 +176,12 @@ def save_message(
         },
     )
     row = result.fetchone()
+    emit_trace(
+        logger,
+        "conversation.message.save.done",
+        conversation_id=conversation_id,
+        message_id=row[0] if row else None,
+    )
     return row[0]
 
 
@@ -147,7 +201,15 @@ def get_recent_history(conversation_id: int, limit: int = 10) -> list[dict]:
         {"cid": conversation_id, "lim": limit},
     )
     # Reverse to get chronological order
-    return list(reversed(rows))
+    history = list(reversed(rows))
+    emit_trace(
+        logger,
+        "conversation.history.recent.done",
+        conversation_id=conversation_id,
+        limit=limit,
+        returned=len(history),
+    )
+    return history
 
 
 def get_conversation_messages(conversation_id: int, user_id: int) -> list[dict]:
@@ -164,6 +226,13 @@ def get_conversation_messages(conversation_id: int, user_id: int) -> list[dict]:
         ORDER BY d.sent_at ASC
         """,
         {"cid": conversation_id, "uid": user_id},
+    )
+    emit_trace(
+        logger,
+        "conversation.messages.all.done",
+        conversation_id=conversation_id,
+        user_id=user_id,
+        returned=len(rows),
     )
     return rows
 
@@ -182,6 +251,15 @@ def save_request_log(
     """
     Persist an AI request log entry. Returns request_id or None on failure.
     """
+    emit_trace(
+        logger,
+        "conversation.request_log.save.start",
+        feature_type=feature_type,
+        status=status,
+        provider=provider,
+        execution_time=execution_time,
+        error_message=error_message,
+    )
     try:
         result = execute_write(
             """
@@ -194,20 +272,34 @@ def save_request_log(
             RETURNING request_id
             """,
             {
-                "ftype": feature_type,
+                "ftype": _normalize_feature_type(feature_type),
                 "input": "",
                 "out": output_raw[:1000] if output_raw else "",
-                "status": status,
+                "status": _normalize_status(status),
                 "err": error_message,
                 "tokens": total_tokens,
                 "etime": execution_time,
-                "provider": provider,
+                "provider": _normalize_provider(provider),
             },
         )
         row = result.fetchone()
+        emit_trace(
+            logger,
+            "conversation.request_log.save.done",
+            request_id=row[0] if row else None,
+            feature_type=feature_type,
+            status=status,
+        )
         return row[0]
     except Exception as e:
         logger.error(f"Failed to save request log: {e}")
+        emit_trace(
+            logger,
+            "conversation.request_log.save.error",
+            feature_type=feature_type,
+            status=status,
+            error=str(e),
+        )
         return None
 
 
@@ -225,6 +317,14 @@ def save_ocr_session(
     """
     Persist an OCR session to ocr_session table. Returns ocr_id or None on failure.
     """
+    emit_trace(
+        logger,
+        "conversation.ocr_session.save.start",
+        profile_id=profile_id,
+        request_id=request_id,
+        status=status,
+        has_structure=bool(structure_data),
+    )
     try:
         result = execute_write(
             """
@@ -241,11 +341,68 @@ def save_ocr_session(
                 "raw": raw_text,
                 "sdata": json.dumps(structure_data, ensure_ascii=False) if structure_data else None,
                 "prompt": prompt_request[:1000] if prompt_request else "",
-                "status": status,
+                "status": _normalize_ocr_status(status),
             },
         )
         row = result.fetchone()
+        emit_trace(
+            logger,
+            "conversation.ocr_session.save.done",
+            profile_id=profile_id,
+            request_id=request_id,
+            ocr_id=row[0] if row else None,
+            status=status,
+        )
         return row[0]
     except Exception as e:
         logger.error(f"Failed to save OCR session: {e}")
+        emit_trace(
+            logger,
+            "conversation.ocr_session.save.error",
+            profile_id=profile_id,
+            request_id=request_id,
+            status=status,
+            error=str(e),
+        )
         return None
+
+
+def _normalize_feature_type(feature_type: str) -> str:
+    normalized = (feature_type or "").strip().upper()
+    mapping = {
+        "CHAT": "CHAT",
+        "OCR": "OCR",
+        "SUMMARY": "SUMMARY",
+        "HEALTH_ANALYSIS": "HEALTH_ANALYSIS",
+        "RECOMMENDATION": "RECOMMENDATION",
+    }
+    return mapping.get(normalized, "CHAT")
+
+
+def _normalize_status(status: str) -> str:
+    normalized = (status or "").strip().upper()
+    if normalized in {"SUCCESS", "COMPLETED"}:
+        return "SUCCESS"
+    if normalized in {"FAILED", "ERROR"}:
+        return "FAILED"
+    return "PENDING"
+
+
+def _normalize_provider(provider: str) -> str:
+    raw = (provider or "").strip().lower()
+    if "claude" in raw:
+        return "CLAUDE"
+    if "gpt" in raw or "openai" in raw:
+        return "OPENAI"
+    if "gemini" in raw:
+        return "GEMINI"
+    return "OTHER"
+
+
+def _normalize_ocr_status(status: str) -> str:
+    normalized = (status or "").strip().upper()
+    if normalized in {"SUCCESS", "COMPLETED"}:
+        return "COMPLETED"
+    if normalized in {"FAILED", "ERROR"}:
+        return "FAILED"
+    return "PROCESSING"

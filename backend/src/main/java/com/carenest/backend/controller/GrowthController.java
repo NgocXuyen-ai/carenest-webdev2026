@@ -1,16 +1,23 @@
 package com.carenest.backend.controller;
 
-import com.carenest.backend.dto.ApiResponse;
 import com.carenest.backend.dto.growth.CreateGrowthLogRequest;
 import com.carenest.backend.dto.growth.GrowthSummaryResponse;
+import com.carenest.backend.helper.ApiResponse;
+import com.carenest.backend.security.CustomUserDetails;
 import com.carenest.backend.service.GrowthService;
 import jakarta.validation.Valid;
-import org.springframework.http.HttpStatus; // Thêm import này
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@RequestMapping("/growth")
+@RequestMapping("/api/v1/growth")
 public class GrowthController {
 
     private final GrowthService growthService;
@@ -20,24 +27,37 @@ public class GrowthController {
     }
 
     @GetMapping("/{profileId}")
-    public ResponseEntity<ApiResponse<GrowthSummaryResponse>> getGrowthSummary(@PathVariable Integer profileId) {
+    public ResponseEntity<ApiResponse<GrowthSummaryResponse>> getGrowthSummary(
+            @PathVariable Integer profileId,
+            @AuthenticationPrincipal CustomUserDetails userDetails
+    ) {
         try {
-            GrowthSummaryResponse data = growthService.getGrowthSummary(profileId);
-            return ResponseEntity.ok(ApiResponse.success(data, "Lấy thông tin tăng trưởng thành công"));
+            if (userDetails == null) {
+                throw new RuntimeException("Bạn chưa đăng nhập");
+            }
+
+            GrowthSummaryResponse data = growthService.getGrowthSummary(userDetails.getId(), profileId);
+            return ApiResponse.success(data, "Lấy thông tin tăng trưởng thành công");
         } catch (RuntimeException e) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body(ApiResponse.error(HttpStatus.BAD_REQUEST, e.getMessage()));
+            return ApiResponse.error(HttpStatus.BAD_REQUEST, e.getMessage());
         }
     }
 
     @PostMapping("/log")
-    public ResponseEntity<ApiResponse<Void>> addGrowthLog(@Valid @RequestBody CreateGrowthLogRequest request) {
+    public ResponseEntity<ApiResponse<Void>> addGrowthLog(
+            @Valid @RequestBody CreateGrowthLogRequest request,
+            @AuthenticationPrincipal CustomUserDetails userDetails
+    ) {
         try {
-            growthService.addGrowthLog(request);
-            return ResponseEntity.ok(ApiResponse.success(null, "Ghi nhận thông số thành công"));
+            if (userDetails == null) {
+                throw new RuntimeException("Bạn chưa đăng nhập");
+            }
+
+            growthService.addGrowthLog(userDetails.getId(), request);
+            return ApiResponse.success(null, "Ghi nhận thông số thành công");
         } catch (RuntimeException e) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body(ApiResponse.error(HttpStatus.BAD_REQUEST, e.getMessage()));
+            return ApiResponse.error(HttpStatus.BAD_REQUEST, e.getMessage());
         }
     }
 }
+

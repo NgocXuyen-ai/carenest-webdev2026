@@ -5,7 +5,9 @@ import org.springframework.stereotype.Repository;
 
 import com.carenest.backend.model.Family;
 
+import java.util.Optional;
+
 @Repository
 public interface FamilyRepository extends JpaRepository<Family, Integer> {
-    
+    Optional<Family> findByJoinCode(String joinCode);
 }

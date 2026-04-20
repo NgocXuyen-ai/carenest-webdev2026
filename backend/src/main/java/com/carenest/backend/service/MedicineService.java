@@ -1,14 +1,5 @@
 package com.carenest.backend.service;
 
-
-import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.util.List;
-import java.util.Map;
-import java.util.stream.Collectors;
-
-import org.springframework.stereotype.Service;
-
 import com.carenest.backend.dto.medicine.CreateMedicineRequest;
 import com.carenest.backend.dto.medicine.CreateMedicineScheduleRequest;
 import com.carenest.backend.dto.medicine.DailyMedicineScheduleResponse;
@@ -33,8 +24,15 @@ import com.carenest.backend.repository.FamilyRelationshipRepository;
 import com.carenest.backend.repository.HealthProfileRepository;
 import com.carenest.backend.repository.MedicineDoseStatusRepository;
 import com.carenest.backend.repository.MedicineScheduleRepository;
-
 import jakarta.persistence.EntityNotFoundException;
+import org.springframework.stereotype.Service;
+
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 @Service
 public class MedicineService {
@@ -44,39 +42,31 @@ public class MedicineService {
     public final CabinetRepository cabinetRepository;
     public final FamilyRelationshipRepository familyRelationshipRepository;
     public final MedicineDoseStatusRepository medicineDoseStatusRepository;
+    private final ProfileAccessService profileAccessService;
 
-    public MedicineService(
-        MedicineScheduleRepository medicineScheduleRepository,
-        HealthProfileRepository healthProfileRepository,
-        DetailsMedicineRepository detailsMedicineRepository,
-        CabinetRepository cabinetRepository,
-        FamilyRelationshipRepository familyRelationshipRepository,
-        MedicineDoseStatusRepository medicineDoseStatusRepository
-    ){
+    public MedicineService(MedicineScheduleRepository medicineScheduleRepository,
+                           HealthProfileRepository healthProfileRepository,
+                           DetailsMedicineRepository detailsMedicineRepository,
+                           CabinetRepository cabinetRepository,
+                           FamilyRelationshipRepository familyRelationshipRepository,
+                           MedicineDoseStatusRepository medicineDoseStatusRepository,
+                           ProfileAccessService profileAccessService) {
         this.medicineScheduleRepository = medicineScheduleRepository;
         this.healthProfileRepository = healthProfileRepository;
         this.detailsMedicineRepository = detailsMedicineRepository;
         this.cabinetRepository = cabinetRepository;
         this.familyRelationshipRepository = familyRelationshipRepository;
         this.medicineDoseStatusRepository = medicineDoseStatusRepository;
+        this.profileAccessService = profileAccessService;
     }
 
     public MedicineScheduleFormResponse getFormData(Integer currentUserId) {
-
-    // ===== lấy profiles =====
-        List<ProfileOptionResponse> profiles = healthProfileRepository
-                .findAll()
+        List<ProfileOptionResponse> profiles = profileAccessService.getAccessibleProfiles(currentUserId)
                 .stream()
-                .filter(p -> p.getUser().getUserId() != null && currentUserId.equals(p.getUser().getUserId()))
-                .map(p -> new ProfileOptionResponse(
-                        p.getProfile(),
-                        p.getFullName()
-                ))
+                .map(p -> new ProfileOptionResponse(p.getProfile(), p.getFullName()))
                 .toList();
 
-        // ===== lấy medicine từ cabinet =====
         FamilyMedicineCabinet cabinet = getMyCabinet(currentUserId);
-
         List<MedicineOptionResponse> medicines = detailsMedicineRepository
                 .findByCabinet_CabinetIdOrderByExpiryDateAsc(cabinet.getCabinetId())
                 .stream()
@@ -96,12 +86,12 @@ public class MedicineService {
                 .build();
     }
 
-    public void createMedicineSchedule(CreateMedicineScheduleRequest request) {
-        HealthProfile profile = healthProfileRepository.findById(request.getProfile())
-                .orElseThrow(() -> new EntityNotFoundException("Không tìm thấy profile"));
-
-        DetailsMedicine medicine = detailsMedicineRepository.findById(request.getMedicineId())
-                .orElseThrow(() -> new EntityNotFoundException("Vui lòng thêm thuốc vào tủ"));
+    public void createMedicineSchedule(Integer currentUserId, CreateMedicineScheduleRequest request) {
+        HealthProfile profile = profileAccessService.requireAccessibleProfile(currentUserId, request.getProfile());
+        Integer cabinetId = getMyCabinet(currentUserId).getCabinetId();
+        DetailsMedicine medicine = detailsMedicineRepository
+                .findByMedicineIdAndCabinet_CabinetId(request.getMedicineId(), cabinetId)
+            .orElseThrow(() -> new EntityNotFoundException("Vui lòng thêm thuốc vào tủ"));
 
         MedicineSchedule schedule = new MedicineSchedule();
         schedule.setProfile(profile);
@@ -115,7 +105,6 @@ public class MedicineService {
         schedule.setEndDate(request.getEndDate());
 
         List<MedicineSession> sessions = mapFrequencyToSessions(request.getFrequency());
-
         LocalDate startDate = request.getStartDate();
         LocalDate endDate = request.getEndDate() != null ? request.getEndDate() : request.getStartDate();
 
@@ -134,27 +123,8 @@ public class MedicineService {
         medicineScheduleRepository.save(schedule);
     }
 
-    private List<MedicineSession> mapFrequencyToSessions(Integer frequency) {
-        if (frequency == null || frequency <= 0) {
-            return List.of();
-        }
-    
-        return switch (frequency) {
-            case 1 -> List.of(MedicineSession.MORNING);
-            case 2 -> List.of(MedicineSession.MORNING, MedicineSession.EVENING);
-            case 3 -> List.of(MedicineSession.MORNING, MedicineSession.NOON, MedicineSession.EVENING);
-            default -> List.of(
-                    MedicineSession.MORNING,
-                    MedicineSession.NOON,
-                    MedicineSession.EVENING
-            );
-        };
-    }
-
-    public List<MedicineScheduleResponse> getMedicineSchedules(Integer profileId) {
-        HealthProfile profile = healthProfileRepository.findById(profileId)
-                .orElseThrow(() -> new RuntimeException("Không tìm thấy profile"));
-
+    public List<MedicineScheduleResponse> getMedicineSchedules(Integer profileId, Integer currentUserId) {
+        HealthProfile profile = profileAccessService.requireAccessibleProfile(currentUserId, profileId);
         return medicineScheduleRepository
                 .findByProfile_ProfileOrderByStartDateAsc(profile.getProfile())
                 .stream()
@@ -162,39 +132,12 @@ public class MedicineService {
                 .toList();
     }
 
-    private MedicineScheduleResponse mapToResponse(MedicineSchedule m) {
-        List<MedicineSession> sessions = m.getDoseStatuses()
-                .stream()
-                .map(MedicineDoseStatus::getSession)
-                .distinct()
-                .sorted()
-                .toList();
-    
-        return MedicineScheduleResponse.builder()
-                .scheduleId(m.getScheduleId())
-                .profileName(m.getProfile().getFullName())
-                .medicineName(m.getMedicineName())
-                .dosage(m.getDosage())
-                .frequency(m.getFrequency())
-                .sessions(sessions)
-                .note(m.getNote())
-                .startDate(m.getStartDate())
-                .endDate(m.getEndDate())
-                .build();
-    }
-
     public FamilyMedicineCabinet getMyCabinet(Integer currentUserId) {
-        HealthProfile profile = healthProfileRepository.findByUser_UserId(currentUserId)
-                .orElseThrow(() -> new RuntimeException("Không tìm thấy profile"));
+        FamilyRelationship relationship = profileAccessService.getCurrentFamilyRelationship(currentUserId)
+            .orElseThrow(() -> new RuntimeException("Bạn chưa thuộc gia đình"));
 
-        FamilyRelationship rel = familyRelationshipRepository
-                .findByProfile_Profile(profile.getProfile())
-                .orElseThrow(() -> new RuntimeException("Bạn chưa thuộc family"));
-
-        return cabinetRepository.findByFamily_FamilyId(rel.getFamily().getFamilyId())
-                .stream()
-                .findFirst()
-                .orElseThrow(() -> new RuntimeException("Không tìm thấy tủ thuốc"));
+        return cabinetRepository.findByFamily_FamilyId(relationship.getFamily().getFamilyId())
+            .orElseThrow(() -> new RuntimeException("Không tìm thấy tủ thuốc"));
     }
 
     public void createMedicine(Integer currentUserId, CreateMedicineRequest request) {
@@ -216,7 +159,6 @@ public class MedicineService {
 
     public List<MedicineResponse> getMyMedicines(Integer currentUserId) {
         FamilyMedicineCabinet cabinet = getMyCabinet(currentUserId);
-
         return detailsMedicineRepository.findByCabinet_CabinetIdOrderByExpiryDateAsc(cabinet.getCabinetId())
                 .stream()
                 .map(this::mapToResponse)
@@ -225,12 +167,108 @@ public class MedicineService {
 
     public MedicineResponse getMedicineDetail(Integer currentUserId, Integer medicineId) {
         FamilyMedicineCabinet cabinet = getMyCabinet(currentUserId);
+        DetailsMedicine medicine = detailsMedicineRepository
+                .findByMedicineIdAndCabinet_CabinetId(medicineId, cabinet.getCabinetId())
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy thuốc"));
+        return mapToResponse(medicine);
+    }
 
+    public void deleteMedicine(Integer currentUserId, Integer medicineId) {
+        FamilyMedicineCabinet cabinet = getMyCabinet(currentUserId);
         DetailsMedicine medicine = detailsMedicineRepository
                 .findByMedicineIdAndCabinet_CabinetId(medicineId, cabinet.getCabinetId())
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy thuốc"));
 
-        return mapToResponse(medicine);
+        if (medicineScheduleRepository.existsByMedicine_MedicineId(medicineId)) {
+            throw new RuntimeException("Không thể xóa thuốc vì đang được dùng trong lịch uống thuốc");
+        }
+
+        detailsMedicineRepository.delete(medicine);
+    }
+
+    public DailyMedicineScheduleResponse getDailySchedule(Integer profileId, LocalDate date, Integer currentUserId) {
+        HealthProfile profile = profileAccessService.requireAccessibleProfile(currentUserId, profileId);
+
+        List<MedicineDoseStatus> doseStatuses = medicineDoseStatusRepository.findDailyDoseStatuses(profileId, date);
+        Map<MedicineSession, List<MedicineDoseStatus>> grouped = doseStatuses.stream()
+                .collect(Collectors.groupingBy(MedicineDoseStatus::getSession));
+
+        List<MedicineDoseSectionResponse> sections = grouped.entrySet().stream()
+                .map(entry -> MedicineDoseSectionResponse.builder()
+                        .session(entry.getKey())
+                        .items(entry.getValue().stream().map(this::mapDoseItem).toList())
+                        .build())
+                .toList();
+
+        return DailyMedicineScheduleResponse.builder()
+                .profileName(profile.getFullName())
+                .date(date)
+                .sections(sections)
+                .build();
+    }
+
+    public void takeDose(TakeMedicineDoseRequest request, Integer userId) {
+        MedicineDoseStatus dose = medicineDoseStatusRepository.findById(request.getDoseId())
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy dose"));
+
+        profileAccessService.requireAccessibleProfile(userId, dose.getSchedule().getProfile().getProfile());
+
+        boolean taken = Boolean.TRUE.equals(request.getIsTaken());
+        dose.setIsTaken(taken);
+        dose.setTakenAt(taken ? LocalDateTime.now() : null);
+        dose.setNote(request.getNote());
+        medicineDoseStatusRepository.save(dose);
+    }
+
+    public void deleteMedicineSchedule(Integer scheduleId, Integer currentUserId) {
+        MedicineSchedule schedule = medicineScheduleRepository.findById(scheduleId)
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy lịch thuốc"));
+
+        profileAccessService.requireAccessibleProfile(currentUserId, schedule.getProfile().getProfile());
+        medicineScheduleRepository.delete(schedule);
+    }
+
+    private List<MedicineSession> mapFrequencyToSessions(Integer frequency) {
+        if (frequency == null || frequency <= 0) {
+            return List.of();
+        }
+
+        return switch (frequency) {
+            case 1 -> List.of(MedicineSession.MORNING);
+            case 2 -> List.of(MedicineSession.MORNING, MedicineSession.EVENING);
+            case 3 -> List.of(MedicineSession.MORNING, MedicineSession.NOON, MedicineSession.EVENING);
+            default -> List.of(MedicineSession.MORNING, MedicineSession.NOON, MedicineSession.EVENING);
+        };
+    }
+
+    private MedicineScheduleResponse mapToResponse(MedicineSchedule schedule) {
+        List<MedicineSession> sessions = schedule.getDoseStatuses().stream()
+                .map(MedicineDoseStatus::getSession)
+                .distinct()
+                .sorted()
+                .toList();
+
+        return MedicineScheduleResponse.builder()
+                .scheduleId(schedule.getScheduleId())
+                .profileName(schedule.getProfile().getFullName())
+                .medicineName(schedule.getMedicineName())
+                .dosage(schedule.getDosage())
+                .frequency(schedule.getFrequency())
+                .sessions(sessions)
+                .note(schedule.getNote())
+                .startDate(schedule.getStartDate())
+                .endDate(schedule.getEndDate())
+                .build();
+    }
+
+    private MedicineDoseResponse mapDoseItem(MedicineDoseStatus doseStatus) {
+        return MedicineDoseResponse.builder()
+                .doseId(doseStatus.getDoseId())
+                .medicineName(doseStatus.getSchedule().getMedicineName())
+                .dosage(doseStatus.getSchedule().getDosage())
+                .note(doseStatus.getNote() != null ? doseStatus.getNote() : doseStatus.getSchedule().getNote())
+                .isTaken(Boolean.TRUE.equals(doseStatus.getIsTaken()))
+                .build();
     }
 
     private MedicineResponse mapToResponse(DetailsMedicine medicine) {
@@ -245,111 +283,21 @@ public class MedicineService {
     }
 
     private String getStatus(DetailsMedicine medicine) {
+        LocalDate today = LocalDate.now();
+
         if (medicine.getQuantity() != null && medicine.getQuantity() == 0) {
             return "OUT_OF_STOCK";
         }
         if (medicine.getExpiryDate() != null) {
-            if (medicine.getExpiryDate().isBefore(LocalDate.now())) {
+            if (medicine.getExpiryDate().isBefore(today)) {
                 return "EXPIRED";
             }
-            long days = LocalDate.now().until(medicine.getExpiryDate()).getDays();
+            long days = ChronoUnit.DAYS.between(today, medicine.getExpiryDate());
             if (days <= 30) {
                 return "LOW_STOCK";
             }
         }
         return "STABLE";
     }
-
-    public void deleteMedicine(Integer currentUserId, Integer medicineId) {
-        FamilyMedicineCabinet cabinet = getMyCabinet(currentUserId);
-    
-        DetailsMedicine medicine = detailsMedicineRepository
-                .findByMedicineIdAndCabinet_CabinetId(medicineId, cabinet.getCabinetId())
-                .orElseThrow(() -> new RuntimeException("Không tìm thấy thuốc"));
-    
-        if (medicineScheduleRepository.existsByMedicine_MedicineId(medicineId)) {
-            throw new RuntimeException("Không thể xóa thuốc vì đang được dùng trong lịch uống thuốc");
-        }
-    
-        detailsMedicineRepository.delete(medicine);
-    }
-
-    public DailyMedicineScheduleResponse getDailySchedule(
-            Integer profileId,
-            LocalDate date,
-            Integer currentUserId
-    ) {
-        HealthProfile profile = healthProfileRepository.findById(profileId)
-                .orElseThrow(() -> new EntityNotFoundException("Không tìm thấy profile"));
-
-        List<MedicineDoseStatus> doseStatuses =
-                medicineDoseStatusRepository.findDailyDoseStatuses(profileId, date);
-
-        Map<MedicineSession, List<MedicineDoseStatus>> grouped = doseStatuses.stream()
-                .collect(Collectors.groupingBy(MedicineDoseStatus::getSession));
-
-                List<MedicineDoseSectionResponse> sections = grouped.entrySet().stream()
-                .map(entry -> {
-                    MedicineSession session = entry.getKey();
-        
-                    return MedicineDoseSectionResponse.builder()
-                            .session(session) // MORNING, NOON, EVENING
-                            .items(entry.getValue()
-                                    .stream()
-                                    .map(this::mapDoseItem)
-                                    .toList())
-                            .build();
-                })
-                .toList();
-
-        return DailyMedicineScheduleResponse.builder()
-                .profileName(profile.getFullName())
-                .date(date)
-                .sections(sections)
-                .build();
-    }
-
-    private MedicineDoseResponse mapDoseItem(MedicineDoseStatus doseStatus) {
-        return MedicineDoseResponse.builder()
-                .doseId(doseStatus.getDoseId())
-                .medicineName(doseStatus.getSchedule().getMedicineName())
-                .dosage(doseStatus.getSchedule().getDosage())
-                .note(doseStatus.getNote() != null
-                        ? doseStatus.getNote()
-                        : doseStatus.getSchedule().getNote())
-                .isTaken(Boolean.TRUE.equals(doseStatus.getIsTaken()))
-                .build();
-    }
-    
-    public void takeDose(TakeMedicineDoseRequest request, Integer userId) {
-
-        MedicineDoseStatus dose = this.medicineDoseStatusRepository.findById(request.getDoseId())
-                .orElseThrow(() -> new RuntimeException("Không tìm thấy dose"));
-
-        boolean taken = Boolean.TRUE.equals(request.getIsTaken());
-
-        dose.setIsTaken(taken);
-
-        if (taken) {
-            dose.setTakenAt(LocalDateTime.now());
-        } else {
-            dose.setTakenAt(null);
-        }
-        dose.setNote(request.getNote());
-
-        medicineDoseStatusRepository.save(dose);
-    }
-
-    public void deleteMedicineSchedule(Integer scheduleId, Integer currentUserId) {
-
-        MedicineSchedule schedule = medicineScheduleRepository.findById(scheduleId)
-                .orElseThrow(() -> new RuntimeException("Không tìm thấy lịch thuốc"));
-    
-        // check quyền đơn giản
-        if (!schedule.getProfile().getUser().getUserId().equals(currentUserId)) {
-            throw new RuntimeException("Bạn không có quyền xóa");
-        }
-    
-        medicineScheduleRepository.delete(schedule);
-    }
 }
+

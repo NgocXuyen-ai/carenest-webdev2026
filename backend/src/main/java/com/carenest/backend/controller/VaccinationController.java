@@ -1,18 +1,25 @@
 package com.carenest.backend.controller;
 
-import com.carenest.backend.dto.ApiResponse;
 import com.carenest.backend.dto.vaccination.CreateVaccinationRequest;
 import com.carenest.backend.dto.vaccination.VaccinationTrackerResponse;
+import com.carenest.backend.helper.ApiResponse;
+import com.carenest.backend.security.CustomUserDetails;
 import com.carenest.backend.service.VaccinationService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
 @RestController
-@RequestMapping("/vaccination")
+@RequestMapping("/api/v1/vaccinations")
 public class VaccinationController {
 
     private final VaccinationService vaccinationService;
@@ -21,32 +28,39 @@ public class VaccinationController {
         this.vaccinationService = vaccinationService;
     }
 
-
     @GetMapping("/{profileId}")
-    public ResponseEntity<ApiResponse<List<VaccinationTrackerResponse>>> getTracker(@PathVariable Integer profileId) {
+    public ResponseEntity<ApiResponse<List<VaccinationTrackerResponse>>> getTracker(
+            @PathVariable Integer profileId,
+            @AuthenticationPrincipal CustomUserDetails userDetails
+    ) {
         try {
-            List<VaccinationTrackerResponse> data = vaccinationService.getTrackerData(profileId);
-            return ResponseEntity.ok(ApiResponse.success(data, "Lấy lịch tiêm thành công"));
+            if (userDetails == null) {
+                throw new RuntimeException("Bạn chưa đăng nhập");
+            }
+
+            List<VaccinationTrackerResponse> data = vaccinationService.getTrackerData(userDetails.getId(), profileId);
+            return ApiResponse.success(data, "Lấy lịch tiêm thành công");
         } catch (RuntimeException e) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body(ApiResponse.error(HttpStatus.BAD_REQUEST, e.getMessage()));
+            return ApiResponse.error(HttpStatus.BAD_REQUEST, e.getMessage());
         }
     }
 
-    /**
-     * API Thêm lịch tiêm chủng mới cho bé
-     */
     @PostMapping("/{profileId}")
     public ResponseEntity<ApiResponse<Void>> addVaccination(
             @PathVariable Integer profileId,
-            @Valid @RequestBody CreateVaccinationRequest request) {
+            @Valid @RequestBody CreateVaccinationRequest request,
+            @AuthenticationPrincipal CustomUserDetails userDetails
+    ) {
         try {
-            vaccinationService.addVaccination(profileId, request);
-            return ResponseEntity.ok(ApiResponse.success(null, "Lưu thông tin tiêm chủng thành công"));
+            if (userDetails == null) {
+                throw new RuntimeException("Bạn chưa đăng nhập");
+            }
+
+            vaccinationService.addVaccination(userDetails.getId(), profileId, request);
+            return ApiResponse.success(null, "Luu thông tin tiêm chủng thành công");
         } catch (RuntimeException e) {
-            // Đảm bảo truyền HttpStatus.BAD_REQUEST để khớp với method error(HttpStatus, String)
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body(ApiResponse.error(HttpStatus.BAD_REQUEST, e.getMessage()));
+            return ApiResponse.error(HttpStatus.BAD_REQUEST, e.getMessage());
         }
     }
 }
+

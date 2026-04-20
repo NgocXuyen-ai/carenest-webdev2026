@@ -27,7 +27,7 @@ export type HomeStackParamList = {
   GrowthTracker: { memberId: string };
   MedicineSchedule: undefined;
   AddMedicineSchedule: { editId?: string };
-  AddVaccinationSchedule: undefined;
+  AddVaccinationSchedule: { profileId: number };
 };
 
 export type FamilyStackParamList = {
@@ -36,7 +36,7 @@ export type FamilyStackParamList = {
   VaccinationTracker: { memberId: string };
   GrowthTracker: { memberId: string };
   UserMedical: { memberId?: string };
-  AddVaccinationSchedule: undefined;
+  AddVaccinationSchedule: { profileId: number };
 };
 
 export type MedicineStackParamList = {

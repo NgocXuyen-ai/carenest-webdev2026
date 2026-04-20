@@ -1,17 +1,11 @@
 package com.carenest.backend.service;
 
-import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.time.Period;
-import java.util.List;
-
-import org.springframework.security.core.userdetails.UsernameNotFoundException;
-import org.springframework.stereotype.Service;
-
 import com.carenest.backend.dto.family.CreateFamilyMemberProfileRequest;
 import com.carenest.backend.dto.family.CreateFamilyRequest;
 import com.carenest.backend.dto.family.FamilyInvitationResponse;
+import com.carenest.backend.dto.family.FamilyJoinCodeResponse;
 import com.carenest.backend.dto.family.InviteMemberRequest;
+import com.carenest.backend.dto.family.JoinFamilyByCodeRequest;
 import com.carenest.backend.dto.family.MyFamilyResponse;
 import com.carenest.backend.dto.family.ReceivedInvitationResponse;
 import com.carenest.backend.dto.family.SentInvitationResponse;
@@ -33,9 +27,39 @@ import com.carenest.backend.repository.FamilyRelationshipRepository;
 import com.carenest.backend.repository.FamilyRepository;
 import com.carenest.backend.repository.HealthProfileRepository;
 import com.carenest.backend.repository.UserRepository;
+import com.google.zxing.BinaryBitmap;
+import com.google.zxing.EncodeHintType;
+import com.google.zxing.MultiFormatReader;
+import com.google.zxing.NotFoundException;
+import com.google.zxing.client.j2se.BufferedImageLuminanceSource;
+import com.google.zxing.client.j2se.MatrixToImageWriter;
+import com.google.zxing.common.BitMatrix;
+import com.google.zxing.common.HybridBinarizer;
+import com.google.zxing.qrcode.QRCodeWriter;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
+import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
+
+import javax.imageio.ImageIO;
+import java.awt.image.BufferedImage;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.Period;
+import java.util.Base64;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.UUID;
 
 @Service
 public class FamilyService {
+    private static final int JOIN_CODE_LENGTH = 8;
+    private static final String JOIN_LINK_BASE = "https://webdev.eiyuumiru.it.eu.org/join?code=";
+
     private final FamilyRepository familyRepository;
     private final HealthProfileRepository healthProfileRepository;
     private final FamilyRelationshipRepository familyRelationshipRepository;
@@ -58,12 +82,12 @@ public class FamilyService {
     }
 
     public void createFamily(Integer currentUserId, CreateFamilyRequest req) {
-        User currentUser = userRepository.findById(currentUserId)
-                .orElseThrow(() -> new UsernameNotFoundException("Không tìm thấy user"));
+        User currentUser = getRequiredUser(currentUserId);
+        HealthProfile profile = getPrimaryProfile(currentUserId);
 
-        HealthProfile profile = healthProfileRepository
-                .findByUser_UserId(currentUser.getUserId())
-                .orElseThrow(() -> new RuntimeException("Hãy nhập đầy đủ thông tin cá nhân trước khi tạo Family"));
+        if (familyRelationshipRepository.findByProfile_Profile(profile.getProfile()).isPresent()) {
+            throw new RuntimeException("Bạn đã thuộc một gia đình rồi");
+        }
 
         Family family = new Family();
         family.setName(req.getName());
@@ -77,21 +101,17 @@ public class FamilyService {
         relationship.setProfile(profile);
         relationship.setRole(FamilyRole.OWNER);
         relationship.setJoinAt(LocalDate.now());
-
         familyRelationshipRepository.save(relationship);
 
         FamilyMedicineCabinet cabinet = new FamilyMedicineCabinet();
-        cabinet.setFamily(family);
+        cabinet.setFamily(savedFamily);
         cabinet.setName("Tủ thuốc gia đình");
-
         cabinetRepository.save(cabinet);
     }
 
     public void createProfile(Integer currentUserId, CreateHealthProfileRequest req) {
-        User user = userRepository.findById(currentUserId)
-                .orElseThrow(() -> new UsernameNotFoundException("Không tìm thấy user"));
-
-        healthProfileRepository.findByUser_UserId(user.getUserId())
+        User user = getRequiredUser(currentUserId);
+        healthProfileRepository.findFirstByUser_UserIdOrderByProfileAsc(user.getUserId())
                 .ifPresent(existingProfile -> {
                     throw new RuntimeException("Bạn đã có hồ sơ sức khỏe rồi");
                 });
@@ -107,7 +127,6 @@ public class FamilyService {
         profile.setHeight(req.getHeight());
         profile.setWeight(req.getWeight());
         profile.setEmergencyContactPhone(req.getEmergencyContactPhone());
-
         healthProfileRepository.save(profile);
     }
 
@@ -116,7 +135,7 @@ public class FamilyService {
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy profile"));
 
         if (!profile.getUser().getUserId().equals(userId)) {
-                throw new RuntimeException("Bạn không có quyền cập nhật profile này");
+            throw new RuntimeException("Bạn không có quyền cập nhật hồ sơ này");
         }
 
         profile.setFullName(req.getFullName());
@@ -128,24 +147,20 @@ public class FamilyService {
         profile.setHeight(req.getHeight());
         profile.setWeight(req.getWeight());
         profile.setEmergencyContactPhone(req.getEmergencyContactPhone());
-
         healthProfileRepository.save(profile);
-        }
+    }
 
-    public void createDependentProfile(Integer currentUserId, Integer familyId, CreateFamilyMemberProfileRequest req
-    ) {
-        User currentUser = userRepository.findById(currentUserId)
-                .orElseThrow(() -> new UsernameNotFoundException("Không tìm thấy user"));
-
+    public void createDependentProfile(Integer currentUserId, Integer familyId, CreateFamilyMemberProfileRequest req) {
+        User currentUser = getRequiredUser(currentUserId);
         Family family = familyRepository.findById(familyId)
-                .orElseThrow(() -> new RuntimeException("Không tìm thấy family"));
+            .orElseThrow(() -> new RuntimeException("Không tìm thấy gia đình"));
 
         if (!family.getOwner().getUserId().equals(currentUserId)) {
-            throw new RuntimeException("Bạn không phải owner của family này");
+            throw new RuntimeException("Bạn không phải chủ gia đình này");
         }
 
         HealthProfile profile = new HealthProfile();
-        profile.setUser(currentUser); // profile phụ thuộc, không có account riêng
+        profile.setUser(currentUser);
         profile.setFullName(req.getFullName());
         profile.setBirthday(req.getBirthday());
         profile.setGender(req.getGender());
@@ -155,7 +170,6 @@ public class FamilyService {
         profile.setHeight(req.getHeight());
         profile.setWeight(req.getWeight());
         profile.setEmergencyContactPhone(req.getEmergencyContactPhone());
-
         healthProfileRepository.save(profile);
 
         FamilyRelationship relationship = new FamilyRelationship();
@@ -163,81 +177,79 @@ public class FamilyService {
         relationship.setFamily(family);
         relationship.setRole(req.getRole());
         relationship.setJoinAt(LocalDate.now());
-
         familyRelationshipRepository.save(relationship);
     }
 
     public MyFamilyResponse getMyFamily(Integer currentUserId) {
-        User currentUser = userRepository.findById(currentUserId)
-                .orElseThrow(() -> new UsernameNotFoundException("Không tìm thấy user"));
+        FamilyRelationship relationship = getRequiredFamilyRelationship(currentUserId);
+        Family family = relationship.getFamily();
 
-        HealthProfile myProfile = healthProfileRepository
-                .findByUser_UserId(currentUser.getUserId())
-                .orElseThrow(() -> new RuntimeException("Bạn chưa có hồ sơ sức khỏe"));
-
-        FamilyRelationship myRelationship = familyRelationshipRepository
-                .findByProfile_Profile(myProfile.getProfile())
-                .orElseThrow(() -> new RuntimeException("Bạn chưa thuộc family nào"));
-
-        Family family = myRelationship.getFamily();
-
-        List<FamilyRelationship> relationships =
-                familyRelationshipRepository.findAllByFamily_FamilyId(family.getFamilyId());
-
-        List<FamilyMemberSummaryResponse> members = relationships.stream()
+        List<FamilyMemberSummaryResponse> members = familyRelationshipRepository
+                .findAllByFamily_FamilyId(family.getFamilyId())
+                .stream()
                 .map(rel -> {
                     HealthProfile profile = rel.getProfile();
-    
-                    return FamilyMemberSummaryResponse. builder()
-                        .profileId(profile.getProfile())
-                        .fullName(profile.getFullName())
-                        .role(rel.getRole())
-                        .avatarUrl(profile.getAvatarUrl())
-                        .age(calculateAge(profile.getBirthday()))
-                        .healthStatus(mapHealthStatus(profile))
-                        .build();
+                    return FamilyMemberSummaryResponse.builder()
+                            .profileId(profile.getProfile())
+                            .fullName(profile.getFullName())
+                            .role(rel.getRole())
+                            .avatarUrl(profile.getAvatarUrl())
+                            .age(calculateAge(profile.getBirthday()))
+                            .healthStatus(mapHealthStatus(profile))
+                            .build();
                 })
                 .toList();
 
-                return MyFamilyResponse.builder()
-                        .familyId(family.getFamilyId())
-                        .familyName(family.getName())
-                        .memberCount(members.size())
-                        .members(members)
-                        .build();
+        return MyFamilyResponse.builder()
+                .familyId(family.getFamilyId())
+                .familyName(family.getName())
+                .ownerUserId(family.getOwner().getUserId())
+                .memberCount(members.size())
+                .members(members)
+                .build();
     }
 
-    private Integer calculateAge(LocalDate birthday) {
-        if (birthday == null) {
-            return null;
+    public MyFamilyResponse updateMemberRole(Integer currentUserId, Integer profileId, FamilyRole nextRole) {
+        FamilyRelationship currentRelationship = getRequiredFamilyRelationship(currentUserId);
+        Integer familyId = currentRelationship.getFamily().getFamilyId();
+
+        FamilyRelationship targetRelationship = familyRelationshipRepository
+                .findByProfile_ProfileAndFamily_FamilyId(profileId, familyId)
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy thành viên trong gia đình"));
+
+        boolean isSelf = currentRelationship.getProfile().getProfile().equals(profileId);
+        boolean isFamilyOwner = currentRelationship.getFamily().getOwner().getUserId().equals(currentUserId);
+
+        if (!isSelf && !isFamilyOwner) {
+            throw new RuntimeException("Bạn chỉ có thể chỉnh vai trò của chính mình");
         }
-        return Period.between(birthday, LocalDate.now()).getYears();
+
+        boolean isTargetFamilyOwner = targetRelationship
+                .getFamily()
+                .getOwner()
+                .getUserId()
+                .equals(targetRelationship.getProfile().getUser().getUserId());
+        if (isTargetFamilyOwner) {
+            throw new RuntimeException("Chủ gia đình không thể thay đổi vai trò");
+        }
+
+        FamilyRole normalizedRole = normalizeRoleForUpdate(nextRole);
+        targetRelationship.setRole(normalizedRole);
+        familyRelationshipRepository.saveAndFlush(targetRelationship);
+        return getMyFamily(currentUserId);
     }
 
     public ProfileDetailsResponse getFamilyMemberProfile(Integer currentUserId, Integer targetProfileId) {
-        User currentUser = userRepository.findById(currentUserId)
-                .orElseThrow(() -> new UsernameNotFoundException("Không tìm thấy user"));
-    
-        HealthProfile myProfile = healthProfileRepository
-                .findByUser_UserId(currentUser.getUserId())
-                .orElseThrow(() -> new RuntimeException("Bạn chưa có hồ sơ sức khỏe"));
-    
-        FamilyRelationship myRelationship = familyRelationshipRepository
-                .findByProfile_Profile(myProfile.getProfile())
-                .orElseThrow(() -> new RuntimeException("Bạn chưa thuộc family nào"));
-    
+        FamilyRelationship myRelationship = getRequiredFamilyRelationship(currentUserId);
         HealthProfile targetProfile = healthProfileRepository.findById(targetProfileId)
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy hồ sơ sức khỏe"));
-    
-        FamilyRelationship targetRelationship = familyRelationshipRepository
-                .findByProfile_Profile(targetProfile.getProfile())
-                .orElseThrow(() -> new RuntimeException("Người này chưa thuộc family nào"));
-    
-        if (!myRelationship.getFamily().getFamilyId()
-                .equals(targetRelationship.getFamily().getFamilyId())) {
+        FamilyRelationship targetRelationship = familyRelationshipRepository.findByProfile_Profile(targetProfile.getProfile())
+            .orElseThrow(() -> new RuntimeException("Người này chưa thuộc gia đình nào"));
+
+        if (!myRelationship.getFamily().getFamilyId().equals(targetRelationship.getFamily().getFamilyId())) {
             throw new RuntimeException("Bạn không có quyền xem hồ sơ này");
         }
-    
+
         return ProfileDetailsResponse.builder()
                 .profileId(targetProfile.getProfile())
                 .fullName(targetProfile.getFullName())
@@ -249,46 +261,17 @@ public class FamilyService {
                 .weight(targetProfile.getWeight())
                 .medicalHistory(targetProfile.getMedicalHistory())
                 .allergy(targetProfile.getAllergy())
+                .emergencyContactPhone(targetProfile.getEmergencyContactPhone())
                 .healthStatus(mapHealthStatus(targetProfile))
                 .build();
     }
 
-    private String mapHealthStatus(HealthProfile profile) {
-        if (profile.getMedicalHistory() != null && !profile.getMedicalHistory().isBlank()) {
-            return "CẦN THEO DÕI";
-        }
-        return "SỨC KHỎE TỐT";
-    }
-
-    //Mời thành viên
     public FamilyInvitationResponse inviteMember(Integer currentUserId, InviteMemberRequest dto) {
-
-        User currentUser = userRepository.findById(currentUserId)
-                .orElseThrow(() -> new UsernameNotFoundException("Không tìm thấy user"));
-
-        if (dto.getReceiverEmail() == null || dto.getReceiverEmail().trim().isEmpty()) {
-            throw new RuntimeException("Email không được để trống");
-        }
-
-        String receiverEmail = dto.getReceiverEmail().trim().toLowerCase();
-
-        // 1. Lấy profile của sender
-        HealthProfile senderProfile = healthProfileRepository.findByUser_UserId(currentUser.getUserId())
-                .orElseThrow(() -> new RuntimeException("Bạn chưa có health profile"));
-
-        // 2. Lấy relationship
-        FamilyRelationship senderRelationship = familyRelationshipRepository
-                .findByProfile_Profile(senderProfile.getProfile())
-                .orElseThrow(() -> new RuntimeException("Bạn chưa thuộc family nào"));
-
-        // 3. Check OWNER
-        if (senderRelationship.getRole() != FamilyRole.OWNER) {
-                throw new RuntimeException("Chỉ OWNER mới được mời");
-        }
-
+        User currentUser = getRequiredUser(currentUserId);
+        FamilyRelationship senderRelationship = getRequiredOwnerRelationship(currentUserId);
         Family family = senderRelationship.getFamily();
 
-        // 4. Tìm receiver
+        String receiverEmail = dto.getReceiverEmail().trim().toLowerCase(Locale.ROOT);
         User receiver = userRepository.findByEmail(receiverEmail)
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy user"));
 
@@ -296,44 +279,30 @@ public class FamilyService {
             throw new RuntimeException("Không thể tự mời chính mình");
         }
 
-        // 5. Check profile receiver
-        HealthProfile receiverProfile = healthProfileRepository
-                .findByUser_UserId(receiver.getUserId())
-                .orElseThrow(() -> new RuntimeException("Người này chưa có profile"));
+        HealthProfile receiverProfile = healthProfileRepository.findFirstByUser_UserIdOrderByProfileAsc(receiver.getUserId())
+            .orElseThrow(() -> new RuntimeException("Người này chưa có hồ sơ"));
 
-        // 6. Check đã là member chưa
-        boolean alreadyMember = familyRelationshipRepository
-                .existsByProfile_ProfileAndFamily_FamilyId(
-                        receiverProfile.getProfile(),
-                        family.getFamilyId()
-                );
-
-        if (alreadyMember) {
+        if (familyRelationshipRepository.existsByProfile_ProfileAndFamily_FamilyId(receiverProfile.getProfile(), family.getFamilyId())) {
             throw new RuntimeException("Đã là thành viên rồi");
         }
 
-        // 7. Check pending invite
-        boolean hasPending = familyInvitationRepository
-                .existsByReceiver_UserIdAndFamily_FamilyIdAndStatus(
-                        receiver.getUserId(),
-                        family.getFamilyId(),
-                        InvitationStatus.PENDING
-                );
-
-        if (hasPending) {
-            throw new RuntimeException("Đã có lời mời pending");
+        if (familyInvitationRepository.existsByReceiver_UserIdAndFamily_FamilyIdAndStatus(
+                receiver.getUserId(),
+                family.getFamilyId(),
+                InvitationStatus.PENDING
+        )) {
+            throw new RuntimeException("Đã có lời mời đang chờ");
         }
 
-        // 8. Tạo invitation
         FamilyInvitation invitation = new FamilyInvitation();
         invitation.setSender(currentUser);
         invitation.setReceiver(receiver);
         invitation.setFamily(family);
         invitation.setStatus(InvitationStatus.PENDING);
+        invitation.setRole(dto.getRole());
         invitation.setCreatedAt(LocalDateTime.now());
 
         FamilyInvitation saved = familyInvitationRepository.save(invitation);
-
         return FamilyInvitationResponse.builder()
                 .inviteId(saved.getInviteId())
                 .familyId(family.getFamilyId())
@@ -343,199 +312,374 @@ public class FamilyService {
                 .receiverId(receiver.getUserId())
                 .receiverEmail(receiver.getEmail())
                 .status(saved.getStatus().name())
-                .message("Invite thành công")
+                .message("Gửi lời mời thành công")
                 .build();
     }
 
     public List<FamilyInvitationResponse> getMyInvitations(Integer currentUserId) {
-        User currentUser = userRepository.findById(currentUserId)
-                .orElseThrow(() -> new UsernameNotFoundException("Không tìm thấy user"));
-        List<FamilyInvitation> invitations =
-                familyInvitationRepository.findAllByReceiver_UserIdAndStatus(
-                        currentUser.getUserId(),
-                        InvitationStatus.PENDING
-                );
-    
-        return invitations.stream().map(invite -> {
+        User currentUser = getRequiredUser(currentUserId);
+        List<FamilyInvitation> invitations = familyInvitationRepository.findAllByReceiver_UserIdAndStatus(
+                currentUser.getUserId(),
+                InvitationStatus.PENDING
+        );
 
-            Family family = invite.getFamily();
-        
-            User sender = invite.getSender();
-        
-            return FamilyInvitationResponse.builder()
-                    .inviteId(invite.getInviteId())
-                    .familyId(family.getFamilyId())
-                    .familyName(family.getName())
-                    .senderId(sender.getUserId())
-                    .senderEmail(sender.getEmail())
-                    .receiverId(currentUser.getUserId())
-                    .receiverEmail(currentUser.getEmail())
-                    .status(invite.getStatus().name())
-                    .message("Bạn có lời mời tham gia family")
-                    .build();
-        
-        }).toList();
+        return invitations.stream().map(invite -> FamilyInvitationResponse.builder()
+                .inviteId(invite.getInviteId())
+                .familyId(invite.getFamily().getFamilyId())
+                .familyName(invite.getFamily().getName())
+                .senderId(invite.getSender().getUserId())
+                .senderEmail(invite.getSender().getEmail())
+                .receiverId(currentUser.getUserId())
+                .receiverEmail(currentUser.getEmail())
+                .status(invite.getStatus().name())
+                .message("Bạn có lời mời tham gia gia đình")
+                .build()).toList();
     }
 
     public List<ReceivedInvitationResponse> getReceivedInvitations(Integer currentUserId) {
-        User currentUser = userRepository.findById(currentUserId)
-                .orElseThrow(() -> new UsernameNotFoundException("Không tìm thấy user"));
-
-        List<FamilyInvitation> invitations = familyInvitationRepository
-                .findAllByReceiverAndStatusOrderByCreatedAtDesc(
-                        currentUser,
-                        InvitationStatus.PENDING
-                );
-
-        return invitations.stream().map(invite -> {
-            User sender = invite.getSender();
-
-            Family family = invite.getFamily();
-
-            return ReceivedInvitationResponse.builder()
-                    .inviteId(invite.getInviteId())
-                    .familyId(family.getFamilyId())
-                    .familyName(family.getName())
-                    .senderId(sender.getUserId())
-                    .senderEmail(sender.getEmail())
-                    .status(invite.getStatus().name())
-                    .createdAt(invite.getCreatedAt())
-                    .build();
-        }).toList();
+        User currentUser = getRequiredUser(currentUserId);
+        return familyInvitationRepository.findAllByReceiverAndStatusOrderByCreatedAtDesc(currentUser, InvitationStatus.PENDING)
+                .stream()
+                .map(invite -> ReceivedInvitationResponse.builder()
+                        .inviteId(invite.getInviteId())
+                        .familyId(invite.getFamily().getFamilyId())
+                        .familyName(invite.getFamily().getName())
+                        .senderId(invite.getSender().getUserId())
+                        .senderEmail(invite.getSender().getEmail())
+                        .status(invite.getStatus().name())
+                        .createdAt(invite.getCreatedAt())
+                        .build())
+                .toList();
     }
 
     public List<SentInvitationResponse> getSentInvitations(Integer currentUserId) {
-        User currentUser = userRepository.findById(currentUserId)
-                .orElseThrow(() -> new UsernameNotFoundException("Không tìm thấy user"));
+        getRequiredOwnerRelationship(currentUserId);
+        User currentUser = getRequiredUser(currentUserId);
 
-        HealthProfile senderProfile = healthProfileRepository.findByUser_UserId(currentUser.getUserId())
-                .orElseThrow(() -> new RuntimeException("Bạn chưa có health profile"));
-
-        FamilyRelationship relationship = familyRelationshipRepository
-                .findByProfile_Profile(senderProfile.getProfile())
-                .orElseThrow(() -> new RuntimeException("Bạn chưa thuộc family nào"));
-
-        if (relationship.getRole() != FamilyRole.OWNER) {
-            throw new RuntimeException("Chỉ owner mới được xem lời mời đã gửi");
-        }
-
-        List<FamilyInvitation> invitations = familyInvitationRepository
-                .findAllBySenderOrderByCreatedAtDesc(currentUser);
-
-        return invitations.stream().map(invite -> {
-            User receiver = invite.getReceiver();
-
-            Family family = invite.getFamily();
-
-            return SentInvitationResponse.builder()
-                    .inviteId(invite.getInviteId())
-                    .familyId(family.getFamilyId())
-                    .familyName(family.getName())
-                    .receiverId(receiver.getUserId())
-                    .receiverEmail(receiver.getEmail())
-                    .status(invite.getStatus().name())
-                    .createdAt(invite.getCreatedAt())
-                    .build();
-        }).toList();
+        return familyInvitationRepository.findAllBySenderOrderByCreatedAtDesc(currentUser)
+                .stream()
+                .map(invite -> SentInvitationResponse.builder()
+                        .inviteId(invite.getInviteId())
+                        .familyId(invite.getFamily().getFamilyId())
+                        .familyName(invite.getFamily().getName())
+                        .receiverId(invite.getReceiver().getUserId())
+                        .receiverEmail(invite.getReceiver().getEmail())
+                        .status(invite.getStatus().name())
+                        .createdAt(invite.getCreatedAt())
+                        .build())
+                .toList();
     }
 
     public void acceptInvitation(Integer currentUserId, Integer inviteId) {
-        User currentUser = userRepository.findById(currentUserId)
-                .orElseThrow(() -> new UsernameNotFoundException("Không tìm thấy user"));
-    
-        FamilyInvitation invitation = familyInvitationRepository
-                .findByInviteId_AndReceiver(inviteId, currentUser)
+        User currentUser = getRequiredUser(currentUserId);
+        FamilyInvitation invitation = familyInvitationRepository.findByInviteId_AndReceiver(inviteId, currentUser)
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy lời mời"));
-    
+
         if (invitation.getStatus() != InvitationStatus.PENDING) {
             throw new RuntimeException("Lời mời không còn hiệu lực");
         }
-    
-        HealthProfile profile = healthProfileRepository.findByUser_UserId(currentUser.getUserId())
-                .orElseThrow(() -> new RuntimeException("Bạn chưa có health profile"));
-    
-        boolean alreadyMember = familyRelationshipRepository
-                .existsByProfile_ProfileAndFamily_FamilyId(
-                        profile.getProfile(),
-                        invitation.getFamily().getFamilyId()
-                );
-    
-        if (alreadyMember) {
-            throw new RuntimeException("Bạn đã là thành viên của family này");
-        }
-    
+
+        HealthProfile profile = getPrimaryProfile(currentUserId);
+        familyRelationshipRepository.findByProfile_Profile(profile.getProfile()).ifPresent(existing -> {
+            throw new RuntimeException("Bạn đã thuộc gia đình khác");
+        });
+
         FamilyRelationship relationship = new FamilyRelationship();
         relationship.setProfile(profile);
         relationship.setFamily(invitation.getFamily());
-        relationship.setRole(FamilyRole.MEMBER);
+        relationship.setRole(invitation.getRole());
         relationship.setJoinAt(LocalDate.now());
-    
         familyRelationshipRepository.save(relationship);
-    
+
         invitation.setStatus(InvitationStatus.ACCEPTED);
         familyInvitationRepository.save(invitation);
     }
 
     public void rejectInvitation(Integer currentUserId, Integer inviteId) {
-        User currentUser = userRepository.findById(currentUserId)
-                .orElseThrow(() -> new UsernameNotFoundException("Không tìm thấy user"));
-    
-        FamilyInvitation invitation = familyInvitationRepository
-                .findByInviteIdAndReceiver_UserId(inviteId, currentUser.getUserId())
+        User currentUser = getRequiredUser(currentUserId);
+        FamilyInvitation invitation = familyInvitationRepository.findByInviteIdAndReceiver_UserId(inviteId, currentUser.getUserId())
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy lời mời"));
-    
+
         if (invitation.getStatus() != InvitationStatus.PENDING) {
             throw new RuntimeException("Lời mời không còn hiệu lực");
         }
-    
+
         invitation.setStatus(InvitationStatus.REJECTED);
         familyInvitationRepository.save(invitation);
     }
 
     public void removeMember(Integer currentUserId, Integer profileId) {
-        User currentUser = userRepository.findById(currentUserId)
-                .orElseThrow(() -> new UsernameNotFoundException("Không tìm thấy user"));
-    
-        // 1. Lấy profile của người đang đăng nhập
-        HealthProfile currentProfile = healthProfileRepository.findByUser_UserId(currentUser.getUserId())
-                .orElseThrow(() -> new RuntimeException("Bạn chưa có health profile"));
-    
-        // 2. Lấy relationship của người đang đăng nhập
-        FamilyRelationship currentRelationship = familyRelationshipRepository
-                .findByProfile_Profile(currentProfile.getProfile())
-                .orElseThrow(() -> new RuntimeException("Bạn chưa thuộc family nào"));
-    
-        // 3. Chỉ owner mới được xóa
-        if (currentRelationship.getRole() != FamilyRole.OWNER) {
-            throw new RuntimeException("Chỉ OWNER mới có quyền xóa thành viên");
-        }
-    
+        FamilyRelationship currentRelationship = getRequiredOwnerRelationship(currentUserId);
         Integer familyId = currentRelationship.getFamily().getFamilyId();
-    
-        // 4. Không cho owner tự xóa chính mình
-        if (currentProfile.getProfile().equals(profileId)) {
-            throw new RuntimeException("OWNER không thể tự xóa chính mình");
+
+        if (currentRelationship.getProfile().getProfile().equals(profileId)) {
+            throw new RuntimeException("Chủ gia đình không thể tự xóa chính mình");
         }
-    
-        // 5. Tìm relationship của member cần xóa trong cùng family
+
         FamilyRelationship targetRelationship = familyRelationshipRepository
                 .findByProfile_ProfileAndFamily_FamilyId(profileId, familyId)
-                .orElseThrow(() -> new RuntimeException("Không tìm thấy thành viên trong family"));
-    
-        // 6. Không cho xóa OWNER
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy thành viên trong gia đình"));
+
         if (targetRelationship.getRole() == FamilyRole.OWNER) {
             throw new RuntimeException("Không thể xóa OWNER");
         }
-    
-        // 7. Gỡ liên kết 2 chiều trước khi xóa
+
         HealthProfile targetProfile = targetRelationship.getProfile();
         if (targetProfile != null) {
             targetProfile.setFamilyRelationship(null);
         }
         targetRelationship.setProfile(null);
-    
-        // 8. Xóa relationship
         familyRelationshipRepository.delete(targetRelationship);
         familyRelationshipRepository.flush();
     }
+
+    public FamilyJoinCodeResponse getJoinCode(Integer currentUserId) {
+        FamilyRelationship ownerRelationship = getRequiredOwnerRelationship(currentUserId);
+        Family family = ownerRelationship.getFamily();
+        ensureActiveJoinCode(family);
+        familyRepository.save(family);
+        return buildJoinCodeResponse(family);
+    }
+
+    public FamilyJoinCodeResponse rotateJoinCode(Integer currentUserId) {
+        FamilyRelationship ownerRelationship = getRequiredOwnerRelationship(currentUserId);
+        Family family = ownerRelationship.getFamily();
+        refreshJoinCode(family);
+        familyRepository.save(family);
+        return buildJoinCodeResponse(family);
+    }
+
+    public MyFamilyResponse joinByCode(Integer currentUserId, JoinFamilyByCodeRequest request) {
+        HealthProfile profile = getPrimaryProfile(currentUserId);
+        familyRelationshipRepository.findByProfile_Profile(profile.getProfile()).ifPresent(existing -> {
+            throw new RuntimeException("Bạn đã thuộc một gia đình khác");
+        });
+
+        Family family = getJoinableFamily(currentUserId, request.getJoinCode());
+        FamilyRole joinRole = normalizeJoinRole(request.getRole());
+        FamilyRelationship relationship = buildJoinRelationship(profile, family, joinRole);
+        persistJoinRelationship(relationship);
+        return getMyFamily(currentUserId);
+    }
+
+    public MyFamilyResponse joinByQr(Integer currentUserId, MultipartFile image, String rawRole) {
+        if (image == null || image.isEmpty()) {
+            throw new RuntimeException("Không tìm thấy ảnh QR");
+        }
+
+        String qrPayload = decodeQrPayload(image);
+        String joinCode = extractJoinCode(qrPayload);
+        JoinFamilyByCodeRequest request = new JoinFamilyByCodeRequest();
+        request.setJoinCode(joinCode);
+        request.setRole(parseRole(rawRole));
+        return joinByCode(currentUserId, request);
+    }
+
+    private User getRequiredUser(Integer currentUserId) {
+        return userRepository.findById(currentUserId)
+                .orElseThrow(() -> new UsernameNotFoundException("Không tìm thấy user"));
+    }
+
+    private HealthProfile getPrimaryProfile(Integer currentUserId) {
+        return healthProfileRepository.findFirstByUser_UserIdOrderByProfileAsc(currentUserId)
+            .orElseThrow(() -> new RuntimeException("Bạn chưa có hồ sơ sức khỏe"));
+    }
+
+    private FamilyRelationship getRequiredFamilyRelationship(Integer currentUserId) {
+        HealthProfile profile = getPrimaryProfile(currentUserId);
+        return familyRelationshipRepository.findByProfile_Profile(profile.getProfile())
+            .orElseThrow(() -> new RuntimeException("Bạn chưa thuộc gia đình nào"));
+    }
+
+    private FamilyRelationship getRequiredOwnerRelationship(Integer currentUserId) {
+        FamilyRelationship relationship = getRequiredFamilyRelationship(currentUserId);
+        if (!relationship.getFamily().getOwner().getUserId().equals(currentUserId)) {
+            throw new RuntimeException("Chỉ OWNER mới được thực hiện thao tác này");
+        }
+        return relationship;
+    }
+
+    private FamilyJoinCodeResponse buildJoinCodeResponse(Family family) {
+        String joinLink = JOIN_LINK_BASE + family.getJoinCode();
+        return FamilyJoinCodeResponse.builder()
+                .joinCode(family.getJoinCode())
+                .joinLink(joinLink)
+                .qrCodeBase64(generateQrCodeBase64(joinLink))
+                .expiresAt(family.getJoinCodeExpiresAt())
+                .familyId(family.getFamilyId())
+                .familyName(family.getName())
+                .build();
+    }
+
+    private Family getJoinableFamily(Integer currentUserId, String rawJoinCode) {
+        String normalizedCode = extractJoinCode(rawJoinCode);
+        Family family = familyRepository.findByJoinCode(normalizedCode)
+                .orElseThrow(() -> new RuntimeException("Mã tham gia không hợp lệ"));
+
+        if (family.getJoinCodeExpiresAt() == null || family.getJoinCodeExpiresAt().isBefore(LocalDateTime.now())) {
+            throw new RuntimeException("Mã tham gia đã hết hạn");
+        }
+
+        if (family.getOwner().getUserId().equals(currentUserId)) {
+            throw new RuntimeException("Bạn đã là chủ gia đình này");
+        }
+
+        return family;
+    }
+
+    private FamilyRelationship buildJoinRelationship(HealthProfile profile, Family family, FamilyRole role) {
+        FamilyRelationship relationship = new FamilyRelationship();
+        relationship.setProfile(profile);
+        relationship.setFamily(family);
+        relationship.setRole(role);
+        relationship.setJoinAt(LocalDate.now());
+        return relationship;
+    }
+
+    private FamilyRole parseRole(String rawRole) {
+        if (rawRole == null || rawRole.isBlank()) {
+            return null;
+        }
+
+        try {
+            return FamilyRole.valueOf(rawRole.trim().toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException exception) {
+            throw new RuntimeException("Vai trò không hợp lệ");
+        }
+    }
+
+    private FamilyRole normalizeJoinRole(FamilyRole role) {
+        if (role == null) {
+            return FamilyRole.MEMBER;
+        }
+
+        if (role == FamilyRole.OWNER) {
+            throw new RuntimeException("Không thể tham gia với vai trò OWNER");
+        }
+
+        return role;
+    }
+
+    private FamilyRole normalizeRoleForUpdate(FamilyRole role) {
+        if (role == null) {
+            throw new RuntimeException("Vai trò không hợp lệ");
+        }
+
+        if (role == FamilyRole.OWNER) {
+            throw new RuntimeException("Không thể cập nhật sang vai trò OWNER");
+        }
+
+        return role;
+    }
+
+    private void persistJoinRelationship(FamilyRelationship relationship) {
+        try {
+            familyRelationshipRepository.saveAndFlush(relationship);
+        } catch (DataIntegrityViolationException ex) {
+            if (!isRoleConstraintViolation(ex)) {
+                throw ex;
+            }
+
+            relationship.setRole(FamilyRole.OTHER);
+            familyRelationshipRepository.saveAndFlush(relationship);
+        }
+    }
+
+    private boolean isRoleConstraintViolation(Throwable throwable) {
+        Throwable current = throwable;
+        while (current != null) {
+            String message = current.getMessage();
+            if (message != null && message.contains("family_relationship_role_check")) {
+                return true;
+            }
+            current = current.getCause();
+        }
+        return false;
+    }
+
+    private void ensureActiveJoinCode(Family family) {
+        if (family.getJoinCode() == null || family.getJoinCodeExpiresAt() == null || family.getJoinCodeExpiresAt().isBefore(LocalDateTime.now())) {
+            refreshJoinCode(family);
+        }
+    }
+
+    private void refreshJoinCode(Family family) {
+        family.setJoinCode(generateJoinCode());
+        family.setJoinCodeExpiresAt(LocalDateTime.now().plusHours(24));
+    }
+
+    private String generateJoinCode() {
+        String joinCode;
+        do {
+            joinCode = UUID.randomUUID()
+                    .toString()
+                    .replace("-", "")
+                    .substring(0, JOIN_CODE_LENGTH)
+                    .toUpperCase(Locale.ROOT);
+        } while (familyRepository.findByJoinCode(joinCode).isPresent());
+        return joinCode;
+    }
+
+    private String generateQrCodeBase64(String payload) {
+        try {
+            Map<EncodeHintType, Object> hints = new HashMap<>();
+            hints.put(EncodeHintType.MARGIN, 1);
+            BitMatrix matrix = new QRCodeWriter().encode(payload, com.google.zxing.BarcodeFormat.QR_CODE, 320, 320, hints);
+            ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+            MatrixToImageWriter.writeToStream(matrix, "PNG", outputStream);
+            return Base64.getEncoder().encodeToString(outputStream.toByteArray());
+        } catch (Exception exception) {
+            throw new RuntimeException("Không thể tạo QR code", exception);
+        }
+    }
+
+    private String decodeQrPayload(MultipartFile image) {
+        try {
+            BufferedImage bufferedImage = ImageIO.read(image.getInputStream());
+            if (bufferedImage == null) {
+                throw new RuntimeException("Ảnh QR không hợp lệ");
+            }
+
+            BinaryBitmap bitmap = new BinaryBitmap(
+                    new HybridBinarizer(new BufferedImageLuminanceSource(bufferedImage))
+            );
+            return new MultiFormatReader().decode(bitmap).getText();
+        } catch (NotFoundException exception) {
+            throw new RuntimeException("Không đọc được mã QR trong ảnh");
+        } catch (IOException exception) {
+            throw new RuntimeException("Không thể đọc ảnh QR", exception);
+        }
+    }
+
+    private String extractJoinCode(String rawValue) {
+        if (rawValue == null || rawValue.isBlank()) {
+            throw new RuntimeException("Mã tham gia không hợp lệ");
+        }
+
+        String normalizedValue = rawValue.trim();
+        int codeIndex = normalizedValue.indexOf("code=");
+        if (codeIndex >= 0) {
+            String queryValue = normalizedValue.substring(codeIndex + 5);
+            int nextSeparator = queryValue.indexOf('&');
+            String code = nextSeparator >= 0 ? queryValue.substring(0, nextSeparator) : queryValue;
+            return code.trim().toUpperCase(Locale.ROOT);
+        }
+
+        return normalizedValue.toUpperCase(Locale.ROOT);
+    }
+
+    private Integer calculateAge(LocalDate birthday) {
+        if (birthday == null) {
+            return null;
+        }
+        return Period.between(birthday, LocalDate.now()).getYears();
+    }
+
+    private String mapHealthStatus(HealthProfile profile) {
+        if (profile.getMedicalHistory() != null && !profile.getMedicalHistory().isBlank()) {
+            return "CẦN THEO DÕI";
+        }
+        return "SỨC KHỎE TỐT";
+    }
 }
+

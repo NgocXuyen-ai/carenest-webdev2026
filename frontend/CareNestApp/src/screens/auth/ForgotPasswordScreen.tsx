@@ -1,30 +1,42 @@
 import React, { useState } from 'react';
 import {
-  View,
-  Text,
-  TouchableOpacity,
-  ScrollView,
-  StyleSheet,
+  Alert,
   KeyboardAvoidingView,
   Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { colors } from '../../theme/colors';
 import Input from '../../components/common/Input';
 import Icon from '../../components/common/Icon';
+import { forgotPassword as forgotPasswordRequest } from '../../api/auth';
 
 export default function ForgotPasswordScreen() {
-  const navigation = useNavigation();
+  const navigation = useNavigation<any>();
   const insets = useSafeAreaInsets();
   const [email, setEmail] = useState('');
   const [sent, setSent] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  async function handleForgotPassword() {
+    try {
+      setLoading(true);
+      await forgotPasswordRequest(email);
+      setSent(true);
+    } catch (error) {
+      Alert.alert('Không thể gửi email', error instanceof Error ? error.message : 'Đã có lỗi xảy ra');
+    } finally {
+      setLoading(false);
+    }
+  }
 
   return (
-    <KeyboardAvoidingView
-      style={styles.flex}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-    >
+    <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <ScrollView
         style={styles.flex}
         contentContainerStyle={[styles.content, { paddingTop: insets.top + 24, paddingBottom: insets.bottom + 32 }]}
@@ -44,11 +56,7 @@ export default function ForgotPasswordScreen() {
             <Text style={styles.subtitle}>
               Kiểm tra hộp thư {email} và làm theo hướng dẫn để đặt lại mật khẩu.
             </Text>
-            <TouchableOpacity
-              style={styles.primaryBtn}
-              onPress={() => navigation.goBack()}
-              activeOpacity={0.85}
-            >
+            <TouchableOpacity style={styles.primaryBtn} onPress={() => navigation.goBack()} activeOpacity={0.85}>
               <Text style={styles.primaryBtnText}>Quay lại đăng nhập</Text>
             </TouchableOpacity>
           </View>
@@ -60,7 +68,7 @@ export default function ForgotPasswordScreen() {
               </View>
               <Text style={styles.title}>Quên mật khẩu?</Text>
               <Text style={styles.subtitle}>
-                Nhập email của bạn và chúng tôi sẽ gửi hướng dẫn đặt lại mật khẩu.
+                Nhập email của bạn và CareNest sẽ gửi OTP khôi phục qua email.
               </Text>
             </View>
 
@@ -75,12 +83,12 @@ export default function ForgotPasswordScreen() {
                 leftIcon={<Icon name="mail" size={20} color={colors.outline} />}
               />
               <TouchableOpacity
-                style={[styles.primaryBtn, !email && styles.disabled]}
-                disabled={!email}
-                onPress={() => setSent(true)}
+                style={[styles.primaryBtn, (!email || loading) && styles.disabled]}
+                disabled={!email || loading}
+                onPress={() => void handleForgotPassword()}
                 activeOpacity={0.85}
               >
-                <Text style={styles.primaryBtnText}>Gửi email khôi phục</Text>
+                <Text style={styles.primaryBtnText}>{loading ? 'Đang gửi...' : 'Gửi email khôi phục'}</Text>
               </TouchableOpacity>
             </View>
 

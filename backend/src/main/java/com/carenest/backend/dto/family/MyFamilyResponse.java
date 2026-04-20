@@ -16,6 +16,7 @@ import lombok.Setter;
 public class MyFamilyResponse {
     private Integer familyId;
     private String familyName;
+    private Integer ownerUserId;
     private Integer memberCount;
     private List<FamilyMemberSummaryResponse> members;
 }

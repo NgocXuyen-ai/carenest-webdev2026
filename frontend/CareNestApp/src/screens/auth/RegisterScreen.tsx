@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import {
+  Alert,
+  Image,
   View,
   Text,
   TouchableOpacity,
@@ -15,6 +17,8 @@ import { colors } from '../../theme/colors';
 import Input from '../../components/common/Input';
 import Icon from '../../components/common/Icon';
 import type { AuthStackParamList } from '../../navigation/navigationTypes';
+import { register as registerRequest } from '../../api/auth';
+import { CARENEST_LOGO_FULL } from '../../assets/branding';
 
 type Nav = NativeStackNavigationProp<AuthStackParamList, 'Register'>;
 
@@ -23,9 +27,31 @@ export default function RegisterScreen() {
   const insets = useSafeAreaInsets();
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
+  const [phoneNumber, setPhoneNumber] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [agreed, setAgreed] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  async function handleRegister() {
+    if (!agreed || loading) return;
+    if (!fullName || !email || !phoneNumber || !password) {
+      Alert.alert('Thiếu thông tin', 'Vui lòng nhập đầy đủ họ tên, email, số điện thoại và mật khẩu.');
+      return;
+    }
+
+    try {
+      setLoading(true);
+      await registerRequest({ fullName, email, phoneNumber, password });
+      Alert.alert('Đăng ký thành công', 'Tài khoản đã được tạo. Bạn có thể đăng nhập ngay bây giờ.', [
+        { text: 'OK', onPress: () => navigation.navigate('Login') },
+      ]);
+    } catch (error) {
+      Alert.alert('Không thể đăng ký', error instanceof Error ? error.message : 'Đã có lỗi xảy ra');
+    } finally {
+      setLoading(false);
+    }
+  }
 
   return (
     <KeyboardAvoidingView
@@ -44,10 +70,7 @@ export default function RegisterScreen() {
             <Icon name="arrow_back" size={24} color={colors.onSurface} />
           </TouchableOpacity>
           <View style={styles.logoRow}>
-            <View style={styles.logoIcon}>
-              <Icon name="nest_eco_leaf" size={28} color="#fff" />
-            </View>
-            <Text style={styles.appName}>CareNest</Text>
+            <Image source={CARENEST_LOGO_FULL} style={styles.logoImage} resizeMode="contain" />
           </View>
           <Text style={styles.title}>Tạo tài khoản mới</Text>
           <Text style={styles.subtitle}>Bắt đầu hành trình chăm sóc sức khỏe gia đình</Text>
@@ -70,6 +93,14 @@ export default function RegisterScreen() {
             keyboardType="email-address"
             autoCapitalize="none"
             leftIcon={<Icon name="mail" size={20} color={colors.outline} />}
+          />
+          <Input
+            label="Số điện thoại"
+            value={phoneNumber}
+            onChangeText={setPhoneNumber}
+            placeholder="0901234567"
+            keyboardType="phone-pad"
+            leftIcon={<Icon name="phone" size={20} color={colors.outline} />}
           />
           <Input
             label="Mật khẩu"
@@ -99,10 +130,11 @@ export default function RegisterScreen() {
 
           <TouchableOpacity
             style={[styles.registerBtn, !agreed && styles.registerBtnDisabled]}
-            disabled={!agreed}
+            disabled={!agreed || loading}
+            onPress={handleRegister}
             activeOpacity={0.85}
           >
-            <Text style={styles.registerBtnText}>Đăng ký</Text>
+            <Text style={styles.registerBtnText}>{loading ? 'Đang đăng ký...' : 'Đăng ký'}</Text>
           </TouchableOpacity>
 
           {/* Divider */}
@@ -135,16 +167,8 @@ const styles = StyleSheet.create({
   content: { paddingHorizontal: 24 },
   header: { marginBottom: 28 },
   backBtn: { marginBottom: 20, width: 40, height: 40, justifyContent: 'center' },
-  logoRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 16 },
-  logoIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 14,
-    backgroundColor: colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  appName: { fontSize: 22, fontFamily: 'Manrope', fontWeight: '800', color: colors.onBackground },
+  logoRow: { alignItems: 'flex-start', marginBottom: 12 },
+  logoImage: { width: 132, height: 132 },
   title: { fontSize: 26, fontFamily: 'Manrope', fontWeight: '800', color: colors.onBackground, marginBottom: 6 },
   subtitle: { fontSize: 14, fontFamily: 'Inter', color: colors.onSurfaceVariant },
   card: {

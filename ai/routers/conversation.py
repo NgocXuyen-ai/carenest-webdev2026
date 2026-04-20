@@ -1,4 +1,6 @@
-from fastapi import APIRouter, HTTPException, Query, Request
+import logging
+
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
 from config import settings
 from rate_limiter import limiter
@@ -10,8 +12,16 @@ from schemas.conversation_schemas import (
     MessageItem,
 )
 from services import conversation_service
+from utils.trace import emit_trace, new_trace_id
+from utils.internal_auth import verify_internal_request
 
-router = APIRouter(prefix="/conversations", tags=["conversations"])
+logger = logging.getLogger(__name__)
+
+router = APIRouter(
+    prefix="/internal/conversations",
+    tags=["conversations"],
+    dependencies=[Depends(verify_internal_request)],
+)
 
 
 @router.get("", response_model=ConversationListResponse)
@@ -23,6 +33,15 @@ def list_conversations(
     offset: int = Query(0, ge=0),
 ) -> ConversationListResponse:
     """List conversations for a user, ordered by most recent activity."""
+    trace_id = new_trace_id("api-conversations-list")
+    emit_trace(
+        logger,
+        "api.conversations.list.start",
+        trace_id=trace_id,
+        user_id=user_id,
+        limit=limit,
+        offset=offset,
+    )
     conversations, total = conversation_service.list_conversations(user_id, limit, offset)
     items = [
         ConversationListItem(
@@ -35,6 +54,13 @@ def list_conversations(
         )
         for c in conversations
     ]
+    emit_trace(
+        logger,
+        "api.conversations.list.done",
+        trace_id=trace_id,
+        total=total,
+        returned=len(items),
+    )
     return ConversationListResponse(conversations=items, total=total)
 
 
@@ -46,10 +72,25 @@ def get_messages(
     user_id: int = Query(...),
 ) -> ConversationMessagesResponse:
     """Get all messages in a conversation (ownership verified)."""
+    trace_id = new_trace_id("api-conversations-messages")
+    emit_trace(
+        logger,
+        "api.conversations.messages.start",
+        trace_id=trace_id,
+        conversation_id=conversation_id,
+        user_id=user_id,
+    )
     messages = conversation_service.get_conversation_messages(conversation_id, user_id)
     if not messages:
         conv = conversation_service.get_conversation(conversation_id, user_id)
         if conv is None:
+            emit_trace(
+                logger,
+                "api.conversations.messages.not_found",
+                trace_id=trace_id,
+                conversation_id=conversation_id,
+                user_id=user_id,
+            )
             raise HTTPException(status_code=404, detail="Conversation not found")
     items = [
         MessageItem(
@@ -61,6 +102,13 @@ def get_messages(
         )
         for m in messages
     ]
+    emit_trace(
+        logger,
+        "api.conversations.messages.done",
+        trace_id=trace_id,
+        conversation_id=conversation_id,
+        message_count=len(items),
+    )
     return ConversationMessagesResponse(conversation_id=conversation_id, messages=items)
 
 
@@ -72,8 +120,30 @@ def close_conversation(
     user_id: int = Query(...),
 ) -> ConversationCloseResponse:
     """Explicitly close a conversation."""
+    trace_id = new_trace_id("api-conversations-close")
+    emit_trace(
+        logger,
+        "api.conversations.close.start",
+        trace_id=trace_id,
+        conversation_id=conversation_id,
+        user_id=user_id,
+    )
     conv = conversation_service.get_conversation(conversation_id, user_id)
     if conv is None:
+        emit_trace(
+            logger,
+            "api.conversations.close.not_found",
+            trace_id=trace_id,
+            conversation_id=conversation_id,
+            user_id=user_id,
+        )
         raise HTTPException(status_code=404, detail="Conversation not found")
     conversation_service.close_conversation(conversation_id)
+    emit_trace(
+        logger,
+        "api.conversations.close.done",
+        trace_id=trace_id,
+        conversation_id=conversation_id,
+        status="closed",
+    )
     return ConversationCloseResponse(conversation_id=conversation_id, status="closed")

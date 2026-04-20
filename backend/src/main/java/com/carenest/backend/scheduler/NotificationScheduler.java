@@ -18,7 +18,7 @@ public class NotificationScheduler {
     /**
      * Chạy mỗi 1 phút
      */
-    @Scheduled(fixedRate = 10000)
+    @Scheduled(fixedRate = 60000)
     public void runNotificationJobs() {
         notificationGenerationService.generateMedicineNotifications();
         notificationGenerationService.generateAppointmentNotifications();

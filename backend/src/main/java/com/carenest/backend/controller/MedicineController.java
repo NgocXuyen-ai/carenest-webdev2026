@@ -1,19 +1,5 @@
 package com.carenest.backend.controller;
 
-import java.time.LocalDate;
-import java.util.List;
-
-import org.springframework.format.annotation.DateTimeFormat;
-import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.web.bind.annotation.DeleteMapping;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
-
 import com.carenest.backend.dto.medicine.CreateMedicineRequest;
 import com.carenest.backend.dto.medicine.CreateMedicineScheduleRequest;
 import com.carenest.backend.dto.medicine.DailyMedicineScheduleResponse;
@@ -24,16 +10,28 @@ import com.carenest.backend.dto.medicine.TakeMedicineDoseRequest;
 import com.carenest.backend.helper.ApiResponse;
 import com.carenest.backend.security.CustomUserDetails;
 import com.carenest.backend.service.MedicineService;
-
 import jakarta.validation.Valid;
+import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+
+import java.time.LocalDate;
+import java.util.List;
 
 @RestController
+@RequestMapping("/api/v1/medicine")
 public class MedicineController {
     private final MedicineService medicineService;
 
-    public MedicineController(
-        MedicineService medicineService
-    ){
+    public MedicineController(MedicineService medicineService) {
         this.medicineService = medicineService;
     }
 
@@ -45,17 +43,20 @@ public class MedicineController {
             throw new RuntimeException("Bạn chưa đăng nhập");
         }
 
-        MedicineScheduleFormResponse data =
-                medicineService.getFormData(userDetails.getId());
-
+        MedicineScheduleFormResponse data = medicineService.getFormData(userDetails.getId());
         return ApiResponse.success(data, "Lấy dữ liệu form thành công");
     }
 
     @PostMapping("/schedules")
     public ResponseEntity<ApiResponse<Void>> createMedicineSchedule(
-            @Valid @RequestBody CreateMedicineScheduleRequest request
+            @Valid @RequestBody CreateMedicineScheduleRequest request,
+            @AuthenticationPrincipal CustomUserDetails userDetails
     ) {
-        medicineService.createMedicineSchedule(request);
+        if (userDetails == null) {
+            throw new RuntimeException("Bạn chưa đăng nhập");
+        }
+
+        medicineService.createMedicineSchedule(userDetails.getId(), request);
         return ApiResponse.success(null, "Tạo lịch uống thuốc thành công");
     }
 
@@ -68,9 +69,7 @@ public class MedicineController {
             throw new RuntimeException("Bạn chưa đăng nhập");
         }
 
-        List<MedicineScheduleResponse> data =
-        medicineService.getMedicineSchedules(profileId);
-
+        List<MedicineScheduleResponse> data = medicineService.getMedicineSchedules(profileId, userDetails.getId());
         return ApiResponse.success(data, "Lấy danh sách lịch uống thuốc thành công");
     }
 
@@ -125,8 +124,6 @@ public class MedicineController {
         return ApiResponse.success(data, "Lấy danh sách thuốc thành công");
     }
 
-    
-
     @GetMapping("/medicine-schedules/{profileId}/daily")
     public ResponseEntity<ApiResponse<DailyMedicineScheduleResponse>> getDailySchedule(
             @PathVariable Integer profileId,
@@ -136,8 +133,8 @@ public class MedicineController {
         if (userDetails == null) {
             throw new RuntimeException("Bạn chưa đăng nhập");
         }
-        DailyMedicineScheduleResponse data =
-                medicineService.getDailySchedule(profileId, date, userDetails.getId());
+
+        DailyMedicineScheduleResponse data = medicineService.getDailySchedule(profileId, date, userDetails.getId());
         return ApiResponse.success(data, "Lấy lịch theo ngày thành công");
     }
 
@@ -166,26 +163,5 @@ public class MedicineController {
         medicineService.deleteMedicineSchedule(scheduleId, userDetails.getId());
         return ApiResponse.success(null, "Xóa lịch thuốc thành công");
     }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    
-
-    
-
-    
-
-    
 }
+
