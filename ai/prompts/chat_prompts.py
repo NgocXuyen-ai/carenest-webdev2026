@@ -107,6 +107,19 @@ Ví dụ few-shot cho phân tuyến:
    -> route_context_answer khi context đã có family.members.
    -> route_text_to_sql khi context gia đình thiếu hoặc không có danh sách thành viên.
    Lý do: ưu tiên trả lời ngay từ context nếu đã có dữ liệu gia đình rõ ràng.
+
+9) Người dùng: "tiểu đường nên ăn gì" / "sốt cao thì làm gì" / "cao huyết áp nguy hiểm không"
+   -> route_small_talk
+   Lý do: câu hỏi y tế/sức khỏe chung, không cần dữ liệu cá nhân từ DB.
+
+10) Người dùng: "bị tiểu đường thì trong tủ có thuốc gì" / "tủ nhà mình có thuốc hạ áp không"
+    -> route_text_to_sql
+    Lý do: cần truy vấn danh sách thuốc thực tế trong tủ thuốc; bước tổng hợp sẽ kết hợp ngữ cảnh bệnh lý.
+
+11) Người dùng: "bé bị ho thì uống thuốc gì" (không đề cập tủ thuốc/lịch thuốc)
+    -> route_small_talk
+    Lý do: câu hỏi y tế chung về triệu chứng, không yêu cầu truy xuất dữ liệu cụ thể.
+    Ngoại lệ: -> route_text_to_sql nếu người dùng nói rõ "trong lịch thuốc" hoặc "trong tủ".
 """
 
 
@@ -155,7 +168,7 @@ Ví dụ few-shot cho trả lời từ context:
 _ROUTER_DECISION_POLICY = """
 Chính sách ra quyết định (áp dụng theo thứ tự):
 1) Ưu tiên an toàn: nếu yêu cầu đòi bí mật, dữ liệu đặc quyền hoặc lạm dụng ngoài phạm vi -> route_refuse.
-2) Nếu intent chỉ là xã giao -> route_small_talk.
+2) Nếu intent là xã giao HOẶC câu hỏi y tế/sức khỏe chung không cần dữ liệu cá nhân -> route_small_talk.
 3) Nếu có thể trả lời hoàn toàn bằng context hiện có -> route_context_answer.
 4) Nếu cần truy xuất DB và câu hỏi đủ cụ thể -> route_text_to_sql.
 5) Nếu thiếu thông tin quan trọng (chủ thể, hồ sơ, thời gian, chỉ số) -> route_clarify.
@@ -165,6 +178,7 @@ Ràng buộc bắt buộc:
 - Không trả lời trực tiếp nội dung người dùng ở bước router.
 - Khi mơ hồ có thể làm thay đổi scope SQL, ưu tiên route_clarify thay vì đoán.
 - Nếu câu hỏi rõ ràng thuộc một nhóm dữ liệu hợp lệ trong schema, ưu tiên route_context_answer hoặc route_text_to_sql thay vì từ chối.
+- Phân biệt rõ: "tiểu đường nên ăn gì" (y tế chung -> small_talk) vs "trong tủ có thuốc tiểu đường không" (cần dữ liệu -> text_to_sql).
 """
 
 
@@ -180,6 +194,9 @@ Quy tắc sinh SQL:
 - Nếu thiếu dữ kiện bắt buộc, trả action=ask_clarification.
 - Nếu câu hỏi là tổng hợp/đếm/thống kê, có thể dùng COUNT, GROUP BY, HAVING, ORDER BY khi phù hợp.
 - Với câu hỏi gia đình/thành viên, ưu tiên các đường join qua family, family_relationship, health_profile.
+- Khi hỏi "thuốc [gì/nào] trong tủ [cho/trị/với] [bệnh/triệu chứng]": vì details_medicine không có
+  trường chỉ định bệnh lý, hãy SELECT toàn bộ thuốc trong tủ gia đình và đặt action=generate_sql
+  (KHÔNG ask_clarification). Bước tổng hợp sẽ tự kết hợp ngữ cảnh y tế.
 """
 
 
@@ -351,7 +368,7 @@ BẮT BUỘC gọi đúng một route tool.
 Không được trả lời trực tiếp nội dung người dùng ở bước này.
 
 Các route hợp lệ:
-- route_small_talk: chào hỏi, hỏi trợ lý là ai, cảm ơn, hội thoại xã giao.
+- route_small_talk: chào hỏi, hỏi trợ lý là ai, cảm ơn, hội thoại xã giao, câu hỏi y tế/sức khỏe chung không cần dữ liệu cá nhân.
 - route_context_answer: trả lời trực tiếp từ context đã cấp, không cần sinh SQL.
 - route_text_to_sql: cần truy vấn cơ sở dữ liệu.
 - route_clarify: thiếu chi tiết quan trọng (đối tượng/thời gian/scope) nên phải hỏi lại.
@@ -381,14 +398,17 @@ Hãy gọi một route tool ngay với:
 
 def build_small_talk_prompt(message: str, history: list[dict[str, Any]]) -> str:
     history_text = _safe_json(history[-4:])
-    return f"""Bạn là trợ lý AI CareNest.
-Nhiệm vụ: trả lời theo phong cách hội thoại tiếng Việt tự nhiên.
+    return f"""Bạn là trợ lý AI CareNest — trợ lý sức khỏe gia đình thông minh.
+Nhiệm vụ: trả lời theo phong cách hội thoại tiếng Việt tự nhiên, bao gồm cả tư vấn y tế/sức khỏe chung.
+
 Quy tắc:
-- Câu trả lời ngắn gọn, thân thiện.
+- Câu trả lời ngắn gọn, thân thiện, dễ hiểu (2-6 câu).
 - Không nhắc tới SQL, database, routing hay hệ thống nội bộ.
-- Nếu người dùng hỏi bạn là ai, giới thiệu ngắn về khả năng hỗ trợ.
+- Nếu người dùng hỏi bạn là ai, giới thiệu ngắn về khả năng hỗ trợ (quản lý sức khỏe gia đình, tủ thuốc, lịch uống thuốc, tiêm chủng, lịch khám).
 - Không bịa đặt hồ sơ y tế hay thông tin riêng tư của người dùng.
-- Giữ giọng văn ấm áp, cô đọng (2-5 câu).
+- Nếu câu hỏi liên quan triệu chứng/bệnh/dinh dưỡng/thuốc chung: cung cấp thông tin y tế phổ thông hữu ích,
+  kết thúc bằng khuyến nghị ngắn "nên tham khảo bác sĩ nếu triệu chứng kéo dài hoặc nghiêm trọng".
+- Không đưa ra chẩn đoán cụ thể hay kê đơn thuốc cụ thể cho người dùng.
 
 Lịch sử gần đây:
 {history_text}
@@ -491,14 +511,20 @@ def build_answer_synthesis_prompt(
 ) -> str:
     previous = previous_reply or ""
     rows_text = _safe_json(rows)
-    return f"""Bạn là trợ lý AI CareNest.
+    return f"""Bạn là trợ lý AI CareNest — trợ lý sức khỏe gia đình thông minh.
 Hãy tạo câu trả lời tiếng Việt rõ ràng từ dữ liệu truy vấn.
+
 Quy tắc:
 - Không nhắc tới SQL/database/hệ thống nội bộ.
-- Nếu rows rỗng, báo lịch sự là chưa có dữ liệu phù hợp.
 - Trả lời ngắn gọn, thực tế, dễ hành động.
 - Giữ nguyên số liệu/ngày tháng quan trọng từ rows.
+- Nếu rows rỗng, báo lịch sự là chưa có dữ liệu phù hợp trong hệ thống.
 - Nếu người dùng hỏi so sánh/xu hướng, chỉ tổng hợp từ rows hiện có.
+- Nếu câu hỏi đề cập đến bệnh lý/tình trạng sức khỏe (ví dụ: tiểu đường, huyết áp, ho, sốt...)
+  và rows chứa danh sách thuốc: hãy liệt kê thuốc có trong tủ, sau đó thêm một câu ngắn tư vấn chung
+  về nhóm thuốc thường dùng cho tình trạng đó nếu phù hợp.
+  Luôn kết thúc bằng: "Vui lòng tham khảo ý kiến bác sĩ hoặc dược sĩ trước khi dùng thuốc."
+- Không đưa ra chẩn đoán hay kê đơn cụ thể.
 
 Câu trả lời trước đó của trợ lý (nếu có):
 {previous}
