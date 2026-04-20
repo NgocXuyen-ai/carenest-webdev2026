@@ -36,6 +36,7 @@ import com.google.zxing.client.j2se.MatrixToImageWriter;
 import com.google.zxing.common.BitMatrix;
 import com.google.zxing.common.HybridBinarizer;
 import com.google.zxing.qrcode.QRCodeWriter;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
@@ -425,7 +426,7 @@ public class FamilyService {
 
         Family family = getJoinableFamily(currentUserId, request.getJoinCode());
         FamilyRelationship relationship = buildJoinRelationship(profile, family);
-        familyRelationshipRepository.save(relationship);
+        persistJoinRelationship(relationship);
         return getMyFamily(currentUserId);
     }
 
@@ -500,6 +501,31 @@ public class FamilyService {
         relationship.setRole(FamilyRole.MEMBER);
         relationship.setJoinAt(LocalDate.now());
         return relationship;
+    }
+
+    private void persistJoinRelationship(FamilyRelationship relationship) {
+        try {
+            familyRelationshipRepository.saveAndFlush(relationship);
+        } catch (DataIntegrityViolationException ex) {
+            if (!isRoleConstraintViolation(ex)) {
+                throw ex;
+            }
+
+            relationship.setRole(FamilyRole.OTHER);
+            familyRelationshipRepository.saveAndFlush(relationship);
+        }
+    }
+
+    private boolean isRoleConstraintViolation(Throwable throwable) {
+        Throwable current = throwable;
+        while (current != null) {
+            String message = current.getMessage();
+            if (message != null && message.contains("family_relationship_role_check")) {
+                return true;
+            }
+            current = current.getCause();
+        }
+        return false;
     }
 
     private void ensureActiveJoinCode(Family family) {

@@ -5,6 +5,7 @@ import {
   Image,
   KeyboardAvoidingView,
   Modal,
+  PermissionsAndroid,
   Platform,
   ScrollView,
   StyleSheet,
@@ -13,9 +14,10 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import type { Permission } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
-import { launchCamera, launchImageLibrary } from 'react-native-image-picker';
+import { launchCamera, launchImageLibrary, type Asset, type ImagePickerResponse } from 'react-native-image-picker';
 import { useNavigation } from '@react-navigation/native';
 import { colors } from '../../theme/colors';
 import { BOTTOM_NAV_HEIGHT } from '../../utils/constants';
@@ -154,11 +156,104 @@ export default function FamilyManagementScreen() {
     void loadFamilyExtras();
   }, [hasFamily, isOwner]);
 
-  const handlePickImage = async () => {
-    const result = await launchImageLibrary({ mediaType: 'photo', quality: 0.8 });
-    if (result.assets?.length) {
-      setTempImage(result.assets[0].uri || null);
+  const ensureAndroidPermission = async (
+    permission: Permission,
+    title: string,
+    message: string,
+  ): Promise<boolean> => {
+    if (Platform.OS !== 'android') {
+      return true;
     }
+
+    const alreadyGranted = await PermissionsAndroid.check(permission);
+    if (alreadyGranted) {
+      return true;
+    }
+
+    const granted = await PermissionsAndroid.request(permission, {
+      title,
+      message,
+      buttonPositive: 'Cho phép',
+      buttonNegative: 'Từ chối',
+      buttonNeutral: 'Để sau',
+    });
+    return granted === PermissionsAndroid.RESULTS.GRANTED;
+  };
+
+  const ensureCameraPermission = async (): Promise<boolean> => {
+    return ensureAndroidPermission(
+      PermissionsAndroid.PERMISSIONS.CAMERA,
+      'Cho phép dùng camera',
+      'CareNest cần quyền camera để quét mã QR gia đình.',
+    );
+  };
+
+  const ensureLibraryPermission = async (): Promise<boolean> => {
+    if (Platform.OS !== 'android') {
+      return true;
+    }
+
+    const permissions = PermissionsAndroid.PERMISSIONS as Record<string, string | undefined>;
+    const permission =
+      Platform.Version >= 33
+        ? permissions.READ_MEDIA_IMAGES
+        : permissions.READ_EXTERNAL_STORAGE;
+
+    if (!permission) {
+      return true;
+    }
+
+    return ensureAndroidPermission(
+      permission as Permission,
+      'Cho phép truy cập ảnh',
+      'CareNest cần quyền truy cập ảnh để quét mã QR từ thư viện.',
+    );
+  };
+
+  const getAssetFromPickerResponse = (
+    response: ImagePickerResponse,
+    sourceName: 'camera' | 'thư viện',
+  ): Asset | null => {
+    if (response.didCancel) {
+      return null;
+    }
+
+    if (response.errorCode) {
+      Alert.alert(
+        `Không thể mở ${sourceName}`,
+        response.errorMessage || 'Vui lòng kiểm tra quyền truy cập và thử lại.',
+      );
+      return null;
+    }
+
+    const asset = response.assets?.[0];
+    if (!asset) {
+      Alert.alert('Không có ảnh', `Chưa nhận được ảnh từ ${sourceName}.`);
+      return null;
+    }
+
+    if (!asset.uri) {
+      Alert.alert('Không thể đọc ảnh', 'Ảnh chưa có dữ liệu hợp lệ. Vui lòng thử ảnh khác.');
+      return null;
+    }
+
+    return asset;
+  };
+
+  const handlePickImage = async () => {
+    const granted = await ensureLibraryPermission();
+    if (!granted) {
+      Alert.alert('Thiếu quyền truy cập ảnh', 'Vui lòng cấp quyền để chọn ảnh từ thư viện.');
+      return;
+    }
+
+    const result = await launchImageLibrary({ mediaType: 'photo', quality: 0.8, selectionLimit: 1 });
+    const asset = getAssetFromPickerResponse(result, 'thư viện');
+    if (!asset?.uri) {
+      return;
+    }
+
+    setTempImage(asset.uri);
   };
 
   const handleFinishSetup = async () => {
@@ -242,6 +337,20 @@ export default function FamilyManagementScreen() {
   };
 
   const handleJoinByQrImage = async (source: 'camera' | 'library') => {
+    const granted = source === 'camera'
+      ? await ensureCameraPermission()
+      : await ensureLibraryPermission();
+
+    if (!granted) {
+      Alert.alert(
+        source === 'camera' ? 'Thiếu quyền camera' : 'Thiếu quyền truy cập ảnh',
+        source === 'camera'
+          ? 'Vui lòng cấp quyền camera để quét mã QR.'
+          : 'Vui lòng cấp quyền để chọn ảnh QR từ thư viện.',
+      );
+      return;
+    }
+
     const picker = source === 'camera' ? launchCamera : launchImageLibrary;
     const result = await picker({
       mediaType: 'photo',
@@ -249,7 +358,8 @@ export default function FamilyManagementScreen() {
       selectionLimit: 1,
     });
 
-    const asset = result.assets?.[0];
+    const sourceName = source === 'camera' ? 'camera' : 'thư viện';
+    const asset = getAssetFromPickerResponse(result, sourceName);
     if (!asset?.uri) {
       return;
     }
@@ -283,11 +393,19 @@ export default function FamilyManagementScreen() {
       { text: 'Hủy', style: 'cancel' },
       {
         text: 'Chụp bằng camera',
-        onPress: () => void handleJoinByQrImage('camera'),
+        onPress: () => {
+          setTimeout(() => {
+            handleJoinByQrImage('camera');
+          }, 150);
+        },
       },
       {
         text: 'Chọn từ thư viện',
-        onPress: () => void handleJoinByQrImage('library'),
+        onPress: () => {
+          setTimeout(() => {
+            handleJoinByQrImage('library');
+          }, 150);
+        },
       },
     ]);
   };
