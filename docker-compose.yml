@@ -63,6 +63,16 @@ services:
       PROXY_BASE_URL: ${PROXY_BASE_URL:-https://pg.ebebot.click/api/proxy}
       SQL_MODEL: ${SQL_MODEL:-claude-haiku-4-5-20251001}
       OCR_MODEL: ${OCR_MODEL:-gpt-5.4-mini}
+      VOICE_PROVIDER: ${VOICE_PROVIDER:-azure}
+      AZURE_STT_ENDPOINT: ${AZURE_STT_ENDPOINT:-}
+      AZURE_STT_API_KEY: ${AZURE_STT_API_KEY:-}
+      AZURE_STT_DEPLOYMENT: ${AZURE_STT_DEPLOYMENT:-}
+      AZURE_STT_API_VERSION: ${AZURE_STT_API_VERSION:-2025-03-01-preview}
+      AZURE_TTS_ENDPOINT: ${AZURE_TTS_ENDPOINT:-}
+      AZURE_TTS_API_KEY: ${AZURE_TTS_API_KEY:-}
+      AZURE_TTS_DEPLOYMENT: ${AZURE_TTS_DEPLOYMENT:-}
+      AZURE_TTS_API_VERSION: ${AZURE_TTS_API_VERSION:-2025-03-01-preview}
+      AZURE_TTS_VOICE: ${AZURE_TTS_VOICE:-alloy}
       INTERNAL_SHARED_TOKEN: carenest-internal-token
     command: >
       sh -c "apt-get update &&

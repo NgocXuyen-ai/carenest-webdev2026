@@ -11,6 +11,7 @@ import com.carenest.backend.model.DetailsMedicine;
 import com.carenest.backend.model.MedicineSchedule;
 import com.carenest.backend.repository.DetailsMedicineRepository;
 import com.carenest.backend.repository.MedicineScheduleRepository;
+import jakarta.annotation.PostConstruct;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.http.HttpEntity;
@@ -18,6 +19,9 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
@@ -41,6 +45,7 @@ import java.util.regex.Pattern;
 public class AiProxyService {
 
     private static final Pattern FIRST_INTEGER_PATTERN = Pattern.compile("(\\d+)");
+    private static final Logger log = LoggerFactory.getLogger(AiProxyService.class);
 
     private final AiContextService aiContextService;
     private final MedicineService medicineService;
@@ -55,6 +60,12 @@ public class AiProxyService {
     @Value("${ai.service.internal-token}")
     private String aiInternalToken;
 
+    @Value("${ai.service.connect-timeout-ms:5000}")
+    private int aiServiceConnectTimeoutMs;
+
+    @Value("${ai.service.read-timeout-ms:55000}")
+    private int aiServiceReadTimeoutMs;
+
     public AiProxyService(AiContextService aiContextService,
                           MedicineService medicineService,
                           DetailsMedicineRepository detailsMedicineRepository,
@@ -65,6 +76,17 @@ public class AiProxyService {
         this.detailsMedicineRepository = detailsMedicineRepository;
         this.medicineScheduleRepository = medicineScheduleRepository;
         this.objectMapper = objectMapper;
+    }
+
+    @PostConstruct
+    void configureRestTemplate() {
+        SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
+        requestFactory.setConnectTimeout(aiServiceConnectTimeoutMs);
+        requestFactory.setReadTimeout(aiServiceReadTimeoutMs);
+        restTemplate.setRequestFactory(requestFactory);
+        log.info("Configured AI RestTemplate timeouts: connect={}ms, read={}ms",
+                aiServiceConnectTimeoutMs,
+                aiServiceReadTimeoutMs);
     }
 
     public Map<String, Object> chat(Integer userId, AiChatRequest request) {
@@ -101,6 +123,13 @@ public class AiProxyService {
     }
 
     public Map<String, Object> voiceChat(Integer userId, Integer profileId, Integer conversationId, MultipartFile audio) {
+        log.info("Voice chat proxy start: userId={}, profileId={}, conversationId={}, filename={}, size={} bytes",
+            userId,
+            profileId,
+            conversationId,
+            audio != null ? audio.getOriginalFilename() : null,
+            audio != null ? audio.getSize() : null);
+
         HttpHeaders headers = buildHeaders();
         headers.setContentType(MediaType.MULTIPART_FORM_DATA);
 
@@ -112,11 +141,17 @@ public class AiProxyService {
         body.add("context_json", writeContextAsJson(aiContextService.buildAiRoutingContext(userId, profileId)));
         body.add("audio", createAudioResource(audio));
 
-        return exchangeForMap(
+        Map<String, Object> result = exchangeForMap(
                 aiServiceBaseUrl + "/internal/voice/chat",
                 HttpMethod.POST,
                 new HttpEntity<>(body, headers)
         );
+
+        log.info("Voice chat proxy done: userId={}, conversationId={}, responseKeys={}",
+            userId,
+            result.get("conversation_id"),
+            result.keySet());
+        return result;
     }
 
     public OcrConfirmResponse confirmOcr(Integer userId, OcrConfirmRequest request) {

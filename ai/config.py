@@ -12,6 +12,18 @@ class Settings(BaseSettings):
     DATABASE_URL: str = ""
     INTERNAL_SHARED_TOKEN: str = ""
 
+    # Voice provider (Azure OpenAI speech)
+    VOICE_PROVIDER: str = "azure"
+    AZURE_STT_ENDPOINT: str = ""
+    AZURE_STT_API_KEY: str = ""
+    AZURE_STT_DEPLOYMENT: str = ""
+    AZURE_STT_API_VERSION: str = "2025-03-01-preview"
+    AZURE_TTS_ENDPOINT: str = ""
+    AZURE_TTS_API_KEY: str = ""
+    AZURE_TTS_DEPLOYMENT: str = ""
+    AZURE_TTS_API_VERSION: str = "2025-03-01-preview"
+    AZURE_TTS_VOICE: str = "alloy"
+
     # LLM
     LLM_TIMEOUT: int = 30
     LLM_MAX_RETRIES: int = 2

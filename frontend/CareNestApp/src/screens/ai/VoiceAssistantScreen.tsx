@@ -1,10 +1,10 @@
-import React, { useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import {
   Alert,
+  ActivityIndicator,
   Image,
   StyleSheet,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
@@ -12,33 +12,97 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { CARENEST_LOGO_HOUSE } from '../../assets/branding';
 import Icon from '../../components/common/Icon';
-import { chatAi } from '../../api/ai';
+import { voiceChat } from '../../api/ai';
 import { useFamily } from '../../context/FamilyContext';
 import { useAuth } from '../../context/AuthContext';
+import { useAudioRecorder } from '../../hooks/useAudioRecorder';
+import { useAudioPlayback } from '../../hooks/useAudioPlayback';
+
+function toUploadUri(path: string): string {
+  if (path.startsWith('file://')) {
+    return path;
+  }
+  return `file://${path}`;
+}
 
 export default function VoiceAssistantScreen() {
   const navigation = useNavigation<any>();
   const insets = useSafeAreaInsets();
   const { selectedProfileId } = useFamily();
   const { user } = useAuth();
+  const { isRecording, startRecording, stopRecording } = useAudioRecorder();
+  const { isPlaying, playBase64, stopPlayback } = useAudioPlayback();
+
   const [transcript, setTranscript] = useState('');
-  const [response, setResponse] = useState('');
+  const [replyText, setReplyText] = useState('');
+  const [replyAudioBase64, setReplyAudioBase64] = useState('');
+  const [conversationId, setConversationId] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
 
   const activeProfileId = selectedProfileId || (user?.profileId ? Number(user.profileId) : null);
 
-  async function handleSubmit() {
-    if (!transcript.trim() || loading) {
+  const statusLabel = useMemo(() => {
+    if (loading) {
+      return 'ĐANG XỬ LÝ VOICE';
+    }
+    if (isRecording) {
+      return 'ĐANG GHI ÂM';
+    }
+    if (isPlaying) {
+      return 'ĐANG PHÁT PHẢN HỒI';
+    }
+    return 'TRỢ LÝ GIỌNG NÓI SẴN SÀNG';
+  }, [isPlaying, isRecording, loading]);
+
+  const submitVoice = useCallback(async (audioPath: string) => {
+    const formData = new FormData();
+    formData.append('audio', {
+      uri: toUploadUri(audioPath),
+      type: 'audio/mp4',
+      name: `voice-${Date.now()}.m4a`,
+    } as any);
+
+    if (activeProfileId) {
+      formData.append('profileId', String(activeProfileId));
+    }
+    if (conversationId) {
+      formData.append('conversationId', String(conversationId));
+    }
+
+    const response = await voiceChat(formData);
+    setTranscript(response.transcribed_text || '');
+    setReplyText(response.reply_text || '');
+    setReplyAudioBase64(response.audio_base64 || '');
+    if (response.conversation_id) {
+      setConversationId(response.conversation_id);
+    }
+
+    if (response.audio_base64) {
+      await playBase64(response.audio_base64);
+    }
+  }, [activeProfileId, conversationId, playBase64]);
+
+  const handlePrimaryAction = useCallback(async () => {
+    if (loading) {
       return;
     }
 
     try {
+      if (!isRecording) {
+        setReplyText('');
+        setTranscript('');
+        setReplyAudioBase64('');
+        await startRecording();
+        return;
+      }
+
+      const recordedPath = await stopRecording();
+      if (!recordedPath) {
+        throw new Error('Không tìm thấy file ghi âm để gửi đi.');
+      }
+
       setLoading(true);
-      const reply = await chatAi({
-        message: transcript,
-        profileId: activeProfileId,
-      });
-      setResponse(reply.reply);
+      await submitVoice(recordedPath);
     } catch (error) {
       Alert.alert(
         'Không thể xử lý trợ lý giọng nói',
@@ -47,7 +111,30 @@ export default function VoiceAssistantScreen() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [isRecording, loading, startRecording, stopRecording, submitVoice]);
+
+  const handleReplay = useCallback(async () => {
+    if (!replyAudioBase64 || loading) {
+      return;
+    }
+
+    try {
+      await playBase64(replyAudioBase64);
+    } catch (error) {
+      Alert.alert(
+        'Không thể phát lại audio',
+        error instanceof Error ? error.message : 'Đã có lỗi xảy ra',
+      );
+    }
+  }, [loading, playBase64, replyAudioBase64]);
+
+  const handleStopPlayback = useCallback(async () => {
+    try {
+      await stopPlayback();
+    } catch {
+      // ignore stop errors
+    }
+  }, [stopPlayback]);
 
   return (
     <View style={[styles.root, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
@@ -58,34 +145,52 @@ export default function VoiceAssistantScreen() {
       </View>
 
       <View style={styles.content}>
-        <View style={styles.mainMic}>
-          <Icon name="mic" size={40} color="#fff" />
+        <View style={[styles.mainMic, isRecording && styles.mainMicActive]}>
+          <Icon name={isRecording ? 'graphic_eq' : 'mic'} size={40} color="#fff" />
         </View>
 
-        <Text style={styles.badgeText}>VOICE FALLBACK MODE</Text>
+        <Text style={styles.badgeText}>{statusLabel}</Text>
         <Text style={styles.caption}>
-          Repo hiện chưa có native audio recorder. Màn này vẫn cho phép thử luồng hỏi đáp AI
-          bằng transcript văn bản để tránh để lộ một flow ghi âm giả chưa hoàn thiện.
+          Bấm vào nút bên dưới để bắt đầu ghi âm. Bấm lần nữa để gửi audio đến CareNest AI.
         </Text>
-
-        <TextInput
-          style={styles.input}
-          placeholder="Nhập câu nói muốn hỏi CareNest AI..."
-          placeholderTextColor="rgba(255,255,255,0.4)"
-          value={transcript}
-          onChangeText={setTranscript}
-          multiline
-        />
 
         <TouchableOpacity
           style={[styles.submitBtn, loading && styles.submitBtnDisabled]}
-          onPress={() => void handleSubmit()}
+          onPress={() => void handlePrimaryAction()}
           disabled={loading}
         >
-          <Text style={styles.submitText}>{loading ? 'Đang xử lý...' : 'Gửi đến trợ lý'}</Text>
+          <Text style={styles.submitText}>
+            {loading ? 'Đang xử lý...' : isRecording ? 'Dừng và gửi voice' : 'Bắt đầu ghi âm'}
+          </Text>
         </TouchableOpacity>
 
-        {response ? (
+        {loading ? (
+          <View style={styles.loadingWrap}>
+            <ActivityIndicator size="small" color="#fff" />
+            <Text style={styles.loadingText}>Đang xử lý voice request...</Text>
+          </View>
+        ) : null}
+
+        {isPlaying ? (
+          <TouchableOpacity style={styles.secondaryBtn} onPress={() => void handleStopPlayback()}>
+            <Text style={styles.secondaryBtnText}>Dừng phát audio</Text>
+          </TouchableOpacity>
+        ) : null}
+
+        {replyAudioBase64 ? (
+          <TouchableOpacity style={styles.secondaryBtn} onPress={() => void handleReplay()}>
+            <Text style={styles.secondaryBtnText}>Phát lại phản hồi</Text>
+          </TouchableOpacity>
+        ) : null}
+
+        {transcript ? (
+          <View style={styles.transcriptCard}>
+            <Text style={styles.cardLabel}>TRANSCRIPT</Text>
+            <Text style={styles.cardText}>{transcript}</Text>
+          </View>
+        ) : null}
+
+        {replyText ? (
           <View style={styles.aiCard}>
             <View style={styles.aiHeader}>
               <View style={styles.aiAvatar}>
@@ -93,7 +198,7 @@ export default function VoiceAssistantScreen() {
               </View>
               <Text style={styles.aiName}>AI Care Assistant</Text>
             </View>
-            <Text style={styles.aiText}>{response}</Text>
+            <Text style={styles.aiText}>{replyText}</Text>
           </View>
         ) : null}
       </View>
@@ -122,17 +227,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginTop: 24,
   },
+  mainMicActive: { backgroundColor: '#e74c3c' },
   badgeText: { color: '#fff', fontSize: 13, fontWeight: '800', letterSpacing: 1.2 },
   caption: { color: 'rgba(255,255,255,0.6)', fontSize: 14, textAlign: 'center', lineHeight: 22 },
-  input: {
-    width: '100%',
-    minHeight: 120,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255,255,255,0.08)',
-    padding: 16,
-    color: '#fff',
-    textAlignVertical: 'top',
-  },
   submitBtn: {
     width: '100%',
     height: 54,
@@ -143,6 +240,35 @@ const styles = StyleSheet.create({
   },
   submitBtnDisabled: { opacity: 0.6 },
   submitText: { color: '#fff', fontSize: 16, fontWeight: '800' },
+  loadingWrap: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  loadingText: { color: 'rgba(255,255,255,0.7)', fontSize: 13 },
+  secondaryBtn: {
+    width: '100%',
+    height: 46,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.16)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.05)',
+  },
+  secondaryBtnText: { color: '#fff', fontSize: 14, fontWeight: '700' },
+  transcriptCard: {
+    width: '100%',
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderRadius: 20,
+    padding: 18,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+  },
+  cardLabel: {
+    color: 'rgba(255,255,255,0.7)',
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 1,
+    marginBottom: 8,
+  },
+  cardText: { color: '#fff', fontSize: 15, lineHeight: 22 },
   aiCard: {
     width: '100%',
     backgroundColor: 'rgba(255,255,255,0.06)',
