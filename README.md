@@ -1,25 +1,25 @@
 # CareNest
 
-CareNest la ung dung cham soc suc khoe gia dinh gom:
+CareNest là ứng dụng chăm sóc sức khỏe gia đình gồm:
 - `frontend/CareNestApp`: mobile app React Native
 - `backend`: Spring Boot API
 - `ai`: FastAPI service cho chatbot, OCR va voice backend
 
-Mobile app hien duoc cau hinh de goi backend/AI tren cloud qua:
+Mobile app hiện được cấu hình để gọi backend/AI trên cloud qua:
 - `https://webdev.eiyuumiru.it.eu.org`
 
-## Trang thai hien tai
+## Trạng thái hiện tại
 
-- FE da noi API that cho cac luong chinh thay vi dung mock runtime
-- OCR ho tro chup anh truc tiep tu camera hoac chon anh tu thu vien
-- Dashboard ho tro scope theo tung profile hoac `Ca nha`
-- Family flow co:
+- FE đã nối API thật cho các luồng chính thay vì dùng mock runtime
+- OCR hỗ trợ chụp ảnh trực tiếp từ camera hoặc chọn ảnh từ thư viện
+- Dashboard hỗ trợ scope theo từng profile hoặc `Ca nha`
+- Family flow có:
   - invite qua email
-  - join bang code
-- AI chat khong con mac dinh bypass sang context-only; cau hoi du lieu se di theo nhanh truy van du lieu
-- Voice backend co endpoint rieng, nhung mobile voice capture UI dang duoc khoa lai cho den khi hoan tat native audio end-to-end
+  - join bằng code
+- AI chat không còn mặc định bypass sang context-only; câu hỏi dữ liệu sẽ đi theo nhánh truy vấn dữ liệu
+- Voice backend có endpoint riêng, nhưng mobile voice capture UI đang được khóa lại cho đến khi hoàn tất native audio end-to-end
 
-## Cau truc thu muc
+## Cấu trúc thư mục
 
 ```text
 CareNest/
@@ -35,12 +35,12 @@ CareNest/
 
 ## Environment
 
-Repo khong con track secret that.
+Repo không còn track secret thật.
 
-- Production/deploy: dung `.env.prod.example` lam mau tham chieu
-- Local backend/ai: tu tao file `.env` untracked hoac export env vars trong shell/CI
+- Production/deploy: dung `.env.prod.example` làm mẫu tham chiếu
+- Local backend/ai: tự tạo file `.env` untracked hoặc export env vars trong shell/CI
 
-Bien quan trong:
+Biến quan trọng:
 
 - Backend:
   - `SPRING_DATASOURCE_URL`
@@ -55,7 +55,7 @@ Bien quan trong:
   - `PROXY_BASE_URL`
   - `INTERNAL_SHARED_TOKEN`
 
-## Chay frontend
+## Chạy frontend
 
 ```bash
 cd frontend/CareNestApp
@@ -64,20 +64,20 @@ npm start
 ```
 
 Luu y:
-- frontend hien goi cloud backend theo `src/api/config.ts`
-- neu can doi endpoint, sua file config do hoac bo sung co che env rieng cho mobile
+- frontend hiện gọi cloud backend theo `src/api/config.ts`
+- nếu cần đổi endpoint, sửa file config đó hoặc bổ sung cơ chế env riêng cho mobile
 
-## Chay backend local
+## Chạy backend local
 
 ```bash
 cd backend
 ./mvnw spring-boot:run
 ```
 
-Yeu cau:
+Yêu cầu:
 - Java 21
 - PostgreSQL
-- env vars backend hop le
+- env vars backend hợp lệ
 
 ## Chay AI local
 
@@ -89,10 +89,10 @@ pip install -r requirements.txt
 uvicorn main:app --host 0.0.0.0 --port 8000
 ```
 
-Yeu cau:
+Yêu cầu:
 - Python 3.13
-- ffmpeg neu muon dung day du voice/audio convert
-- env vars AI hop le
+- ffmpeg nếu muốn dùng đầy đủ voice/audio convert
+- env vars AI hợp lệ
 
 ## Docker
 
@@ -108,9 +108,9 @@ Production compose:
 docker compose --env-file .env.prod up --build -d
 ```
 
-Trong repo chi co `.env.prod.example`. File `.env.prod` that phai tu tao ben ngoai repo.
+Trong repo chỉ có `.env.prod.example`. File `.env.prod` thật phải tự tạo từ bên ngoài repo.
 
-## Test va kiem tra
+## Test và kiểm tra
 
 Backend:
 
@@ -119,10 +119,10 @@ cd backend
 ./mvnw test
 ```
 
-Ghi chu:
+Ghi chú:
 - backend test dung profile `test`
 - datasource test duoc cau hinh theo Testcontainers
-- neu may khong co Docker, test context se duoc skip thay vi dung DB that
+- nếu máy không có Docker, test context sẽ được skip thay vì dùng DB thật
 
 Frontend:
 
@@ -142,23 +142,23 @@ cd ai
 
 Indexing:
 
-- `backend/scripts/ai_text2sql_indexes.sql` la script thu cong de them secondary index cho workload text-to-SQL/backend.
-- Script nay khong duoc app tu dong chay va khong duoc gan vao CI/CD.
-- Chỉ nen review tren moi truong non-prod hoac snapshot truoc khi tu chay thu cong len Neon.
+- `backend/scripts/ai_text2sql_indexes.sql` la script thủ công để thêm secondary index cho workload text-to-SQL/backend.
+- Script này không được app tự động chạy và không được gắn vào CI/CD.
+- Chỉ nên review trên môi trường non-prod hoặc snapshot trước khi tự chạy thủ công trên Neon.
 
-## Luu y khi phat trien
+## Lưu ý khi phát triển
 
-- Khong commit secret, token, password hoac `.env` that
-- Neu them API moi o backend, cap nhat luon layer `frontend/CareNestApp/src/api/*`
-- Neu them field enum nhu `bloodType`, uu tien normalize o FE thay vi hien thi raw enum tu backend
+- Không commit secret, token, password hoac `.env` thật
+- Nếu thêm API mới ở backend, cập nhật luôn layer `frontend/CareNestApp/src/api/*`
+- Nếu thêm field enum như `bloodType`, ưu tiên normalize ở FE thay vì hiển thị raw enum từ backend
 - Cac man co hanh vi "bam duoc" nen hoac co onPress that, hoac hien ro trang thai chua ho tro
 
-## Tinh nang chinh
+## Tính năng chính
 
-- Auth: dang ky, dang nhap, quen mat khau
-- Family: tao family, moi qua email, join bang code
-- Medicine: tu thuoc, lich uong, OCR toa thuoc
-- Appointment: lich hen kham
-- Vaccination: theo doi mui tiem
-- Growth: theo doi tang truong
+- Auth: đăng ký, đăng nhập, quên mật khẩu
+- Family: tạo family, mời qua family, join bằng code
+- Medicine: tủ thuốc, lịch uống, OCR toa thuốc
+- Appointment: lịch hẹn khám
+- Vaccination: theo dõi mũi tiêm
+- Growth: theo dõi tăng trưởng
 - AI: chat, OCR, voice backend
