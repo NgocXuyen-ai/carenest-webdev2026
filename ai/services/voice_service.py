@@ -1,10 +1,11 @@
-import io
 import logging
+import os
+import subprocess
+import tempfile
 import time
 from typing import Optional
 
 from openai import APIConnectionError, APIError, APITimeoutError, AzureOpenAI
-from pydub import AudioSegment
 from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 
 from config import settings
@@ -83,6 +84,36 @@ def _get_azure_tts_client() -> AzureOpenAI:
     return _azure_tts_client
 
 
+def _convert_audio_to_wav_ffmpeg(audio_bytes: bytes, fmt: Optional[str]) -> bytes:
+    suffix = f".{fmt}" if fmt else ".bin"
+    input_path = ""
+    output_path = ""
+
+    try:
+        with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as in_file:
+            in_file.write(audio_bytes)
+            input_path = in_file.name
+
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as out_file:
+            output_path = out_file.name
+
+        cmd = ["ffmpeg", "-hide_banner", "-loglevel", "error", "-y", "-i", input_path, output_path]
+        result = subprocess.run(cmd, capture_output=True, check=False)
+        if result.returncode != 0:
+            stderr = (result.stderr or b"").decode("utf-8", errors="ignore").strip()
+            raise RuntimeError(stderr or "ffmpeg conversion failed")
+
+        with open(output_path, "rb") as file_obj:
+            return file_obj.read()
+    finally:
+        for temp_path in (input_path, output_path):
+            if temp_path and os.path.exists(temp_path):
+                try:
+                    os.remove(temp_path)
+                except OSError:
+                    pass
+
+
 def ensure_wav(audio_bytes: bytes, content_type: str = "", trace_id: Optional[str] = None) -> bytes:
     """
     Return WAV bytes. If input is already WAV/AIFF/FLAC, return as-is.
@@ -109,15 +140,7 @@ def ensure_wav(audio_bytes: bytes, content_type: str = "", trace_id: Optional[st
     fmt = _CONTENT_TYPE_FORMAT.get(content_type.lower().split(";")[0].strip())
     try:
         transcode_start = time.time()
-        # If fmt is None (unknown MIME type), omit format and let ffmpeg autodetect
-        if fmt:
-            segment = AudioSegment.from_file(io.BytesIO(audio_bytes), format=fmt)
-        else:
-            segment = AudioSegment.from_file(io.BytesIO(audio_bytes))
-        out = io.BytesIO()
-        segment.export(out, format="wav")
-        out.seek(0)
-        output_bytes = out.read()
+        output_bytes = _convert_audio_to_wav_ffmpeg(audio_bytes, fmt)
         emit_trace(
             logger,
             "voice.ensure_wav.success",
