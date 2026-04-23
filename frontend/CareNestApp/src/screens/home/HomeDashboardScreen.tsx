@@ -1,5 +1,6 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import {
+  Alert,
   Image,
   ScrollView,
   StatusBar,
@@ -25,7 +26,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useFamily } from '../../context/FamilyContext';
 import { getDashboard, type DashboardPayload } from '../../api/dashboard';
 import { getAppointmentOverview } from '../../api/appointments';
-import { getDailySchedule } from '../../api/medicine';
+import { getDailySchedule, takeDose } from '../../api/medicine';
 import { getVaccinationTracker } from '../../api/vaccinations';
 import { formatLocalDate } from '../../utils/dateTime';
 
@@ -34,28 +35,45 @@ type Nav = CompositeNavigationProp<
   BottomTabNavigationProp<MainTabParamList>
 >;
 
-type TaskCard = {
+type BaseTask = {
   id: string;
   icon: string;
   iconBg: string;
   iconColor: string;
   title: string;
   subtitle: string;
-  badge?: string;
+  sortOrder: number;
+};
+
+type MedicineTask = BaseTask & {
+  kind: 'medicine';
+  doseId: number;
+  isTaken: boolean;
+  session: string;
+};
+
+type EventTask = BaseTask & {
+  kind: 'event';
+};
+
+type TaskCard = MedicineTask | EventTask;
+
+type DailyMedicineSection = {
+  session: string;
+  label?: string | null;
+  items: Array<{
+    doseId: number;
+    medicineName: string;
+    dosage: string;
+    note?: string | null;
+    isTaken: boolean;
+  }>;
 };
 
 type ProfileContext = {
   profile?: { profileId?: number; fullName?: string };
   dailyMedicine?: {
-    sections?: Array<{
-      session: string;
-      items: Array<{
-        doseId: number;
-        medicineName: string;
-        dosage: string;
-        isTaken: boolean;
-      }>;
-    }>;
+    sections?: DailyMedicineSection[];
   };
   appointments?: {
     upcomingAppointments?: Array<{
@@ -71,8 +89,10 @@ type ProfileContext = {
     vaccinations: Array<{
       vaccineLogId: number;
       vaccineName: string;
+      doseNumber: number;
       plannedDate?: string | null;
       dateGiven?: string | null;
+      clinicName?: string | null;
       status: string;
     }>;
   }>;
@@ -96,6 +116,12 @@ const AI_SUMMARY_NORMALIZERS: Array<{ pattern: RegExp; value: string }> = [
   },
 ];
 
+const SESSION_META: Record<string, { label: string; order: number; icon: string; bg: string; iconColor: string }> = {
+  MORNING: { label: 'Buổi sáng', order: 10, icon: 'sunny', bg: '#FFF7CC', iconColor: '#D97706' },
+  NOON: { label: 'Buổi trưa', order: 20, icon: 'schedule', bg: '#DBEAFE', iconColor: '#2563EB' },
+  EVENING: { label: 'Buổi tối', order: 30, icon: 'bedtime', bg: '#EDE9FE', iconColor: '#7C3AED' },
+};
+
 function normalizeAiSummaryText(summary?: string | null): string {
   if (!summary || !summary.trim()) {
     return AI_SUMMARY_FALLBACK;
@@ -113,60 +139,141 @@ function normalizeAiSummaryText(summary?: string | null): string {
   return trimmed;
 }
 
-function buildTasks(context?: ProfileContext): TaskCard[] {
-  if (!context) {
+function getDateKey(value?: string | null): string | null {
+  if (!value) {
+    return null;
+  }
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return value;
+  }
+
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return null;
+  }
+
+  return formatLocalDate(parsed);
+}
+
+function formatTimeLabel(value?: string | null): string | null {
+  if (!value) {
+    return null;
+  }
+
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return null;
+  }
+
+  return parsed.toLocaleTimeString('vi-VN', {
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
+function joinTaskSubtitle(...parts: Array<string | null | undefined>): string {
+  return parts.filter(Boolean).join(' · ');
+}
+
+function buildTodayTasks(
+  context?: ProfileContext,
+  todayKey?: string,
+  includeProfileName = false,
+): TaskCard[] {
+  if (!context || !todayKey) {
     return [];
   }
 
+  const profileName = context.profile?.fullName;
   const nextTasks: TaskCard[] = [];
-  const medicineSections = context.dailyMedicine?.sections || [];
-  const firstDose = medicineSections.flatMap(section =>
-    section.items.map(item => ({
-      id: `dose-${item.doseId}`,
-      icon: 'pill',
-      iconBg: '#EFF6FF',
-      iconColor: '#2563EB',
-      title: item.medicineName,
-      subtitle: `${section.session} · ${item.dosage}`,
-      badge: item.isTaken ? 'ĐÃ UỐNG' : 'CHƯA UỐNG',
-    })),
-  )[0];
 
-  if (firstDose) {
-    nextTasks.push(firstDose);
-  }
+  (context.dailyMedicine?.sections || []).forEach(section => {
+    const sessionMeta = SESSION_META[section.session] || {
+      label: section.label || section.session,
+      order: 90,
+      icon: 'schedule',
+      bg: '#E2E8F0',
+      iconColor: '#475569',
+    };
 
-  const nextAppointment = context.appointments?.upcomingAppointments?.[0];
-  if (nextAppointment) {
-    nextTasks.push({
-      id: `appt-${nextAppointment.appointmentId}`,
-      icon: 'calendar_month',
-      iconBg: '#F0FDF4',
-      iconColor: '#16A34A',
-      title: nextAppointment.title,
-      subtitle: new Date(nextAppointment.appointmentDate).toLocaleString('vi-VN'),
+    section.items.forEach((item, index) => {
+      nextTasks.push({
+        kind: 'medicine',
+        id: `dose-${item.doseId}`,
+        doseId: item.doseId,
+        session: section.session,
+        isTaken: item.isTaken,
+        icon: 'pill',
+        iconBg: '#EFF6FF',
+        iconColor: '#2563EB',
+        title: item.medicineName,
+        subtitle: joinTaskSubtitle(
+          includeProfileName ? profileName : null,
+          item.dosage,
+          item.note,
+        ),
+        sortOrder: sessionMeta.order + index,
+      });
     });
-  }
+  });
 
-  const nextVaccination = context.vaccinations
-    ?.flatMap(group => group.vaccinations)
-    .find(item => item.status !== 'DONE');
-
-  if (nextVaccination) {
-    nextTasks.push({
-      id: `vac-${nextVaccination.vaccineLogId}`,
-      icon: 'syringe',
-      iconBg: '#FFF7ED',
-      iconColor: '#EA580C',
-      title: nextVaccination.vaccineName,
-      subtitle:
-        nextVaccination.plannedDate ||
-        nextVaccination.dateGiven ||
-        'Theo dõi lịch tiêm',
+  (context.appointments?.upcomingAppointments || [])
+    .filter(appointment => getDateKey(appointment.appointmentDate) === todayKey)
+    .forEach((appointment, index) => {
+      nextTasks.push({
+        kind: 'event',
+        id: `appt-${appointment.appointmentId}`,
+        icon: 'calendar_month',
+        iconBg: '#F0FDF4',
+        iconColor: '#16A34A',
+        title: appointment.title,
+        subtitle: joinTaskSubtitle(
+          includeProfileName ? profileName : null,
+          formatTimeLabel(appointment.appointmentDate),
+          appointment.location || appointment.doctorName,
+        ),
+        sortOrder: 100 + index,
+      });
     });
-  }
 
-  return nextTasks;
+  (context.vaccinations || [])
+    .flatMap(group => group.vaccinations)
+    .filter(item => item.status !== 'DONE' && getDateKey(item.plannedDate) === todayKey)
+    .forEach((item, index) => {
+      nextTasks.push({
+        kind: 'event',
+        id: `vac-${item.vaccineLogId}`,
+        icon: 'syringe',
+        iconBg: '#FFF7ED',
+        iconColor: '#EA580C',
+        title: `${item.vaccineName} - Mũi ${item.doseNumber}`,
+        subtitle: joinTaskSubtitle(
+          includeProfileName ? profileName : null,
+          item.clinicName || 'Lịch tiêm trong ngày',
+        ),
+        sortOrder: 200 + index,
+      });
+    });
+
+  return nextTasks.sort((a, b) => a.sortOrder - b.sortOrder || a.title.localeCompare(b.title, 'vi'));
+}
+
+function updateDoseStatusInContexts(contexts: ProfileContext[], doseId: number, isTaken: boolean): ProfileContext[] {
+  return contexts.map(context => ({
+    ...context,
+    dailyMedicine: context.dailyMedicine
+      ? {
+          ...context.dailyMedicine,
+          sections: (context.dailyMedicine.sections || []).map(section => ({
+            ...section,
+            items: section.items.map(item =>
+              item.doseId === doseId ? { ...item, isTaken } : item,
+            ),
+          })),
+        }
+      : context.dailyMedicine,
+  }));
 }
 
 export default function HomeDashboardScreen() {
@@ -208,12 +315,34 @@ export default function HomeDashboardScreen() {
       return [];
     }
 
+    const todayKey = dashboard.generatedAt || formatLocalDate(new Date());
+
     if (dashboard.scopeType === 'FAMILY') {
-      return profileContexts.flatMap(context => buildTasks(context)).slice(0, 4);
+      return profileContexts.flatMap(context => buildTodayTasks(context, todayKey, true));
     }
 
-    return buildTasks(selectedProfileContext);
+    return buildTodayTasks(selectedProfileContext, todayKey);
   }, [dashboard, profileContexts, selectedProfileContext]);
+
+  const medicineTasks = useMemo(
+    () => tasks.filter((task): task is MedicineTask => task.kind === 'medicine'),
+    [tasks],
+  );
+
+  const otherTasks = useMemo(
+    () => tasks.filter((task): task is EventTask => task.kind === 'event'),
+    [tasks],
+  );
+
+  const medicineTasksBySession = useMemo(
+    () =>
+      Object.keys(SESSION_META).map(sessionKey => ({
+        sessionKey,
+        meta: SESSION_META[sessionKey],
+        items: medicineTasks.filter(task => task.session === sessionKey),
+      })),
+    [medicineTasks],
+  );
 
   const unreadCount = dashboard?.unreadNotificationCount ?? 0;
   const aiSummaryText = normalizeAiSummaryText(dashboard?.aiSummary);
@@ -246,6 +375,57 @@ export default function HomeDashboardScreen() {
 
     void getVaccinationTracker(activeShortcutProfileId);
   }, [activeShortcutProfileId]);
+
+  const handleToggleTaken = useCallback(
+    async (task: MedicineTask) => {
+      const nextIsTaken = !task.isTaken;
+
+      setDashboard(prev => {
+        if (!prev) {
+          return prev;
+        }
+
+        const nextContexts = updateDoseStatusInContexts(
+          (prev.profileContexts || []) as ProfileContext[],
+          task.doseId,
+          nextIsTaken,
+        );
+
+        return {
+          ...prev,
+          profileContexts: nextContexts as Array<Record<string, unknown>>,
+        };
+      });
+
+      try {
+        await takeDose({ doseId: task.doseId, isTaken: nextIsTaken });
+        await loadDashboard();
+      } catch (error) {
+        setDashboard(prev => {
+          if (!prev) {
+            return prev;
+          }
+
+          const revertedContexts = updateDoseStatusInContexts(
+            (prev.profileContexts || []) as ProfileContext[],
+            task.doseId,
+            task.isTaken,
+          );
+
+          return {
+            ...prev,
+            profileContexts: revertedContexts as Array<Record<string, unknown>>,
+          };
+        });
+
+        Alert.alert(
+          'Không thể cập nhật thuốc',
+          error instanceof Error ? error.message : 'Đã có lỗi xảy ra',
+        );
+      }
+    },
+    [loadDashboard],
+  );
 
   return (
     <View style={styles.container}>
@@ -374,9 +554,7 @@ export default function HomeDashboardScreen() {
                 {dashboard?.generatedAt || new Date().toLocaleDateString('vi-VN')}
               </Text>
               <Text style={styles.heroStatus}>
-                {unreadCount > 0
-                  ? 'Có việc cần chú ý'
-                  : 'Mọi thứ đều ổn'}
+                {unreadCount > 0 ? 'Có việc cần chú ý' : 'Mọi thứ đều ổn'}
               </Text>
             </View>
             <Icon name="sunny" size={40} color="rgba(255,255,255,0.8)" />
@@ -417,9 +595,7 @@ export default function HomeDashboardScreen() {
               >
                 Thuốc hôm nay
               </Text>
-              <Text style={styles.moduleValue}>
-                {tasks.filter(task => task.icon === 'pill').length}
-              </Text>
+              <Text style={styles.moduleValue}>{medicineTasks.length}</Text>
             </View>
           </View>
         </View>
@@ -437,30 +613,72 @@ export default function HomeDashboardScreen() {
               <View style={styles.taskInfo}>
                 <Text style={styles.taskTitle}>Chưa có việc nào cần xử lý</Text>
                 <Text style={styles.taskTime}>
-                  Dashboard sẽ tự cập nhật khi có lịch thuốc, khám
-                  hoặc tiêm chủng.
+                  Dashboard sẽ tự cập nhật khi có lịch thuốc, lịch khám hoặc lịch tiêm nếu có.
                 </Text>
               </View>
             </View>
           ) : (
-            tasks.map(task => (
-              <View key={task.id} style={styles.taskCard}>
-                <View style={[styles.taskIconWrap, { backgroundColor: task.iconBg }]}>
-                  <Icon name={task.icon} size={24} color={task.iconColor} />
-                </View>
-                <View style={styles.taskInfo}>
-                  <Text style={styles.taskTitle}>{task.title}</Text>
-                  <Text style={styles.taskTime}>{task.subtitle}</Text>
-                </View>
-                {task.badge ? (
-                  <View style={styles.tagChuaUong}>
-                    <Text style={styles.tagText}>{task.badge}</Text>
+            <>
+              {medicineTasksBySession.map(group => (
+                group.items.length > 0 ? (
+                  <View key={group.sessionKey} style={styles.sessionBlock}>
+                    <View style={styles.sessionHeader}>
+                      <View style={[styles.sessionIconWrap, { backgroundColor: group.meta.bg }]}>
+                        <Icon name={group.meta.icon} size={18} color={group.meta.iconColor} />
+                      </View>
+                      <Text style={styles.sessionTitle}>{group.meta.label}</Text>
+                    </View>
+
+                    <View style={[styles.sessionCard, shadows.sm]}>
+                      {group.items.map((task, index) => (
+                        <TouchableOpacity
+                          key={task.id}
+                          style={[
+                            styles.medicineTaskRow,
+                            index < group.items.length - 1 && styles.medicineTaskDivider,
+                            task.isTaken && styles.medicineTaskDone,
+                          ]}
+                          onPress={() => void handleToggleTaken(task)}
+                          activeOpacity={0.8}
+                        >
+                          <View style={[styles.checkCircle, task.isTaken && styles.checkCircleActive]}>
+                            {task.isTaken ? <Icon name="check" size={14} color="#fff" /> : null}
+                          </View>
+                          <View style={styles.taskInfo}>
+                            <Text style={[styles.taskTitle, task.isTaken && styles.taskTitleDone]}>
+                              {task.title}
+                            </Text>
+                            <Text style={styles.taskTime}>{task.subtitle}</Text>
+                          </View>
+                          <View style={[styles.statusBadge, task.isTaken ? styles.statusBadgeDone : styles.statusBadgePending]}>
+                            <Text style={[styles.statusBadgeText, task.isTaken ? styles.statusBadgeTextDone : styles.statusBadgeTextPending]}>
+                              {task.isTaken ? 'Đã uống' : 'Chưa uống'}
+                            </Text>
+                          </View>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
                   </View>
-                ) : (
-                  <Icon name="chevron_right" size={20} color="#94A3B8" />
-                )}
-              </View>
-            ))
+                ) : null
+              ))}
+
+              {otherTasks.length > 0 ? (
+                <View style={styles.otherTasksBlock}>
+                  {otherTasks.map(task => (
+                    <View key={task.id} style={styles.taskCard}>
+                      <View style={[styles.taskIconWrap, { backgroundColor: task.iconBg }]}>
+                        <Icon name={task.icon} size={24} color={task.iconColor} />
+                      </View>
+                      <View style={styles.taskInfo}>
+                        <Text style={styles.taskTitle}>{task.title}</Text>
+                        <Text style={styles.taskTime}>{task.subtitle}</Text>
+                      </View>
+                      <Icon name="chevron_right" size={20} color="#94A3B8" />
+                    </View>
+                  ))}
+                </View>
+              ) : null}
+            </>
           )}
         </View>
 
@@ -624,6 +842,53 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#fff',
   },
+  sessionBlock: { gap: 10, marginBottom: 16 },
+  sessionHeader: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  sessionIconWrap: {
+    width: 34,
+    height: 34,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sessionTitle: {
+    fontSize: 15,
+    fontFamily: 'Manrope',
+    fontWeight: '800',
+    color: '#1E293B',
+  },
+  sessionCard: {
+    backgroundColor: '#fff',
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#F1F5F9',
+    overflow: 'hidden',
+  },
+  medicineTaskRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+  },
+  medicineTaskDivider: {
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#E2E8F0',
+  },
+  medicineTaskDone: { opacity: 0.72 },
+  checkCircle: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    borderWidth: 2,
+    borderColor: '#CBD5E1',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  checkCircleActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
   taskCard: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -650,24 +915,32 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#1E293B',
   },
+  taskTitleDone: {
+    textDecorationLine: 'line-through',
+    color: '#64748B',
+  },
   taskTime: {
     fontSize: 13,
     fontFamily: 'Inter',
     color: '#64748B',
     marginTop: 2,
+    lineHeight: 19,
   },
-  tagChuaUong: {
-    backgroundColor: '#EEF2FF',
-    paddingHorizontal: 12,
+  statusBadge: {
+    paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 10,
   },
-  tagText: {
+  statusBadgeDone: { backgroundColor: '#DCFCE7' },
+  statusBadgePending: { backgroundColor: '#EEF2FF' },
+  statusBadgeText: {
     fontSize: 10,
     fontFamily: 'Inter',
     fontWeight: '800',
-    color: '#4F46E5',
   },
+  statusBadgeTextDone: { color: '#166534' },
+  statusBadgeTextPending: { color: '#4F46E5' },
+  otherTasksBlock: { marginTop: 4 },
   aiAdvisorCard: {
     borderRadius: 24,
     padding: 20,
